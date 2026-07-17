@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
+import sys
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 PLACEHOLDERS = {
     "My AWS Project": "AWS Codex Project",
@@ -13,6 +18,26 @@ PLACEHOLDERS = {
 
 SKIP_NAMES = {".git", "__pycache__"}
 SKIP_SUFFIXES = {".zip", ".pyc"}
+
+
+@dataclass
+class CopyReport:
+    """Summary of a template copy operation."""
+
+    planned: int = 0
+    written: int = 0
+    unchanged: int = 0
+    collisions: int = 0
+
+
+@dataclass(frozen=True)
+class CopyOperation:
+    """One preflighted directory or file operation."""
+
+    source: Path
+    destination: Path
+    content: bytes | None
+    action: str
 
 
 def is_text_file(path: Path) -> bool:
@@ -29,8 +54,91 @@ def render_text(text: str, values: dict[str, str]) -> str:
     return text
 
 
-def copy_template(source: Path, target: Path, values: dict[str, str], force: bool) -> None:
-    for item in source.rglob("*"):
+def validate_non_overlapping_paths(source: Path, target: Path) -> None:
+    """Reject overlapping source and target trees before creating anything."""
+
+    source = source.resolve()
+    target = target.resolve()
+    if not source.is_dir():
+        raise ValueError(f"Template source is not a directory: {source}")
+    if source == target or source in target.parents or target in source.parents:
+        raise ValueError(
+            "Source and target directories must not overlap: "
+            f"source={source}, target={target}"
+        )
+    if target.exists() and not target.is_dir():
+        raise ValueError(f"Target exists and is not a directory: {target}")
+
+
+def rendered_bytes(path: Path, values: dict[str, str]) -> bytes:
+    if is_text_file(path):
+        content = path.read_text(encoding="utf-8")
+        return render_text(content, values).encode("utf-8")
+    return path.read_bytes()
+
+
+def has_unsafe_parent(target: Path, destination: Path) -> bool:
+    """Return true when an existing parent could redirect or block a write."""
+
+    current = target
+    for part in destination.relative_to(target).parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            return True
+        if current.exists() and not current.is_dir():
+            return True
+    return False
+
+
+def atomic_write_bytes(destination: Path, content: bytes, source: Path) -> None:
+    """Write one generated file atomically in its destination directory."""
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        dir=destination.parent,
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(file_descriptor, "wb") as temporary_file:
+            temporary_file.write(content)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        shutil.copymode(source, temporary_path)
+        os.replace(temporary_path, destination)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def copy_template(
+    source: Path,
+    target: Path,
+    values: dict[str, str],
+    force: bool,
+    *,
+    dry_run: bool = False,
+) -> CopyReport:
+    source = source.resolve()
+    target = target.resolve()
+    validate_non_overlapping_paths(source, target)
+
+    # Snapshot the source before any target write. This is a second line of
+    # defense against a changing traversal and makes the operation predictable.
+    items = sorted(source.rglob("*"), key=lambda path: path.relative_to(source).parts)
+    symlinks = [item for item in items if item.is_symlink()]
+    if symlinks:
+        raise ValueError(
+            "Template source contains unsupported symbolic link: "
+            f"{symlinks[0]}"
+        )
+
+    report = CopyReport()
+    operations: list[CopyOperation] = []
+    unchanged_paths: list[Path] = []
+    collisions: list[Path] = []
+
+    for item in items:
         relative = item.relative_to(source)
 
         if any(part in SKIP_NAMES for part in relative.parts):
@@ -41,25 +149,78 @@ def copy_template(source: Path, target: Path, values: dict[str, str], force: boo
         destination = target / relative
 
         if item.is_dir():
-            destination.mkdir(parents=True, exist_ok=True)
+            if destination.is_symlink() or (
+                destination.exists() and not destination.is_dir()
+            ):
+                collisions.append(destination)
+                report.collisions += 1
+            elif not destination.exists():
+                operations.append(
+                    CopyOperation(item, destination, None, "CREATE DIRECTORY")
+                )
             continue
 
-        destination.parent.mkdir(parents=True, exist_ok=True)
-
-        if destination.exists() and not force:
-            print(f"SKIP  {destination}")
+        if has_unsafe_parent(target, destination):
+            collisions.append(destination)
+            report.collisions += 1
             continue
 
-        if is_text_file(item):
-            content = item.read_text(encoding="utf-8")
-            destination.write_text(render_text(content, values), encoding="utf-8")
-        else:
-            shutil.copy2(item, destination)
+        content = rendered_bytes(item, values)
+        if destination.is_symlink() or (
+            destination.exists() and not destination.is_file()
+        ):
+            collisions.append(destination)
+            report.collisions += 1
+            continue
 
-        print(f"WRITE {destination}")
+        if destination.exists():
+            try:
+                is_unchanged = destination.read_bytes() == content
+            except OSError:
+                is_unchanged = False
+            if is_unchanged:
+                unchanged_paths.append(destination)
+                report.unchanged += 1
+                continue
+            if not force:
+                collisions.append(destination)
+                report.collisions += 1
+                continue
+
+        action = "OVERWRITE" if destination.exists() else "WRITE"
+        operations.append(CopyOperation(item, destination, content, action))
+        report.planned += 1
+
+    for destination in unchanged_paths:
+        print(f"UNCHANGED {destination}")
+    for destination in collisions:
+        print(f"COLLISION {destination}")
+
+    # A collision-free preflight is required before creating or changing the
+    # target. This prevents a failed overlay from leaving a half-updated tree.
+    if report.collisions or dry_run:
+        for operation in operations:
+            if operation.content is not None:
+                print(f"PLAN {operation.action} {operation.destination}")
+        return report
+
+    target.mkdir(parents=True, exist_ok=True)
+    for operation in operations:
+        if operation.content is None:
+            operation.destination.mkdir(parents=True, exist_ok=True)
+            continue
+        atomic_write_bytes(
+            operation.destination,
+            operation.content,
+            operation.source,
+        )
+        print(f"{operation.action} {operation.destination}")
+        report.written += 1
+
+    return report
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Create a lightweight AWS Well-Architected Codex project."
     )
@@ -76,22 +237,53 @@ def main() -> None:
         action="store_true",
         help="Overwrite existing bootstrap files",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview writes and collisions without changing the target",
+    )
+    args = parser.parse_args(argv)
 
     source = Path(__file__).resolve().parent
     target = Path(args.target).expanduser().resolve()
-    target.mkdir(parents=True, exist_ok=True)
 
     values = dict(PLACEHOLDERS)
     values["My AWS Project"] = args.project_name
     values["{{AWS_REGION}}"] = args.region
     values["{{MONTHLY_BUDGET}}"] = args.budget
 
-    copy_template(source, target, values, args.force)
+    try:
+        report = copy_template(
+            source,
+            target,
+            values,
+            args.force,
+            dry_run=args.dry_run,
+        )
+    except (OSError, ValueError) as exc:
+        print(f"Bootstrap failed: {exc}", file=sys.stderr)
+        return 2
 
     print()
-    print("Bootstrap complete.")
+    if args.dry_run:
+        print("Dry run complete. No files were changed.")
+    elif report.collisions:
+        print("Bootstrap stopped with preserved file collisions.")
+    else:
+        print("Bootstrap complete.")
     print(f"Project root: {target}")
+    print(
+        f"Summary: {report.planned} planned, {report.written} written, "
+        f"{report.unchanged} unchanged, {report.collisions} collision(s)"
+    )
+
+    if report.collisions:
+        print("Re-run with --force only after reviewing every collision.")
+        return 1
+
+    if args.dry_run:
+        return 0
+
     print()
     print("Next steps:")
     print("1. Complete PRD.md.")
@@ -99,7 +291,8 @@ def main() -> None:
     print("3. Delete irrelevant VERIFY.md rows.")
     print("4. Create a GitHub Project and vertical-slice issues.")
     print("5. Ask Codex to inspect before changing code or AWS.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

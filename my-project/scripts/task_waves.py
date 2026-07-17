@@ -4,13 +4,23 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
+import stat
 import sys
+import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Iterator
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 TASK_HEADER = re.compile(r"^###\s+(TASK-\d+)\s+[—-]\s+(.+?)\s*$", re.MULTILINE)
 META_LINE = re.compile(
@@ -26,6 +36,14 @@ ALLOWED_STATUSES = {
     "DONE",
     "SKIPPED",
 }
+ALLOWED_TRANSITIONS = {
+    "BACKLOG": {"READY", "BLOCKED", "SKIPPED"},
+    "READY": {"BACKLOG", "IN_PROGRESS", "BLOCKED", "SKIPPED"},
+    "IN_PROGRESS": {"READY", "BLOCKED", "DONE"},
+    "BLOCKED": {"BACKLOG", "READY", "SKIPPED"},
+    "DONE": set(),
+    "SKIPPED": {"BACKLOG", "READY"},
+}
 
 
 @dataclass
@@ -36,10 +54,11 @@ class Task:
     end: int
     block: str
     metadata: dict[str, str]
+    duplicate_metadata: set[str]
 
     @property
     def status(self) -> str:
-        return clean(self.metadata.get("Status", "BACKLOG")).upper()
+        return clean(self.metadata.get("Status", "")).upper()
 
     @property
     def dependencies(self) -> list[str]:
@@ -67,7 +86,13 @@ def parse_tasks(text: str) -> list[Task]:
         start = match.start()
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         block = text[start:end]
-        metadata = {m.group("key"): m.group("value") for m in META_LINE.finditer(block)}
+        metadata: dict[str, str] = {}
+        duplicate_metadata: set[str] = set()
+        for metadata_match in META_LINE.finditer(block):
+            key = metadata_match.group("key")
+            if key in metadata:
+                duplicate_metadata.add(key)
+            metadata[key] = metadata_match.group("value")
         tasks.append(
             Task(
                 task_id=match.group(1),
@@ -76,6 +101,7 @@ def parse_tasks(text: str) -> list[Task]:
                 end=end,
                 block=block,
                 metadata=metadata,
+                duplicate_metadata=duplicate_metadata,
             )
         )
     return tasks
@@ -89,6 +115,12 @@ def validate(tasks: list[Task]) -> dict[str, Task]:
         if task.task_id in by_id:
             errors.append(f"Duplicate task ID: {task.task_id}")
         by_id[task.task_id] = task
+        for key in sorted(task.duplicate_metadata):
+            errors.append(f"{task.task_id}: duplicate {key} metadata")
+        if "Status" not in task.metadata:
+            errors.append(f"{task.task_id}: missing Status metadata")
+        if "Depends on" not in task.metadata:
+            errors.append(f"{task.task_id}: missing Depends on metadata")
         if task.status not in ALLOWED_STATUSES:
             errors.append(
                 f"{task.task_id}: invalid status {task.status!r}; "
@@ -133,7 +165,7 @@ def compute_waves(tasks: list[Task], by_id: dict[str, Task]) -> dict[str, int]:
 def ready_tasks(tasks: list[Task], by_id: dict[str, Task]) -> list[Task]:
     ready: list[Task] = []
     for task in tasks:
-        if task.status in {"DONE", "SKIPPED", "IN_PROGRESS", "BLOCKED"}:
+        if task.status != "READY":
             continue
         if all(by_id[dep].status in {"DONE", "SKIPPED"} for dep in task.dependencies):
             ready.append(task)
@@ -145,7 +177,7 @@ def replace_metadata(text: str, task: Task, key: str, value: str) -> str:
     pattern = re.compile(rf"^- {re.escape(key)}:\s*.+?$", re.MULTILINE)
     replacement = f"- {key}: `{value}`"
     if pattern.search(block):
-        new_block = pattern.sub(replacement, block, count=1)
+        new_block = pattern.sub(lambda _match: replacement, block, count=1)
     else:
         header_end = block.find("\n")
         if header_end == -1:
@@ -154,13 +186,109 @@ def replace_metadata(text: str, task: Task, key: str, value: str) -> str:
     return text[:task.start] + new_block + text[task.end:]
 
 
+def validate_status_transition(
+    task: Task,
+    new_status: str,
+    by_id: dict[str, Task],
+) -> None:
+    if new_status == task.status:
+        return
+    if new_status not in ALLOWED_TRANSITIONS[task.status]:
+        raise ValueError(
+            f"{task.task_id}: illegal status transition "
+            f"{task.status} -> {new_status}"
+        )
+    if new_status in {"READY", "IN_PROGRESS", "DONE"}:
+        incomplete = [
+            dependency
+            for dependency in task.dependencies
+            if by_id[dependency].status not in {"DONE", "SKIPPED"}
+        ]
+        if incomplete:
+            raise ValueError(
+                f"{task.task_id}: cannot become {new_status}; incomplete "
+                f"dependencies: {', '.join(incomplete)}"
+            )
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    """Replace a task file atomically while preserving its permission bits."""
+
+    original_mode = stat.S_IMODE(path.stat().st_mode)
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        text=True,
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8", newline="") as file:
+            file.write(text)
+            file.flush()
+            os.fsync(file.fileno())
+        os.chmod(temporary_path, original_mode)
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+@contextmanager
+def task_file_lock(path: Path) -> Iterator[None]:
+    """Prevent concurrent task updates from silently losing one another."""
+
+    lock_key = hashlib.sha256(str(path.resolve()).encode("utf-8")).hexdigest()
+    lock_path = Path(tempfile.gettempdir()) / f"task-waves-{lock_key}.lock"
+    with lock_path.open("a+b") as lock_file:
+        lock_file.seek(0, os.SEEK_END)
+        if lock_file.tell() == 0:
+            lock_file.write(b"\0")
+            lock_file.flush()
+        lock_file.seek(0)
+
+        try:
+            if os.name == "nt":
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise ValueError(
+                f"Task file is already being updated: {path}"
+            ) from exc
+
+        try:
+            yield
+        finally:
+            lock_file.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def update_task_file(
     path: Path,
     task_id: str,
     *,
     status: str | None = None,
     issue: str | None = None,
-) -> None:
+) -> bool:
+    with task_file_lock(path):
+        return update_task_file_unlocked(
+            path,
+            task_id,
+            status=status,
+            issue=issue,
+        )
+
+
+def update_task_file_unlocked(
+    path: Path,
+    task_id: str,
+    *,
+    status: str | None = None,
+    issue: str | None = None,
+) -> bool:
     text = path.read_text(encoding="utf-8")
     tasks = parse_tasks(text)
     by_id = validate(tasks)
@@ -168,24 +296,42 @@ def update_task_file(
         raise ValueError(f"Unknown task ID: {task_id}")
 
     task = by_id[task_id]
+    changed = False
     if status is not None:
         status = status.upper()
         if status not in ALLOWED_STATUSES:
             raise ValueError(
                 f"Invalid status {status!r}; allowed={sorted(ALLOWED_STATUSES)}"
             )
-        text = replace_metadata(text, task, "Status", status)
-        tasks = parse_tasks(text)
-        task = validate(tasks)[task_id]
+        validate_status_transition(task, status, by_id)
+        if status != task.status:
+            text = replace_metadata(text, task, "Status", status)
+            tasks = parse_tasks(text)
+            by_id = validate(tasks)
+            task = by_id[task_id]
+            changed = True
 
     if issue is not None:
-        text = replace_metadata(text, task, "GitHub issue", issue)
-        tasks = parse_tasks(text)
-        task = validate(tasks)[task_id]
+        issue = issue.strip()
+        if not issue or "\n" in issue or "\r" in issue:
+            raise ValueError("GitHub issue must be a non-empty single-line value")
+        if issue != task.issue:
+            text = replace_metadata(text, task, "GitHub issue", issue)
+            tasks = parse_tasks(text)
+            by_id = validate(tasks)
+            task = by_id[task_id]
+            changed = True
+
+    if not changed:
+        return False
 
     timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     text = replace_metadata(text, task, "Last updated", timestamp)
-    path.write_text(text, encoding="utf-8")
+    final_tasks = parse_tasks(text)
+    final_by_id = validate(final_tasks)
+    compute_waves(final_tasks, final_by_id)
+    atomic_write_text(path, text)
+    return True
 
 
 def task_to_dict(task: Task, wave: int) -> dict[str, object]:
