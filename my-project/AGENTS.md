@@ -27,9 +27,33 @@ Determine the work type before planning implementation:
 - **Defect or regression:** use `BUGFIX.md`, while referencing unchanged requirements in `PRD.md`.
 - **Mixed work:** separate the defect correction from new behavior unless one cannot be completed safely without the other.
 
-## Requirements-analysis gate
+## Operating mode and delivery profile
 
-Before writing or approving technical design, analyze the full requirement set together.
+Record these independent choices in `PRD.md` before requirements approval:
+
+- Project mode: `greenfield` or `brownfield`.
+- Delivery profile: `quick-mvp`, `standard`, or `high-risk`.
+- AWS lane: `documentation-only`, `read-only`, `fast-dev`, or `explicit-gate`.
+
+Default a new small project to `quick-mvp` and `explicit-gate`. Brownfield is a
+project mode, not a risk profile. A quick MVP is a smaller approved scope; it is
+not weaker engineering or weaker security.
+
+Treat the effective profile as `high-risk` when work involves production,
+regulated or highly sensitive data, payments, tenant isolation, consequential
+identity or trust changes, irreversible migration or deletion, public exposure,
+shared infrastructure, multi-account or multi-Region coordination, strict
+recovery targets, or material unbounded spend. Record the trigger. A faster
+selected profile never overrides an objective risk trigger.
+
+## Two-gate lifecycle
+
+This bootstrap has exactly two routine human decision points.
+
+### Gate A — Requirements approval
+
+Before technical design, Codex interviews the owner, drafts Part I of `PRD.md`,
+and analyzes the complete requirement set together.
 
 Check for:
 
@@ -43,36 +67,81 @@ Check for:
 
 Record findings in the `PRD.md` requirements-analysis section.
 
-Design readiness must be one of:
+The agent recommendation must be one of:
 
 - `BLOCKED`
-- `READY_WITH_ACCEPTED_ASSUMPTIONS`
-- `READY_FOR_DESIGN`
+- `READY_WITH_PROPOSED_ASSUMPTIONS`
+- `READY_FOR_OWNER_APPROVAL`
+
+Only the owner can accept named assumptions and approve the current
+requirements revision. Codex must not infer approval from silence, continued
+conversation, a task status, or tool access. Design may start only when Gate A
+is `APPROVED_FOR_DESIGN`, the approved revision matches the current revision,
+and no blocking finding remains open.
+
+### Gate B — PRD and construction authorization
+
+After technical design, Codex proposes one bounded construction envelope in
+`PRD.md`. It names the approved outcome and scope, exact write boundaries,
+prohibited work, task and concurrency limits, investigation or attempt budget,
+checkpoint policy, GitHub permission, and AWS lane and boundaries.
+
+Only the owner can approve the current design revision and proposed envelope.
+Task generation and implementation may start only when Gate B is
+`APPROVED_FOR_CONSTRUCTION` and its approved requirements and design revisions
+match the current revisions.
+
+Once Gate B is current, Codex should generate tasks and continue through safe
+implementation waves without routine task-by-task approval. It pauses only for
+a declared stop condition, stale approval, exhausted boundary, unavailable
+authority, or an action that the approved envelope does not cover.
+
+Business approval does not widen the Codex sandbox or bypass platform approval
+controls. Conversely, filesystem, network, GitHub, or AWS capability never
+grants business authorization.
+
+### Approval invalidation
+
+- Any change to requirements-revision-controlled content makes Gate A and Gate
+  B `STALE`. This includes workflow/profile/risk/AWS-lane fields, workload and
+  intake facts, the brownfield preservation contract, Part I, findings,
+  proposed assumptions, and open decisions, as defined precisely in `PRD.md`.
+- Any change to the approved technical design or construction envelope makes
+  Gate B `STALE`.
+- A material implementation discovery that changes requirements, architecture,
+  scope, risk, budget, or authorization boundaries must stop affected work and
+  route back to the applicable gate.
+- Revision IDs are monotonic. Never reuse an approved revision ID for changed
+  content.
 
 Do not silently design around an unresolved contradiction.
 
 ## Required Codex workflow
 
 1. Read this file and every applicable nested `AGENTS.md`.
-2. Determine feature-spec or bugfix-spec mode.
-3. Read the relevant `PRD.md` or `BUGFIX.md` sections.
-4. Inspect existing code, tests, IaC, configuration, and Git history.
-5. Analyze requirements before completing or changing design.
-6. Complete the relevant architecture, data-flow, error-handling, and testing sections in `PRD.md`.
-7. Generate or update discrete tasks in `TASKS.md`.
-8. Validate dependencies and sort tasks into waves with `scripts/task_waves.py`.
-9. Execute one task or one safe wave.
-10. Mark a task `IN_PROGRESS` before implementation.
-11. Update its execution log with meaningful progress, blockers, and validation.
-12. Mark it `DONE` only when acceptance criteria and required local evidence pass.
-13. Record produced evidence in `VERIFY.md`.
-14. Update `RUNBOOK.md` only when repeatable operating procedures change.
-15. Synchronize non-trivial tasks to GitHub Issues by the end of the workday.
+2. Run or resume `BOOT-00` and determine greenfield or brownfield mode.
+3. Determine feature-spec, bugfix-spec, or mixed mode.
+4. Use `INTAKE-10` and `REQ-10` to draft and analyze requirements.
+5. Stop for explicit owner approval at Gate A.
+6. Use `DESIGN-10` to complete architecture, data flow, error handling, and testing design.
+7. Stop for explicit owner approval at Gate B.
+8. Generate discrete tasks with `TASK-10` inside the approved envelope.
+9. Validate dependencies and waves with `scripts/task_waves.py`.
+10. Execute one task with `BUILD-10` or long-run safe waves with `BUILD-20`.
+11. Mark a task `IN_PROGRESS` before implementation and `DONE` only after its acceptance criteria and required local evidence pass.
+12. Record meaningful progress, blockers, deviations, and validation in the task log.
+13. Record produced evidence in `VERIFY.md` and update `RUNBOOK.md` only when repeatable procedures change.
+14. Synchronize GitHub only when the current Gate B envelope permits it; otherwise preserve `PENDING_SYNC`.
+15. Use read-only AWS preflight before any deployment and require a fully matching AWS authorization envelope for mutation.
 16. Create an ADR only for a consequential, difficult-to-reverse decision.
 
 ## Task checklist and execution contract
 
 `TASKS.md` is the live execution checklist.
+
+Do not generate or execute tasks unless the current Gate B is
+`APPROVED_FOR_CONSTRUCTION`. Every task must trace to the approved requirements
+and design revisions and remain inside the approved construction envelope.
 
 Every task must have:
 
@@ -116,22 +185,46 @@ Serialize tasks that:
 
 AWS mutations require explicit authorization regardless of wave eligibility.
 
+## Brownfield preservation contract
+
+Before changing an existing repository, record in `PRD.md`:
+
+- the baseline commit or working-tree state and pre-existing test results;
+- current architecture, infrastructure ownership, and known failures;
+- dirty or user-owned changes that must be preserved;
+- in-scope components and exact write boundaries;
+- protected behavior, files, resources, interfaces, and compatibility limits;
+- migration, import, shared-resource, and rollback constraints;
+- unresolved bootstrap overlay collisions.
+
+Bootstrap overlay is preview-only until every collision is understood. Do not
+overwrite existing planning files, code, infrastructure, configuration, or user
+changes to make the template fit. Brownfield mode does not add a routine third
+gate; stop only when preservation, ownership, migration, destructive-change,
+or scope boundaries require a decision.
+
 ## GitHub synchronization contract
 
 `.github/ISSUE_TEMPLATE/` contains issue forms, not task records.
 
 Actual task tracking lives in GitHub Issues.
 
-For each non-trivial task:
+When the current Gate B construction envelope authorizes GitHub mutation, for
+each non-trivial task:
 
 - include the stable task ID in the issue;
 - attach the issue as a native sub-issue of the release parent where supported;
 - preserve dependencies and wave information;
 - link the implementation pull request;
-- mirror status and blockers by the end of the workday;
+- mirror status and blockers at the next authorized checkpoint;
 - summarize validation and evidence without copying entire logs.
 
 `TASKS.md` remains the live execution source during a session. GitHub is the durable mirror for project visibility and collaboration.
+
+When GitHub mutation is not authorized, leave links as `PENDING_SYNC` and
+report the pending synchronization without creating or changing Issues,
+branches, pull requests, labels, Projects, or comments.
+Credentials and connector availability are not authorization.
 
 If the two drift, reconcile using the stable task ID and report the conflict.
 
@@ -188,7 +281,8 @@ or AWS authorization requirements.
 
 ## AWS evidence and research
 
-- Use configured AWS MCP tools and current AWS primary documentation for AWS decisions.
+- Use the installed `aws-core` plugin from Agent Toolkit for AWS and current AWS primary documentation for AWS decisions.
+- Retrieve applicable `aws-core` skills and verify service behavior and regional availability when they affect the design.
 - Do not rely on memory for IAM, quotas, networking, service behavior, encryption, recovery, cost, or deployment guidance.
 - Distinguish recommendations from verified repository facts.
 - Distinguish local evidence from deployed AWS evidence.
@@ -208,6 +302,17 @@ Before any AWS-changing command, verify:
 - explicit authorization.
 
 Run read-only discovery first.
+
+A current Gate B `fast-dev` envelope is prospective AWS authorization only when
+it names the exact development account or alias, profile or role, Region,
+environment, stack, allowed operations and resources, cost ceiling, rollback,
+and prohibited actions. Immediately before mutation, re-identify the caller and
+prove the final IaC diff is fully contained in that envelope. Any mismatch,
+production target, destructive or replacement action, IAM broadening, public
+sensitive-data exposure, shared or unowned resource, or scope or cost drift
+routes to `explicit-gate` and stops.
+
+Teardown always requires its own exact deletion and retention authorization.
 
 Never:
 
@@ -259,5 +364,5 @@ Work is complete only when:
 - affected IaC validates;
 - `VERIFY.md` reflects actual evidence;
 - operational changes are reflected in `RUNBOOK.md`;
-- task and GitHub status are synchronized;
+- task and GitHub status are synchronized when authorized, or clearly `PENDING_SYNC`;
 - remaining AWS-only checks are clearly pending rather than passed.
