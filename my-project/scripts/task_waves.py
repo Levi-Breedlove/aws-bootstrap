@@ -4,16 +4,23 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import stat
 import sys
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Iterator
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 TASK_HEADER = re.compile(r"^###\s+(TASK-\d+)\s+[—-]\s+(.+?)\s*$", re.MULTILINE)
 META_LINE = re.compile(
@@ -47,6 +54,7 @@ class Task:
     end: int
     block: str
     metadata: dict[str, str]
+    duplicate_metadata: set[str]
 
     @property
     def status(self) -> str:
@@ -78,7 +86,13 @@ def parse_tasks(text: str) -> list[Task]:
         start = match.start()
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         block = text[start:end]
-        metadata = {m.group("key"): m.group("value") for m in META_LINE.finditer(block)}
+        metadata: dict[str, str] = {}
+        duplicate_metadata: set[str] = set()
+        for metadata_match in META_LINE.finditer(block):
+            key = metadata_match.group("key")
+            if key in metadata:
+                duplicate_metadata.add(key)
+            metadata[key] = metadata_match.group("value")
         tasks.append(
             Task(
                 task_id=match.group(1),
@@ -87,6 +101,7 @@ def parse_tasks(text: str) -> list[Task]:
                 end=end,
                 block=block,
                 metadata=metadata,
+                duplicate_metadata=duplicate_metadata,
             )
         )
     return tasks
@@ -100,6 +115,8 @@ def validate(tasks: list[Task]) -> dict[str, Task]:
         if task.task_id in by_id:
             errors.append(f"Duplicate task ID: {task.task_id}")
         by_id[task.task_id] = task
+        for key in sorted(task.duplicate_metadata):
+            errors.append(f"{task.task_id}: duplicate {key} metadata")
         if "Status" not in task.metadata:
             errors.append(f"{task.task_id}: missing Status metadata")
         if "Depends on" not in task.metadata:
@@ -216,7 +233,56 @@ def atomic_write_text(path: Path, text: str) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
+@contextmanager
+def task_file_lock(path: Path) -> Iterator[None]:
+    """Prevent concurrent task updates from silently losing one another."""
+
+    lock_key = hashlib.sha256(str(path.resolve()).encode("utf-8")).hexdigest()
+    lock_path = Path(tempfile.gettempdir()) / f"task-waves-{lock_key}.lock"
+    with lock_path.open("a+b") as lock_file:
+        lock_file.seek(0, os.SEEK_END)
+        if lock_file.tell() == 0:
+            lock_file.write(b"\0")
+            lock_file.flush()
+        lock_file.seek(0)
+
+        try:
+            if os.name == "nt":
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise ValueError(
+                f"Task file is already being updated: {path}"
+            ) from exc
+
+        try:
+            yield
+        finally:
+            lock_file.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def update_task_file(
+    path: Path,
+    task_id: str,
+    *,
+    status: str | None = None,
+    issue: str | None = None,
+) -> bool:
+    with task_file_lock(path):
+        return update_task_file_unlocked(
+            path,
+            task_id,
+            status=status,
+            issue=issue,
+        )
+
+
+def update_task_file_unlocked(
     path: Path,
     task_id: str,
     *,
