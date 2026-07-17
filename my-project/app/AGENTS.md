@@ -2,7 +2,14 @@
 
 These instructions apply under `app/` and inherit the root `AGENTS.md`.
 
-## Rules
+## Plain-language summary
+
+Build only the approved application behavior. Keep access checks on the server,
+validate outside input, keep secrets out of code and logs, preserve approved
+interfaces, and prove the result with observable tests. The exact task boundary
+and completion evidence remain in `../TASKS.md` and `../VERIFY.md`.
+
+## Agent reference — exact application rules
 
 - Follow the existing framework and module boundaries before adding abstractions.
 - Keep business logic separate from transport, persistence, and provider integration.

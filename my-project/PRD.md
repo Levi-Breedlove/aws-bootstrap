@@ -1,5 +1,19 @@
 # My AWS Project — Product Requirements and Technical Design
 
+## How to use this document
+
+The owner does not need to complete this template alone. Codex asks short,
+plain-language questions, writes the answers into Part I, and presents one
+compact Gate A decision card. After Gate A, Codex completes the technical
+sections and presents one Gate B decision card. Those are the only routine
+human gates.
+
+Read the owner-facing summaries and decision cards first. The detailed IDs,
+tables, hashes, and receipt rules are the exact agent reference that makes the
+approved work resumable and auditable.
+
+## Agent reference — exact requirements and design record
+
 ## Document status
 
 | Field | Value |
@@ -21,12 +35,17 @@
 | Last reviewed | TODO |
 | Primary owner | TODO |
 
-The delivery profile controls ceremony, not safety. `quick-mvp` keeps the same
-objective acceptance criteria, authorization rules, and release evidence while
-favoring the smallest viable scope. Set effective risk from the actual data,
-identity, external exposure, blast radius, reversibility, and regulatory impact.
-If effective risk is `high` or `critical`, use the `high-risk` profile. The AWS
-lane records intent only; it never grants AWS mutation authority.
+A Quick MVP is one small, reversible development release. Use `high-risk` when
+work involves production, sensitive or regulated data, payments, customer
+isolation, shared infrastructure, irreversible data changes, or a potentially
+large outage or cost increase. Also use it for consequential identity changes,
+public exposure, multi-account or multi-Region coordination, or strict recovery
+targets.
+
+The profile changes scope and review depth; it never reduces required testing
+or approval. An AWS lane describes planned access; it does not authorize a
+change. AWS changes require an approved record naming the account, Region,
+environment, resources, operations, cost limit, rollback plan, and expiration.
 
 Use this canonical mapping. Project lane, one prompt's access mode, and the
 Gate B boundary are separate fields; do not invent synonyms.
@@ -49,11 +68,11 @@ number of lifecycle gates.
 |---|---|
 | `quick-mvp` | One thin, observable outcome; one development environment and Region where feasible; minimal independently verifiable tasks; one worker by default; explicit rollback or teardown. |
 | `standard` | Intended-environment operations, integration and migration coverage, and bounded parallelism only where isolation is proven. |
-| `high-risk` | Deeper threat, data, tenancy, migration, recovery, rollback, audit, and failure analysis; smaller mutation batches; stronger evidence. |
+| `high-risk` | Deeper review of identity, data access, customer separation, migration, recovery, rollback, shared-resource impact, audit needs, and failure handling; smaller mutation batches; stronger evidence. |
 
-An objective high/critical risk trigger requires `high-risk`. No overlay weakens
-identity, IAM, data, testing, evidence, cost, or mutation controls, and none adds
-a routine owner gate beyond Gate A and Gate B.
+If the recorded risk is `high` or `critical`, select `high-risk`. Every profile
+keeps the same identity, IAM, data, testing, evidence, cost, and change-approval
+requirements, and none adds a routine owner gate beyond Gate A and Gate B.
 
 ## 1. Workload profile
 
@@ -233,15 +252,18 @@ Describe the flow in numbered steps.
 
 | ID | Requirement | Acceptance criteria |
 |---|---|---|
-| SEC-001 | Protected operations require authentication. | Positive and negative authentication tests pass. |
-| SEC-002 | Authorization is enforced server-side. | Cross-user and privilege-escalation properties hold. |
-| SEC-003 | Secrets stay outside source control and telemetry. | Secret scans and log properties pass. |
-| SEC-004 | Untrusted input is schema-validated and bounded. | Generated malformed and boundary inputs fail safely. |
-| SEC-005 | IAM and trust policies follow least privilege. | Policy review and deployed access checks pass. |
-| SEC-006 | Sensitive data uses approved encryption controls. | IaC and deployed configuration evidence pass. |
-| SEC-007 | Security-sensitive actions are attributable. | Audit events identify actor, action, target, and time without secrets. |
+| SEC-001 | Only signed-in identities may perform protected operations. | An approved signed-in request succeeds and a signed-out request is denied. |
+| SEC-002 | Each identity may access only its approved data and actions, with checks enforced on the server. | Tests prove approved access succeeds and unapproved access is denied. |
+| SEC-003 | Secrets stay outside source control, generated artifacts, and telemetry. | Secret scans pass and reviewed logs contain no secret values. |
+| SEC-004 | External input must match the documented shape and size limits. | Invalid, malformed, and oversized inputs are rejected without creating an unintended change. |
+| SEC-005 | IAM and trust policies grant only the required actions on the required resources. | Policy review and deployed access checks confirm the approved actions succeed and other actions are denied. |
+| SEC-006 | Sensitive data uses the approved encryption controls in transit and at rest. | Infrastructure definitions and deployed configuration evidence match the approved controls. |
+| SEC-007 | Important access and change events identify the actor, action, target, and time without recording secrets. | Audit-event tests and log review confirm all five conditions. |
 
-Remove irrelevant rows and add workload-specific threat requirements.
+Remove rows that genuinely do not apply and add any workload-specific
+safeguards needed for the approved users, data, and integrations. Record an
+actual discovered defect in `BUGFIX.md` or an authorized issue rather than in
+generic template prose.
 
 ## 10. Reliability requirements
 

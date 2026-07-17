@@ -1,11 +1,27 @@
 # My AWS Project — Fastlane Start Guide
 
-This repository uses AWS Codex Fastlane `2.0.0`: a two-gate path from a rough
+This repository uses AWS Codex Fastlane `1.0.0`: a two-gate path from a rough
 idea to safe, bounded autonomous construction.
 
 The bootstrap does not deploy AWS resources. It first helps you define what to
 build, records two explicit owner decisions, and then lets Codex implement only
 inside the approved construction envelope.
+
+## Choose the smallest responsible path
+
+A Quick MVP is one small, reversible development release.
+
+- Use `quick-mvp` for that narrow development outcome.
+- Use `standard` when the release needs broader integration and operating
+  coverage.
+- Use `high-risk` for production, sensitive or regulated data, payments,
+  customer isolation, shared infrastructure, irreversible data changes, or a
+  potentially large outage or cost increase.
+
+The profile changes scope and review depth; it never reduces required testing
+or approval. An AWS lane describes planned access; it does not authorize a
+change. AWS changes require an approved record naming the account, Region,
+environment, resources, operations, cost limit, rollback plan, and expiration.
 
 ## Before you start
 
@@ -97,6 +113,8 @@ multiple safe waves over a long session, using claims, attempt budgets, Git
 checkpoints, verification evidence, and explicit pause/resume state. It stops
 when approval becomes stale, a boundary is exhausted, state is unsafe, or a
 needed action was not authorized.
+
+## Agent reference — exact bootstrap operation
 
 ## Check the project at any time
 

@@ -29,7 +29,7 @@ class PackageReleaseTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        self.assertEqual(version, "2.0.0")
+        self.assertEqual(version, "1.0.0")
         self.assertEqual(manifest["bootstrap_version"], version)
         self.assertIn("README.md", manifest["required_files"])
 
@@ -112,11 +112,11 @@ class PackageReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "my-project").mkdir()
-            (root / "VERSION").write_text("2.0.0\n", encoding="utf-8")
+            (root / "VERSION").write_text("1.0.0\n", encoding="utf-8")
             (root / "my-project" / "bootstrap.manifest.json").write_text(
                 json.dumps(
                     {
-                        "bootstrap_version": "2.0.0",
+                        "bootstrap_version": "1.0.0",
                         "required_files": ["../outside"],
                     }
                 ),
@@ -131,14 +131,17 @@ class PackageReleaseTests(unittest.TestCase):
             root = Path(temporary)
             template = root / "my-project"
             template.mkdir()
-            (root / "VERSION").write_text("2.0.0\n", encoding="utf-8")
+            (root / "VERSION").write_text("1.0.0\n", encoding="utf-8")
             outside = root / "outside"
             outside.write_text("not release content", encoding="utf-8")
-            (template / "README.md").symlink_to(outside)
+            try:
+                (template / "README.md").symlink_to(outside)
+            except OSError as exc:
+                self.skipTest(f"Symbolic links are unavailable: {exc}")
             (template / "bootstrap.manifest.json").write_text(
                 json.dumps(
                     {
-                        "bootstrap_version": "2.0.0",
+                        "bootstrap_version": "1.0.0",
                         "required_files": ["README.md"],
                     }
                 ),
@@ -152,11 +155,11 @@ class PackageReleaseTests(unittest.TestCase):
             root = Path(temporary)
             template = root / "my-project"
             template.mkdir()
-            (root / "VERSION").write_text("2.0.1\n", encoding="utf-8")
+            (root / "VERSION").write_text("1.0.1\n", encoding="utf-8")
             (template / "bootstrap.manifest.json").write_text(
                 json.dumps(
                     {
-                        "bootstrap_version": "2.0.0",
+                        "bootstrap_version": "1.0.0",
                         "required_files": ["bootstrap.manifest.json"],
                     }
                 ),
@@ -164,6 +167,17 @@ class PackageReleaseTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(package_release.PackagingError, "must match"):
                 package_release.load_release_files(root)
+
+    def test_current_release_text_has_no_previous_major_reference(self) -> None:
+        forbidden = "2" + ".0.0"
+        text_suffixes = {".md", ".json", ".yaml", ".yml", ".py", ".txt"}
+        for path in REPOSITORY_ROOT.rglob("*"):
+            if not path.is_file() or ".git" in path.parts:
+                continue
+            if path.name != "VERSION" and path.suffix not in text_suffixes:
+                continue
+            content = path.read_text(encoding="utf-8")
+            self.assertNotIn(forbidden, content, str(path.relative_to(REPOSITORY_ROOT)))
 
 
 if __name__ == "__main__":

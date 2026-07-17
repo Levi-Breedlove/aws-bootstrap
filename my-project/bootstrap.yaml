@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "bootstrap_version": "2.0.0",
+  "bootstrap_version": "1.0.0",
   "project": {
     "mode": null,
     "delivery_profile": null,

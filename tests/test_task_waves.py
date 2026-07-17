@@ -355,6 +355,65 @@ class TaskWaveSafetyTests(unittest.TestCase):
 
         self.assertEqual([task.task_id for task in selected], ["TASK-002"])
 
+    def test_human_first_collapsed_metadata_remains_parser_compatible(self) -> None:
+        block = """### TASK-9001 - Human-first task
+
+- Status: `READY`
+- Owner: `UNASSIGNED`
+- Blocker: `NONE`
+- GitHub issue: `PENDING_SYNC`
+
+#### Outcome
+
+The approved behavior is observable.
+
+#### Acceptance criteria
+
+- [ ] The observable result matches FR-001.
+
+#### Validation
+
+```bash
+python -m unittest
+```
+
+#### Execution log
+
+Not started.
+
+#### Agent execution details
+
+<details>
+<summary>Exact metadata used by Codex and task_waves.py</summary>
+
+- Requirements: `REQ-0001, FR-001`
+- Design: `DES-0001, Section 10`
+- Authorization: `AUTH-0001`
+- Depends on: `NONE`
+- Dependency waivers: `NONE`
+- Run ID: `NONE`
+- Risk: `LOW`
+- Write set: `app/task-9001.py`
+- External state: `NONE`
+- AWS mode: `NONE`
+- Attempt budget: `2`
+- Attempts used: `0`
+- Evidence: `NONE`
+- Skip record: `NONE`
+- Last checkpoint: `NONE`
+- Last updated: `2026-07-17T00:00:00+00:00`
+
+</details>
+
+"""
+        tasks, _snap, waivers, by_id = parse_document(document([block]))
+
+        self.assertEqual(set(tasks[0].metadata), set(task_waves.REQUIRED_METADATA))
+        self.assertEqual(
+            [task.task_id for task in task_waves.ready_tasks(tasks, by_id, waivers)],
+            ["TASK-9001"],
+        )
+
     def test_missing_status_metadata_is_invalid(self) -> None:
         text = task_block("TASK-001", "READY").replace("- Status: `READY`\n", "")
         tasks = task_waves.parse_tasks(text)
@@ -885,7 +944,10 @@ class TaskWaveSafetyTests(unittest.TestCase):
                 isolated_worktrees=True,
             )
             self.assertEqual(
-                [task.status for task in task_waves.parse_tasks(path.read_text())],
+                [
+                    task.status
+                    for task in task_waves.parse_tasks(path.read_text(encoding="utf-8"))
+                ],
                 ["IN_PROGRESS", "IN_PROGRESS"],
             )
 
@@ -1020,7 +1082,12 @@ class TaskWaveSafetyTests(unittest.TestCase):
                 run_id="RUN-0001",
                 checkpoint="CP-0001",
             )
-            self.assertEqual(task_waves.parse_snapshot(path.read_text()).get("Current wave"), "2")
+            self.assertEqual(
+                task_waves.parse_snapshot(path.read_text(encoding="utf-8")).get(
+                    "Current wave"
+                ),
+                "2",
+            )
             task_waves.claim_task_file(
                 path,
                 "TASK-002",
@@ -1029,7 +1096,10 @@ class TaskWaveSafetyTests(unittest.TestCase):
                 run_id="RUN-0001",
                 checkpoint="CP-0001",
             )
-            self.assertEqual(task_waves.parse_tasks(path.read_text())[1].status, "IN_PROGRESS")
+            self.assertEqual(
+                task_waves.parse_tasks(path.read_text(encoding="utf-8"))[1].status,
+                "IN_PROGRESS",
+            )
 
     def test_single_task_mode_survives_pause_resume_and_complete(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

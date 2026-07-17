@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "bootstrap_version": "2.0.0",
+  "bootstrap_version": "1.0.0",
   "python_requires": ">=3.11",
   "control_sha256": {
     "bootstrap.py": "05279f6b48283679a0b226c07a7a2577c435c21a54fc29c224e2996990f442b4",

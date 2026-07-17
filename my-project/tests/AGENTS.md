@@ -2,7 +2,13 @@
 
 These instructions apply under `tests/` and inherit the root `AGENTS.md`.
 
-## Rules
+## Plain-language summary
+
+Prove what a user or operator can observe. Show that approved behavior works,
+unapproved behavior is denied, invalid input is handled safely, and failures do
+not create a false success. Never weaken an assertion merely to obtain a pass.
+
+## Agent reference — exact test rules
 
 - Test externally observable behavior rather than private implementation details.
 - Implement approved PRD properties with the language-appropriate property-based testing framework.

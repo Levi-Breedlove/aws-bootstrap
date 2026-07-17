@@ -2,7 +2,9 @@
 
 All notable changes to AWS Codex Fastlane are recorded here.
 
-## [2.0.0] - 2026-07-17
+## [1.0.0] - 2026-07-17
+
+Initial public release.
 
 ### Added
 
