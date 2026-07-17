@@ -20,38 +20,45 @@ It keeps the project rigorous without creating a document factory.
 | Pull requests | Change review and task-specific implementation evidence |
 | Code, tests, schemas, and IaC | Actual system behavior |
 
-## Repository shape
+## Repository contents
+
+The GitHub repository keeps the editable template in `my-project/` and a ready-to-download snapshot in the ZIP archive. The comments in this tree explain both what each tracked path contains and why it exists.
 
 ```text
-.
-├── README.md
-├── AGENTS.md
-├── PRD.md
-├── BUGFIX.md
-├── TASKS.md
-├── VERIFY.md
-├── RUNBOOK.md
-├── bootstrap.py
-├── app/
-│   └── AGENTS.md
-├── infrastructure/
-│   └── AGENTS.md
-├── tests/
-│   └── AGENTS.md
-├── scripts/
-│   └── task_waves.py
-├── prompts/
-│   └── CODEX-PROMPTS.md
-├── docs/
-│   └── adr/
-│       └── 0000-template.md
-└── .github/
-    ├── ISSUE_TEMPLATE/
-    │   ├── aws-vertical-slice.yml
-    │   ├── bugfix.yml
-    │   └── waf-risk.yml
-    └── PULL_REQUEST_TEMPLATE.md
+aws-bootstrap/
+├── README.md                                           # Explains the template, workflow, setup, and operating model.
+├── aws-codex-well-architected-bootstrap.zip            # Downloadable snapshot that expands into a standalone template.
+└── my-project/                                         # Editable source used to maintain the reusable project template.
+    ├── .github/                                        # Standardizes how work enters GitHub and how changes are reviewed.
+    │   ├── ISSUE_TEMPLATE/
+    │   │   ├── aws-vertical-slice.yml              # Mirrors one TASKS.md item with dependencies, scope, and evidence.
+    │   │   ├── bugfix.yml                          # Captures a reproducible defect and its regression boundary.
+    │   │   └── waf-risk.yml                        # Records a Well-Architected risk, impact, and remediation proof.
+    │   └── PULL_REQUEST_TEMPLATE.md                  # Requires linked work, pillar impact, validation, and rollback details.
+    ├── .gitignore                                      # Blocks secrets, local AWS state, build output, and generated artifacts.
+    ├── AGENTS.md                                       # Defines Codex workflow, source authority, safety gates, and completion rules.
+    ├── BUGFIX.md                                       # Specifies one active defect, evidence, expected behavior, and regressions.
+    ├── PRD.md                                          # Holds requirements, analysis gate, architecture, design, and test strategy.
+    ├── RUNBOOK.md                                      # Provides repeatable deploy, monitor, rollback, recovery, and teardown steps.
+    ├── TASKS.md                                        # Tracks task IDs, dependencies, waves, status, acceptance, and execution logs.
+    ├── VERIFY.md                                       # Maps requirements and tasks to local, AWS, and release-gate evidence.
+    ├── bootstrap.py                                    # Copies the template and replaces project name, Region, and budget values.
+    ├── app/
+    │   └── AGENTS.md                                 # Adds application rules for boundaries, input, authorization, and logging.
+    ├── docs/
+    │   └── adr/
+    │       └── 0000-template.md                      # Templates only consequential, difficult-to-reverse decisions.
+    ├── infrastructure/
+    │   └── AGENTS.md                                 # Adds IaC, AWS safety, least-privilege, cost, and recovery rules.
+    ├── prompts/
+    │   └── CODEX-PROMPTS.md                          # Supplies a model guide and ten prompts across the delivery lifecycle.
+    ├── scripts/
+    │   └── task_waves.py                             # Validates task metadata and dependencies, then computes safe waves.
+    └── tests/
+        └── AGENTS.md                                   # Adds behavior, property-based, security, and AWS test rules.
 ```
+
+The ZIP expands to `aws-codex-well-architected-bootstrap/`. Inside it, `README.md` sits beside the contents shown under `my-project/`, so the downloaded template is immediately usable without the repository packaging layer.
 
 Add nested `AGENTS.md` files only where a directory genuinely needs different rules.
 
