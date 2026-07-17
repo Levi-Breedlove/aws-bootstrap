@@ -1,504 +1,134 @@
-# My AWS Project
+# AWS Codex Fastlane Bootstrap
 
-A lightweight, Codex-native AWS project bootstrap aligned to the AWS Well-Architected Framework.
+Turn a rough AWS idea—or an existing repository—into a reviewed product plan,
+then let Codex implement the approved work for long stretches without creating
+a document factory.
 
-It keeps the project rigorous without creating a document factory.
+**Current release:** `2.0.0`
+**Runtime:** Python 3.11+ with no third-party Python dependencies
 
-## Core model
+## What the fast lane does
 
-| Source | Owns |
-|---|---|
-| `PRD.md` | Requirements, user stories, acceptance criteria, architecture, component design, data flow, error handling, and testing strategy |
-| `BUGFIX.md` | Current, expected, and intentionally unchanged behavior for an active defect |
-| `TASKS.md` | Executable task graph, dependencies, waves, and live implementation status |
-| `AGENTS.md` | How Codex must analyze, plan, implement, validate, and synchronize work |
-| `VERIFY.md` | Evidence that requirements and Well-Architected controls are satisfied |
-| `RUNBOOK.md` | Repeatable build, deployment, monitoring, rollback, recovery, and teardown procedures |
-| `docs/adr/` | Only consequential, difficult-to-reverse architectural decisions |
-| GitHub Issues | Durable project-tracking mirror of non-trivial `TASKS.md` items |
-| GitHub Projects | Status, priority, wave, release, risk, and evidence views |
-| Pull requests | Change review and task-specific implementation evidence |
-| Code, tests, schemas, and IaC | Actual system behavior |
+- starts with a short, plain-language intake instead of asking you to write a
+  complete PRD;
+- supports new projects and brownfield repositories;
+- keeps requirements, design, tasks, evidence, and operations in one small set
+  of authoritative files;
+- asks for exactly two routine human decisions;
+- turns the approved PRD into dependency-aware tasks;
+- lets Codex run those tasks autonomously inside a bounded construction
+  envelope;
+- pauses on stale approval, unsafe state, exhausted boundaries, or an external
+  action that was not authorized;
+- separates local evidence from GitHub and deployed AWS evidence.
 
-## Repository contents
+## The two gates
 
-The GitHub repository keeps the editable template in `my-project/` and a ready-to-download snapshot in the ZIP archive. The comments in this tree explain both what each tracked path contains and why it exists.
-
-```text
-aws-bootstrap/
-├── README.md                                           # Explains the template, workflow, setup, and operating model.
-├── aws-codex-well-architected-bootstrap.zip            # Downloadable snapshot that expands into a standalone template.
-└── my-project/                                         # Editable source used to maintain the reusable project template.
-    ├── .github/                                        # Standardizes how work enters GitHub and how changes are reviewed.
-    │   ├── ISSUE_TEMPLATE/
-    │   │   ├── aws-vertical-slice.yml              # Mirrors one TASKS.md item with dependencies, scope, and evidence.
-    │   │   ├── bugfix.yml                          # Captures a reproducible defect and its regression boundary.
-    │   │   └── waf-risk.yml                        # Records a Well-Architected risk, impact, and remediation proof.
-    │   └── PULL_REQUEST_TEMPLATE.md                  # Requires linked work, pillar impact, validation, and rollback details.
-    ├── .gitignore                                      # Blocks secrets, local AWS state, build output, and generated artifacts.
-    ├── AGENTS.md                                       # Defines Codex workflow, source authority, safety gates, and completion rules.
-    ├── BUGFIX.md                                       # Specifies one active defect, evidence, expected behavior, and regressions.
-    ├── PRD.md                                          # Holds requirements, analysis gate, architecture, design, and test strategy.
-    ├── RUNBOOK.md                                      # Provides repeatable deploy, monitor, rollback, recovery, and teardown steps.
-    ├── TASKS.md                                        # Tracks task IDs, dependencies, waves, status, acceptance, and execution logs.
-    ├── VERIFY.md                                       # Maps requirements and tasks to local, AWS, and release-gate evidence.
-    ├── bootstrap.py                                    # Copies the template and replaces project name, Region, and budget values.
-    ├── app/
-    │   └── AGENTS.md                                 # Adds application rules for boundaries, input, authorization, and logging.
-    ├── docs/
-    │   └── adr/
-    │       └── 0000-template.md                      # Templates only consequential, difficult-to-reverse decisions.
-    ├── infrastructure/
-    │   └── AGENTS.md                                 # Adds IaC, AWS safety, least-privilege, cost, and recovery rules.
-    ├── prompts/
-    │   └── CODEX-PROMPTS.md                          # Supplies a model guide and ten prompts across the delivery lifecycle.
-    ├── scripts/
-    │   └── task_waves.py                             # Validates task metadata and dependencies, then computes safe waves.
-    └── tests/
-        └── AGENTS.md                                   # Adds behavior, property-based, security, and AWS test rules.
-```
-
-The ZIP expands to `aws-codex-well-architected-bootstrap/`. Inside it, `README.md` sits beside the contents shown under `my-project/`, so the downloaded template is immediately usable without the repository packaging layer.
-
-Add nested `AGENTS.md` files only where a directory genuinely needs different rules.
-
-## Project flow
-
-```text
-Idea or problem
-  -> PRD requirements
-  -> requirements analysis gate
-  -> PRD technical design
-  -> TASKS checklist sorted into dependency-aware waves
-  -> execute one task or one safe wave
-  -> pull requests and verification evidence
-  -> end-of-day GitHub Issue synchronization
-  -> deployment and operations through RUNBOOK.md
-```
-
-For a defect:
-
-```text
-Bug report
-  -> BUGFIX.md analysis
-  -> regression properties and expected behavior
-  -> TASKS.md
-  -> implementation and verification
-```
-
-## Why design lives in `PRD.md`
-
-For solo builders and small AWS projects, a separate design document often creates another synchronization surface. This template keeps requirements and technical design in one file, but separates them into explicit sections.
-
-Codex must analyze the full requirement set before it may mark the design as ready. The requirements-analysis gate checks for:
-
-- logical inconsistencies;
-- ambiguities;
-- conflicting constraints;
-- unstated assumptions;
-- missing edge cases;
-- concurrency and failure gaps;
-- requirements that cannot be objectively verified.
-
-A separate `DESIGN.md` is appropriate later only if the design has a distinct owner, approval process, audience, or release lifecycle.
-
-## Property-based testing model
-
-The PRD does not contain test code. It defines properties and invariants that implementation tests must prove across generated inputs.
-
-Examples:
-
-- unauthorized actors can never access another tenant's resource;
-- duplicate delivery produces one effective result;
-- any accepted payload round-trips without data loss;
-- retries never exceed the configured bound;
-- invalid state transitions never produce a committed state;
-- no generated secret or sensitive value appears in telemetry.
-
-Example-based tests still cover known scenarios. Property-based tests explore broader input and state spaces.
-
-## `TASKS.md` and GitHub Issues
-
-`TASKS.md` is the **live execution source** during a Codex work session.
-
-Each non-trivial task receives a stable ID such as `TASK-004`. That ID is copied into its GitHub Issue title or body. By the end of the workday, Codex synchronizes:
-
-- title and outcome;
-- acceptance criteria;
-- dependencies;
-- current status;
-- linked pull request;
-- validation and evidence summary;
-- blockers.
-
-GitHub Issues are the durable collaboration and project-tracking mirror. They do not independently redefine the task.
-
-Tiny implementation steps may remain checkboxes inside a task or issue. Do not create issue spam for every command or variable rename.
-
-## Waves and concurrency
-
-`TASKS.md` declares dependencies. `scripts/task_waves.py` validates them and sorts tasks into waves:
-
-- Wave 1: tasks with no dependencies.
-- Wave 2: tasks whose dependencies are all in earlier waves.
-- Wave N: continues until every task is assigned.
-- A cycle or missing dependency fails validation.
-
-Tasks in one wave are *eligible* for concurrency, not automatically safe to run concurrently. Codex must serialize tasks that:
-
-- edit overlapping files;
-- mutate the same AWS resources;
-- share mutable state;
-- depend on one another semantically;
-- require the same irreversible approval gate.
-
-AWS-changing tasks remain approval-gated and should normally run sequentially.
-
-## Task wave commands
-
-Windows Command Prompt (`cmd.exe`):
-
-```cmd
-REM Show the computed wave plan
-py -3 scripts\task_waves.py TASKS.md
-
-REM Show tasks whose dependencies are complete
-py -3 scripts\task_waves.py TASKS.md --ready
-
-REM Show one task
-py -3 scripts\task_waves.py TASKS.md --task TASK-001
-
-REM Mark a task in progress
-py -3 scripts\task_waves.py TASKS.md --set-status TASK-001 IN_PROGRESS
-
-REM Link the corresponding GitHub Issue
-py -3 scripts\task_waves.py TASKS.md --set-issue TASK-001 https://github.com/OWNER/REPO/issues/12
-```
-
-macOS, Linux, or a POSIX shell:
-
-```bash
-# Show the computed wave plan
-python3 scripts/task_waves.py TASKS.md
-
-# Show tasks whose dependencies are complete
-python3 scripts/task_waves.py TASKS.md --ready
-
-# Show one task
-python3 scripts/task_waves.py TASKS.md --task TASK-001
-
-# Mark a task in progress
-python3 scripts/task_waves.py TASKS.md --set-status TASK-001 IN_PROGRESS
-
-# Link the corresponding GitHub Issue
-python3 scripts/task_waves.py TASKS.md --set-issue TASK-001 https://github.com/OWNER/REPO/issues/12
-```
-
-The script validates and updates task metadata. Codex performs the actual implementation.
-
-## Set up in another IDE
-
-This repository is a project template, not a deployable application. Its bootstrap uses only the Python standard library; application, infrastructure, and AWS dependencies are chosen later from the approved `PRD.md` design.
-
-The setup is IDE-independent. Use the official Codex IDE extension when it is available for your editor. Otherwise, run Codex CLI in the editor's integrated terminal. Both approaches use the same repository files and instructions.
-
-The `My AWS Project`, `{{AWS_REGION}}`, and `{{MONTHLY_BUDGET}}` values are template placeholders. Do not replace every occurrence manually. Running `bootstrap.py` writes a generated project in which those placeholders are replaced with the command-line values you provide.
-
-### 1. Install the local prerequisites
-
-Required:
-
-- [Git](https://git-scm.com/downloads);
-- Python 3.9 or newer;
-- Codex through either the [IDE extension](https://learn.chatgpt.com/docs/codex/ide) or [Codex CLI](https://learn.chatgpt.com/docs/codex/cli).
-
-Optional until the project design requires them:
-
-- AWS CLI v2 for authenticated AWS discovery and deployments;
-- GitHub CLI for creating and synchronizing issues and pull requests;
-- an application runtime such as Node.js, Java, .NET, or Docker.
-
-### 2. Identify the active terminal shell and Python command
-
-The IDE does not determine the shell. A Windows IDE can open Git Bash, Command Prompt, or PowerShell, and each shell has different command syntax.
-
-| What the terminal looks like | Active shell | Try this Python command first |
+| Gate | You approve | What Codex can do next |
 |---|---|---|
-| `$`, `MINGW64`, or an error beginning with `bash:` | Bash or Git Bash | `python3` |
-| `C:\path\to\project>` | Windows Command Prompt (`cmd.exe`) | `py -3` |
-| `PS C:\path\to\project>` | Windows PowerShell | `py -3` |
-| macOS or Linux terminal | Bash, Zsh, or another POSIX shell | `python3` |
+| Gate A | A versioned, analyzed requirements set | Complete the technical design |
+| Gate B | The complete PRD and an exact construction envelope | Generate tasks and run the authorized implementation |
 
-If the terminal reports `bash: py: command not found`, you are in Bash—not Command Prompt. Try `python3`; the missing `py` command does not by itself mean Python is missing.
+Gate B is the handoff into autonomous construction. GitHub writes, AWS
+mutations, production changes, destructive actions, and other side effects
+remain limited to the exact authority recorded in that envelope or a later
+action-specific receipt.
 
-Bash or Git Bash:
+## Start a project
 
-```bash
-python3 --version
-git --version
-```
-
-Command Prompt or PowerShell:
+1. Download and verify [`aws-codex-fastlane-bootstrap.zip`](aws-codex-fastlane-bootstrap.zip),
+   or clone this repository and open `my-project/`.
+2. Extract the archive and open the extracted folder—the one containing
+   `AGENTS.md`, `bootstrap.py`, and `prompts/CODEX-PROMPTS.md`—in Codex.
+3. Choose an explicit target path outside the extracted template.
+4. Paste this launch command, using an absolute target path:
 
 ```text
-py -3 --version
-git --version
+START AWS CODEX BOOTSTRAP
+Target path: /absolute/path/to/project
+Local Git setup: INIT_AND_BASELINE_COMMIT
 ```
 
-Python 3.9 or newer is required. If the first Python command fails, try `python --version`. Use whichever command successfully reports Python 3.9+ in every later step; do not mix Bash, CMD, and PowerShell continuation syntax.
+`INIT_AND_BASELINE_COMMIT` creates a local repository and reviewed baseline
+when Git author identity is already configured. Use `USE_EXISTING` for an
+existing local repository or `DO_NOT_INITIALIZE` when you do not authorize a
+Git write yet.
 
-### 3. Extract and open the template
+Codex runs `BOOT-00`, validates the install, explains the current state, and
+returns a prefilled `START GUIDED INTAKE` command. The detailed startup and
+fallback CLI instructions are in [`my-project/README.md`](my-project/README.md).
 
-Extract the ZIP to a normal development directory. In the IDE, open the inner `aws-codex-well-architected-bootstrap` folder—the folder that directly contains `AGENTS.md`, `README.md`, and `bootstrap.py`.
+## Delivery choices
 
-Do not use the extracted template directory as the target. Keep it clean and generate the real project as a sibling directory so the template remains reusable.
+Project mode and delivery profile are independent:
 
-### 4. Generate the project
-
-From the template root in the IDE terminal, first confirm that the script is present. Use `ls bootstrap.py` in Bash or `dir bootstrap.py` in Command Prompt. Then run the example for the shell identified in Step 2. Replace the example name, Region, budget, and target directory with the values for the workload.
-
-Bash or Git Bash when `python3 --version` succeeds:
-
-```bash
-python3 bootstrap.py --target ../my-project --project-name "My AWS Project" --region {{AWS_REGION}} --budget '{{MONTHLY_BUDGET}}'
-```
-
-Windows Command Prompt (`cmd.exe`)—recommended as one line:
-
-```cmd
-py -3 bootstrap.py --target ..\my-project --project-name "My AWS Project" --region {{AWS_REGION}} --budget "{{MONTHLY_BUDGET}}"
-```
-
-Command Prompt does not use Bash backslashes or PowerShell backticks for continuation. If `py` is unavailable but `python --version` works, replace `py -3` with `python`.
-
-Windows PowerShell:
-
-```powershell
-py -3 bootstrap.py --target ..\my-project --project-name "My AWS Project" --region {{AWS_REGION}} --budget '{{MONTHLY_BUDGET}}'
-```
-
-The arguments mean:
-
-| Argument | Purpose |
+| Choice | Use it for |
 |---|---|
-| `--target` | Destination for the generated project. Prefer a new sibling directory. |
-| `--project-name` | Human-readable workload name written into the templates. |
-| `--region` | Primary AWS Region used in planning and preflight checks. It does not deploy anything. |
-| `--budget` | Monthly cost ceiling recorded in the project documents. It does not create an AWS Budget. |
-| `--force` | Overwrites matching bootstrap files in an existing target. Omit it for normal setup. |
+| `greenfield` | A new workload or repository |
+| `brownfield` | An existing codebase or deployed system whose behavior and user changes must be preserved |
+| `quick-mvp` | The smallest useful, observable, reversible outcome; the default when risk allows |
+| `standard` | Broader integration and operational coverage |
+| `high-risk` | Production, sensitive data, payments, tenancy, migrations, or other high-blast-radius work |
 
-The script skips files that already exist unless `--force` is supplied. Treat `--force` carefully because it can replace planning files that already contain project decisions.
+Faster delivery changes scope and ceremony, not identity, security, testing,
+cost, rollback, or evidence standards.
 
-### 5. Open the generated project root
+## Operating model
 
-Close the template workspace and open the generated `my-project` folder as the IDE workspace or project. Codex discovers the root `AGENTS.md` and applies the more specific files under `app/`, `infrastructure/`, and `tests/` when work enters those directories.
+The repository is authoritative. Notion can launch prompts and show status, but
+it is not a second PRD.
 
-Do not open only a nested source folder. Opening the generated project root ensures Codex can see the complete requirements, task, verification, and runbook context.
-
-### 6. Connect Codex
-
-#### Option A: Codex IDE extension
-
-Install the official Codex extension from the IDE's extension marketplace, open its panel, and select **Sign in with ChatGPT**. If the extension is not offered for that IDE, use Option B.
-
-#### Option B: Codex CLI in any IDE terminal
-
-Install the CLI with the official installer.
-
-macOS or Linux:
-
-```bash
-curl -fsSL https://chatgpt.com/codex/install.sh | sh
-codex login
-```
-
-Windows with Git Bash can invoke the official Windows installer through PowerShell:
-
-```bash
-powershell.exe -NoProfile -Command "irm https://chatgpt.com/codex/install.ps1 | iex"
-codex login
-```
-
-Windows PowerShell:
-
-```powershell
-irm https://chatgpt.com/codex/install.ps1 | iex
-codex login
-```
-
-Windows Command Prompt (`cmd.exe`) can invoke the same official installer through PowerShell:
-
-```cmd
-powershell -NoProfile -Command "irm https://chatgpt.com/codex/install.ps1 | iex"
-codex login
-```
-
-Restart the IDE terminal if `codex` is not found immediately. Then, from the generated project root, verify the session and start Codex:
-
-```bash
-codex login status
-codex
-```
-
-The normal login flow opens a browser. For a remote or headless environment, use `codex login --device-auth`. Do not place an API key, access token, or AWS credential in this repository.
-
-### 7. Initialize Git and validate the bootstrap
-
-Bash or Git Bash when `python3` passed Step 2:
-
-```bash
-cd ../my-project
-git init
-git add .
-git commit -m "chore: initialize AWS Codex project"
-python3 scripts/task_waves.py TASKS.md
-python3 scripts/task_waves.py TASKS.md --ready
-```
-
-Windows Command Prompt (`cmd.exe`):
-
-```cmd
-cd /d ..\my-project
-git init
-git add .
-git commit -m "chore: initialize AWS Codex project"
-py -3 scripts\task_waves.py TASKS.md
-py -3 scripts\task_waves.py TASKS.md --ready
-```
-
-Windows PowerShell:
-
-```powershell
-Set-Location ..\my-project
-git init
-git add .
-git commit -m "chore: initialize AWS Codex project"
-py -3 scripts\task_waves.py TASKS.md
-py -3 scripts\task_waves.py TASKS.md --ready
-```
-
-If Step 2 selected `python` instead, replace `python3` or `py -3` with `python` in the validation commands.
-
-Expected initial validation includes `TASK-001` in Wave 1. This confirms the task file parses; it does not mean the placeholder task is approved for implementation.
-
-### 8. Start the requirements gate
-
-Use Prompt 1 in [`prompts/CODEX-PROMPTS.md`](prompts/CODEX-PROMPTS.md), or begin with:
-
-```text
-Read AGENTS.md, PRD.md, TASKS.md, VERIFY.md, and RUNBOOK.md. Do not change code or AWS. Help me complete the workload profile and requirements-analysis gate for this project. Identify conflicts, missing boundaries, security and recovery gaps, and assumptions that would materially change the design.
-```
-
-Do not install an application framework or deploy AWS resources just to complete setup. First make the requirements gate ready, complete the technical design, generate real tasks, and replace the placeholder commands in `RUNBOOK.md`.
-
-### Common setup problems
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `bootstrap.py` is not found | The terminal is not in the extracted template root | Open the folder containing `bootstrap.py`, or change to it in the terminal |
-| `bash: py: command not found` | The terminal is Bash or Git Bash, not Command Prompt | Run `python3 --version`; if it succeeds, use `python3` for all Python commands |
-| `python`, `python3`, or `py` is not found | Python is missing or the IDE has not reloaded `PATH` | Install Python 3.9+ and restart the IDE |
-| `codex` is not found after installation | The current terminal has stale `PATH` state | Open a new terminal or restart the IDE |
-| Codex ignores repository guidance | The IDE opened a nested directory instead of the project root | Reopen the generated folder that contains the root `AGENTS.md` |
-| Existing files show `SKIP` | The target directory already contains those paths | Use a new target, or inspect every conflict before considering `--force` |
-| AWS commands use the wrong account or Region | The shell has the wrong profile or inherited environment variables | Stop; run the read-only identity and Region checks in `RUNBOOK.md` before any mutation |
-
-## First project actions
-
-0. Confirm the currently available Codex models with `/model`; use the prompt pack's model guide as the workflow default.
-
-1. Complete the workload profile and initial feature requirements in `PRD.md`.
-2. Run the requirements-analysis prompt.
-3. Resolve or explicitly accept the findings.
-4. Complete the architecture and implementation sections in `PRD.md`.
-5. Define the MVP or first release outcome.
-6. Generate `TASKS.md` as a checklist sorted into dependency-aware waves.
-7. Remove irrelevant rows from `VERIFY.md`.
-8. Add actual build and deployment procedures to `RUNBOOK.md`.
-9. Create a GitHub parent issue for the release.
-10. Mirror non-trivial tasks as native GitHub sub-issues.
-11. Execute one task or one safe wave at a time.
-12. Synchronize task status to GitHub by the end of the workday.
-
-## Suggested GitHub Project fields
-
-| Field | Values |
+| File | Authority |
 |---|---|
-| Status | Backlog, Ready, In progress, In review, Blocked, Done |
-| Priority | Critical, High, Medium, Low |
-| Wave | 1, 2, 3, N |
-| Primary pillar | Operational Excellence, Security, Reliability, Performance Efficiency, Cost Optimization, Sustainability |
-| Risk | High, Medium, Low |
-| Release | MVP, v1.0, Hardening, Production |
-| Evidence | Not started, Local pass, Pending AWS, Verified |
-| Effort | XS, S, M, L |
+| `AGENTS.md` | Workflow, scope, safety, and completion rules |
+| `PRD.md` | Requirements, design, Gate A, Gate B, and the construction envelope |
+| `TASKS.md` | Executable graph, task state, runs, claims, and checkpoints |
+| `VERIFY.md` | Observed evidence and release proof |
+| `RUNBOOK.md` | Build, deploy, rollback, recovery, operations, and teardown |
+| `bootstrap.yaml` | Derived lifecycle mirror; never authorization |
+| `prompts/CODEX-PROMPTS.md` | The versioned launch, intake, build, release, and AWS prompts |
 
-## Suggested labels
+The runtime controls are:
 
-```text
-pillar:operational-excellence
-pillar:security
-pillar:reliability
-pillar:performance
-pillar:cost
-pillar:sustainability
+- `bootstrap.py` for collision-safe greenfield and brownfield installation;
+- `scripts/bootstrap_doctor.py` for read-only integrity and lifecycle checks;
+- `scripts/task_waves.py` for dependency planning, claims, checkpoints, pause,
+  and resume.
 
-type:feature
-type:bug
-type:risk
-type:operations
+Their SHA-256 digests are sealed in `bootstrap.manifest.json`.
 
-status:ready
-status:blocked
+## Verify the download
 
-priority:critical
-priority:high
-priority:medium
-priority:low
+The checksum sidecar uses the standard `<digest>  <filename>` format:
 
-evidence:local
-evidence:pending-aws
-evidence:verified
+```bash
+sha256sum --check aws-codex-fastlane-bootstrap.zip.sha256
+unzip -t aws-codex-fastlane-bootstrap.zip
 ```
 
-## Prompt pack
+On PowerShell, compare the output of:
 
-[`prompts/CODEX-PROMPTS.md`](prompts/CODEX-PROMPTS.md) begins with a current Codex model-selection guide, then provides reusable prompts for:
+```powershell
+Get-FileHash .\aws-codex-fastlane-bootstrap.zip -Algorithm SHA256
+Get-Content .\aws-codex-fastlane-bootstrap.zip.sha256
+```
 
-1. requirements analysis;
-2. completing PRD architecture and design;
-3. bugfix analysis;
-4. generating the task checklist, waves, and GitHub plan;
-5. executing one task;
-6. executing a safe wave;
-7. end-of-day GitHub synchronization;
-8. release-readiness review;
-9. post-deployment evidence reconciliation;
-10. educational implementation and mentoring mode.
+## Maintainer checks
 
+The committed archive is generated only from the exact file list in
+`my-project/bootstrap.manifest.json`. Paths are validated, symlinks are
+rejected, member order and metadata are fixed, and the archive contains the
+source bytes unchanged.
 
-## Educational mode
+```bash
+python -m unittest discover -s tests -v
+python scripts/package_release.py --check
+```
 
-Use Prompt 10 when you want Codex to implement a real task while explaining:
+To rebuild the release artifact and checksum:
 
-- the current architecture and affected components;
-- relevant AWS services and patterns;
-- risks and Well-Architected tradeoffs;
-- alternatives considered;
-- validation and evidence;
-- reusable engineering lessons.
+```bash
+python scripts/package_release.py
+```
 
-It provides concise milestone updates and a final learning recap without
-creating extra tutorial or planning documents.
-
-## Minimality rules
-
-- One fact has one authoritative home.
-- Requirements and design live in `PRD.md`.
-- Active defect behavior lives in `BUGFIX.md`.
-- Executable work and live status live in `TASKS.md`.
-- Durable task tracking mirrors to GitHub Issues.
-- Proof lives in `VERIFY.md`.
-- Operational procedures live in `RUNBOOK.md`.
-- Runtime truth lives in code, tests, schemas, IaC, metrics, and logs.
-- New Markdown files require a distinct owner and lifecycle.
+See [`CHANGELOG.md`](CHANGELOG.md) for release notes.
