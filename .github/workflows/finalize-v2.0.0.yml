@@ -223,10 +223,27 @@ jobs:
           }
 
           load_release() {
-            gh api "repos/$EXPECTED_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+            gh api graphql \
+              -F owner=Levi-Breedlove \
+              -F name=aws-bootstrap \
+              -f query='query($owner: String!, $name: String!) {
+                repository(owner: $owner, name: $name) {
+                  releases(first: 100, orderBy: {field: CREATED_AT, direction: DESC}) {
+                    nodes {
+                      databaseId
+                      name
+                      tagName
+                      isDraft
+                      isPrerelease
+                      createdAt
+                      author { login }
+                    }
+                  }
+                }
+              }' > "$RUNNER_TEMP/releases-graphql.json"
             jq --arg tag "$RELEASE_TAG" \
-              '[.[] | select(.tag_name == $tag)]' \
-              "$RUNNER_TEMP/releases.json" > "$RUNNER_TEMP/release-matches.json"
+              '[.data.repository.releases.nodes[] | select(.tagName == $tag)]' \
+              "$RUNNER_TEMP/releases-graphql.json" > "$RUNNER_TEMP/release-matches.json"
             local count
             count="$(jq 'length' "$RUNNER_TEMP/release-matches.json")"
             if test "$count" -eq 0; then
@@ -234,9 +251,14 @@ jobs:
             fi
             test "$count" -eq 1 || {
               echo "Multiple releases unexpectedly use tag $RELEASE_TAG" >&2
+              jq -c '.[] | {databaseId, name, tagName, isDraft, isPrerelease, createdAt, author}' \
+                "$RUNNER_TEMP/release-matches.json" >&2
               return 1
             }
-            jq '.[0]' "$RUNNER_TEMP/release-matches.json" > "$RUNNER_TEMP/release.json"
+            local release_id
+            release_id="$(jq -r '.[0].databaseId' "$RUNNER_TEMP/release-matches.json")"
+            test "$release_id" != "null"
+            gh api "repos/$EXPECTED_REPOSITORY/releases/$release_id" > "$RUNNER_TEMP/release.json"
           }
 
           tag_endpoint="repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG"
@@ -268,15 +290,9 @@ jobs:
             :
           else
             release_status=$?
-            test "$release_status" -eq 44 || exit "$release_status"
-            gh release create "$RELEASE_TAG" \
-              --repo "$EXPECTED_REPOSITORY" \
-              --title "$RELEASE_TITLE" \
-              --notes-file "$RUNNER_TEMP/release-notes.md" \
-              --draft \
-              --verify-tag
+            echo "Unable to identify exactly one existing v2.0.0 release; refusing to create another draft." >&2
+            exit "$release_status"
           fi
-          load_release
 
           test "$(jq -r '.tag_name' "$RUNNER_TEMP/release.json")" = "$RELEASE_TAG"
           test "$(jq -r '.name' "$RUNNER_TEMP/release.json")" = "$RELEASE_TITLE"
