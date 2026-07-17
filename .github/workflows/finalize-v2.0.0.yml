@@ -146,6 +146,23 @@ jobs:
             fi
           done
 
+          declare -A approved_cleanup_tips=(
+            [agent/bootstrap-safety-foundation]=37ab4d68517f1ea0d408a3ae007f27eb77cf03d0
+            [agent/fastlane-autonomous-construction]=6157bd88c538971487cdf614c6e6791b5ef2dddc
+            [agent/fastlane-intake-gates]=08b6a27c0257de5a405f247c6401eee5918aae17
+            [agent/prefer-aws-core-plugin]=723f3efafb9078542eb05fc511a478d5f289e5f1
+            [agent/use-aws-core-in-codex-prompts]=585e7c5beb61ebb48c470e8755119d8918222837
+          )
+          for branch in "${!approved_cleanup_tips[@]}"; do
+            if printf '%s\n' "${actual_branches[@]}" | grep -Fxq "$branch"; then
+              live_tip="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/$branch" --jq '.object.sha')"
+              test "$live_tip" = "${approved_cleanup_tips[$branch]}" || {
+                echo "Approved cleanup branch moved: $branch" >&2
+                exit 1
+              }
+            fi
+          done
+
           test "$(tr -d '\r\n' < VERSION)" = "2.0.0"
           test "$(sha256sum "$RELEASE_ARCHIVE" | awk '{print $1}')" = "$EXPECTED_SHA256"
           printf '%s  %s\n' "$EXPECTED_SHA256" "$RELEASE_ARCHIVE" > "$RUNNER_TEMP/expected.sha256"
@@ -189,7 +206,24 @@ jobs:
             printf '%s\n' "$object_sha"
           }
 
-          if gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+          api_probe() {
+            local response rc
+            set +e
+            response="$(gh api --include "$1" 2>&1)"
+            rc=$?
+            set -e
+            if test "$rc" -eq 0; then
+              return 0
+            fi
+            if grep -Eq '(^HTTP/[^ ]+ 404 |HTTP 404:|"status"[[:space:]]*:[[:space:]]*"?404"?)' <<<"$response"; then
+              return 44
+            fi
+            printf '%s\n' "$response" >&2
+            return "$rc"
+          }
+
+          tag_endpoint="repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG"
+          if api_probe "$tag_endpoint"; then
             tag_type="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.type')"
             test "$tag_type" = "tag" || {
               echo "Existing v2.0.0 ref is not an annotated tag; refusing to replace it." >&2
@@ -197,6 +231,8 @@ jobs:
             }
             test "$(peel_tag)" = "$EXPECTED_MAIN_SHA"
           else
+            probe_status=$?
+            test "$probe_status" -eq 44 || exit "$probe_status"
             tag_object_sha="$(gh api --method POST \
               "repos/$EXPECTED_REPOSITORY/git/tags" \
               -f tag="$RELEASE_TAG" \
@@ -211,7 +247,12 @@ jobs:
             test "$(peel_tag)" = "$EXPECTED_MAIN_SHA"
           fi
 
-          if ! gh api "repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+          release_endpoint="repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG"
+          if api_probe "$release_endpoint"; then
+            :
+          else
+            probe_status=$?
+            test "$probe_status" -eq 44 || exit "$probe_status"
             gh release create "$RELEASE_TAG" \
               --repo "$EXPECTED_REPOSITORY" \
               --title "$RELEASE_TITLE" \
@@ -379,6 +420,33 @@ jobs:
           printf '%s\n' "${current_branches[@]}" | grep -Fxq main
           printf '%s\n' "${current_branches[@]}" | grep -Fxq "$EXPECTED_HEAD_BRANCH"
 
+          for asset in "${expected_assets[@]}"; do
+            expected_size="$(stat -c '%s' "$asset")"
+            actual_size="$(jq -r --arg name "$asset" '.assets[] | select(.name == $name) | .size' "$RUNNER_TEMP/final-release.json")"
+            test "$actual_size" = "$expected_size"
+            expected_digest="sha256:$(sha256sum "$asset" | awk '{print $1}')"
+            actual_digest="$(jq -r --arg name "$asset" '.assets[] | select(.name == $name) | .digest' "$RUNNER_TEMP/final-release.json")"
+            test "$actual_digest" = "$expected_digest"
+            test "$(jq -r --arg name "$asset" '.assets[] | select(.name == $name) | .state' "$RUNNER_TEMP/final-release.json")" = "uploaded"
+          done
+
+          declare -A approved_cleanup_tips=(
+            [agent/bootstrap-safety-foundation]=37ab4d68517f1ea0d408a3ae007f27eb77cf03d0
+            [agent/fastlane-autonomous-construction]=6157bd88c538971487cdf614c6e6791b5ef2dddc
+            [agent/fastlane-intake-gates]=08b6a27c0257de5a405f247c6401eee5918aae17
+            [agent/prefer-aws-core-plugin]=723f3efafb9078542eb05fc511a478d5f289e5f1
+            [agent/use-aws-core-in-codex-prompts]=585e7c5beb61ebb48c470e8755119d8918222837
+          )
+          for branch in "${!approved_cleanup_tips[@]}"; do
+            if printf '%s\n' "${current_branches[@]}" | grep -Fxq "$branch"; then
+              live_tip="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/$branch" --jq '.object.sha')"
+              test "$live_tip" = "${approved_cleanup_tips[$branch]}" || {
+                echo "Approved cleanup branch moved before deletion: $branch" >&2
+                exit 1
+              }
+            fi
+          done
+
           cleanup_branches=(
             agent/bootstrap-safety-foundation
             agent/fastlane-autonomous-construction
@@ -387,7 +455,7 @@ jobs:
             agent/use-aws-core-in-codex-prompts
           )
           for branch in "${cleanup_branches[@]}"; do
-            if gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/$branch" >/dev/null 2>&1; then
+            if printf '%s\n' "${current_branches[@]}" | grep -Fxq "$branch"; then
               gh api --method DELETE "repos/$EXPECTED_REPOSITORY/git/refs/heads/$branch"
             fi
           done
