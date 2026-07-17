@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import json
+import os
+import stat
+import subprocess
+import sys
+import tempfile
+import unittest
+import zipfile
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "package_release.py"
+SPEC = importlib.util.spec_from_file_location("package_release", SCRIPT_PATH)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError(f"Unable to load {SCRIPT_PATH}")
+package_release = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(package_release)
+
+
+class PackageReleaseTests(unittest.TestCase):
+    def test_version_matches_release_manifest(self) -> None:
+        version = (REPOSITORY_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        manifest = json.loads(
+            (REPOSITORY_ROOT / "my-project" / "bootstrap.manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(version, "2.0.0")
+        self.assertEqual(manifest["bootstrap_version"], version)
+        self.assertIn("README.md", manifest["required_files"])
+
+    def test_manifest_is_the_exact_template_file_inventory(self) -> None:
+        template = REPOSITORY_ROOT / "my-project"
+        actual = {
+            path.relative_to(template).as_posix()
+            for path in template.rglob("*")
+            if path.is_file()
+            and "__pycache__" not in path.parts
+            and path.suffix != ".pyc"
+        }
+        manifest = json.loads(
+            (template / "bootstrap.manifest.json").read_text(encoding="utf-8")
+        )
+        expected = set(manifest["required_files"])
+        self.assertEqual(actual, expected)
+        self.assertEqual(manifest["required_files"], sorted(expected))
+
+    def test_committed_archive_is_an_exact_deterministic_projection(self) -> None:
+        first = package_release.build_release_bytes(REPOSITORY_ROOT)
+        second = package_release.build_release_bytes(REPOSITORY_ROOT)
+        self.assertEqual(first, second)
+
+        archive_path = REPOSITORY_ROOT / package_release.ARCHIVE_NAME
+        self.assertEqual(archive_path.read_bytes(), first)
+        _version, files = package_release.load_release_files(REPOSITORY_ROOT)
+        expected_names = [
+            package_release.archive_member(relative) for relative, _content in files
+        ]
+        with zipfile.ZipFile(archive_path) as archive:
+            infos = archive.infolist()
+            self.assertEqual([info.filename for info in infos], expected_names)
+            self.assertIsNone(archive.testzip())
+            for info, (_relative, content) in zip(infos, files, strict=True):
+                self.assertEqual(info.date_time, package_release.FIXED_TIMESTAMP)
+                self.assertEqual(info.compress_type, zipfile.ZIP_STORED)
+                self.assertEqual(info.create_system, 3)
+                self.assertEqual(info.external_attr >> 16, stat.S_IFREG | 0o644)
+                self.assertEqual(info.extra, b"")
+                self.assertEqual(info.comment, b"")
+                self.assertEqual(archive.read(info), content)
+
+    def test_committed_checksum_is_exact(self) -> None:
+        archive_path = REPOSITORY_ROOT / package_release.ARCHIVE_NAME
+        payload = archive_path.read_bytes()
+        expected = (
+            f"{hashlib.sha256(payload).hexdigest()}  {archive_path.name}\n"
+        )
+        self.assertEqual(
+            package_release.checksum_path(archive_path).read_text(encoding="ascii"),
+            expected,
+        )
+
+    def test_check_cli_verifies_committed_artifacts(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--check"],
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Release package verified", result.stdout)
+
+    def test_custom_output_checksum_names_custom_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            archive_path = Path(temporary) / "custom-fastlane.zip"
+            digest = package_release.write_release(REPOSITORY_ROOT, archive_path)
+            self.assertEqual(
+                package_release.checksum_path(archive_path).read_text(encoding="ascii"),
+                f"{digest}  {archive_path.name}\n",
+            )
+            self.assertEqual(
+                package_release.check_release(REPOSITORY_ROOT, archive_path),
+                digest,
+            )
+
+    def test_unsafe_manifest_path_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "my-project").mkdir()
+            (root / "VERSION").write_text("2.0.0\n", encoding="utf-8")
+            (root / "my-project" / "bootstrap.manifest.json").write_text(
+                json.dumps(
+                    {
+                        "bootstrap_version": "2.0.0",
+                        "required_files": ["../outside"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(package_release.PackagingError, "Unsafe"):
+                package_release.load_release_files(root)
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symbolic links are unavailable")
+    def test_symlinked_release_file_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            template = root / "my-project"
+            template.mkdir()
+            (root / "VERSION").write_text("2.0.0\n", encoding="utf-8")
+            outside = root / "outside"
+            outside.write_text("not release content", encoding="utf-8")
+            (template / "README.md").symlink_to(outside)
+            (template / "bootstrap.manifest.json").write_text(
+                json.dumps(
+                    {
+                        "bootstrap_version": "2.0.0",
+                        "required_files": ["README.md"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(package_release.PackagingError, "unsafe"):
+                package_release.load_release_files(root)
+
+    def test_version_drift_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            template = root / "my-project"
+            template.mkdir()
+            (root / "VERSION").write_text("2.0.1\n", encoding="utf-8")
+            (template / "bootstrap.manifest.json").write_text(
+                json.dumps(
+                    {
+                        "bootstrap_version": "2.0.0",
+                        "required_files": ["bootstrap.manifest.json"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(package_release.PackagingError, "must match"):
+                package_release.load_release_files(root)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+"""Build or verify the deterministic AWS Codex Fastlane release archive."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import io
+import json
+import os
+import re
+import stat
+import tempfile
+import zipfile
+from pathlib import Path, PurePosixPath
+from typing import Sequence
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE_DIRECTORY = "my-project"
+MANIFEST_FILE = "bootstrap.manifest.json"
+VERSION_FILE = "VERSION"
+ARCHIVE_NAME = "aws-codex-fastlane-bootstrap.zip"
+ARCHIVE_ROOT = "aws-codex-fastlane-bootstrap"
+FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
+SEMVER_PATTERN = re.compile(r"\d+\.\d+\.\d+")
+
+
+class PackagingError(ValueError):
+    """Raised when release inputs or committed artifacts are unsafe or stale."""
+
+
+def checksum_path(archive_path: Path) -> Path:
+    """Return the checksum sidecar path for an archive."""
+
+    return archive_path.with_name(f"{archive_path.name}.sha256")
+
+
+def validate_relative_path(raw: object) -> str:
+    """Return one canonical, safe, repository-relative POSIX path."""
+
+    if (
+        not isinstance(raw, str)
+        or not raw
+        or raw == "."
+        or "\\" in raw
+        or "\x00" in raw
+        or any(character in raw for character in "*?[]{}")
+    ):
+        raise PackagingError(f"Unsafe manifest path: {raw!r}")
+    path = PurePosixPath(raw)
+    if path.is_absolute() or any(
+        part in {"", ".", ".."} or part.casefold() == ".git"
+        for part in path.parts
+    ):
+        raise PackagingError(f"Unsafe manifest path: {raw!r}")
+    canonical = path.as_posix()
+    if canonical != raw:
+        raise PackagingError(f"Non-canonical manifest path: {raw!r}")
+    return canonical
+
+
+def has_symlink_component(root: Path, relative: str) -> bool:
+    """Return whether a manifest path traverses or names a symbolic link."""
+
+    current = root
+    if current.is_symlink():
+        return True
+    for part in PurePosixPath(relative).parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+
+def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tuple[str, bytes]]]:
+    """Load the version and exact manifest-ordered release file bytes."""
+
+    repo_root = repo_root.resolve()
+    template_root = repo_root / TEMPLATE_DIRECTORY
+    manifest_path = template_root / MANIFEST_FILE
+    version_path = repo_root / VERSION_FILE
+    if template_root.is_symlink() or not template_root.is_dir():
+        raise PackagingError(f"Template directory is missing or unsafe: {template_root}")
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise PackagingError(f"Manifest is missing or unsafe: {manifest_path}")
+    if version_path.is_symlink() or not version_path.is_file():
+        raise PackagingError(f"Version file is missing or unsafe: {version_path}")
+
+    version = version_path.read_text(encoding="utf-8").strip()
+    if SEMVER_PATTERN.fullmatch(version) is None:
+        raise PackagingError(f"VERSION must contain one semantic version: {version!r}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PackagingError(f"Unable to read release manifest: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise PackagingError("Release manifest must be a JSON object")
+    if manifest.get("bootstrap_version") != version:
+        raise PackagingError(
+            "VERSION and bootstrap.manifest.json bootstrap_version must match"
+        )
+    raw_files = manifest.get("required_files")
+    if not isinstance(raw_files, list) or not raw_files:
+        raise PackagingError("Manifest required_files must be a non-empty array")
+
+    files: list[tuple[str, bytes]] = []
+    seen: set[str] = set()
+    folded: set[str] = set()
+    for raw in raw_files:
+        relative = validate_relative_path(raw)
+        if relative in seen or relative.casefold() in folded:
+            raise PackagingError(f"Duplicate or case-colliding manifest path: {relative}")
+        seen.add(relative)
+        folded.add(relative.casefold())
+        source = template_root.joinpath(*PurePosixPath(relative).parts)
+        if has_symlink_component(template_root, relative) or not source.is_file():
+            raise PackagingError(f"Release file is missing or unsafe: {relative}")
+        files.append((relative, source.read_bytes()))
+
+    if [path for path, _ in files] != sorted(seen):
+        raise PackagingError("Manifest required_files must be sorted canonically")
+    return version, files
+
+
+def archive_member(relative: str) -> str:
+    """Return the fixed archive member name for one template path."""
+
+    return f"{ARCHIVE_ROOT}/{relative}"
+
+
+def build_release_bytes(repo_root: Path = REPOSITORY_ROOT) -> bytes:
+    """Build deterministic ZIP bytes from the exact manifest inventory."""
+
+    _version, files = load_release_files(repo_root)
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, mode="w", compression=zipfile.ZIP_STORED) as archive:
+        for relative, content in files:
+            info = zipfile.ZipInfo(archive_member(relative), date_time=FIXED_TIMESTAMP)
+            info.compress_type = zipfile.ZIP_STORED
+            info.create_system = 3
+            info.create_version = 20
+            info.extract_version = 20
+            info.flag_bits = 0x800
+            info.internal_attr = 0
+            info.external_attr = (stat.S_IFREG | 0o644) << 16
+            info.extra = b""
+            info.comment = b""
+            archive.writestr(info, content)
+    payload = output.getvalue()
+    validate_archive_bytes(payload, files)
+    return payload
+
+
+def validate_archive_bytes(payload: bytes, files: list[tuple[str, bytes]]) -> None:
+    """Prove archive inventory, metadata, and content match the release inputs."""
+
+    expected_names = [archive_member(relative) for relative, _ in files]
+    with zipfile.ZipFile(io.BytesIO(payload), mode="r") as archive:
+        if archive.testzip() is not None:
+            raise PackagingError("Generated archive failed its CRC integrity check")
+        infos = archive.infolist()
+        if [info.filename for info in infos] != expected_names:
+            raise PackagingError("Generated archive inventory or ordering is incorrect")
+        for info, (_relative, expected) in zip(infos, files, strict=True):
+            if (
+                info.date_time != FIXED_TIMESTAMP
+                or info.compress_type != zipfile.ZIP_STORED
+                or info.create_system != 3
+                or info.external_attr >> 16 != stat.S_IFREG | 0o644
+                or info.extra
+                or info.comment
+            ):
+                raise PackagingError(f"Non-deterministic metadata: {info.filename}")
+            if info.flag_bits & 0x1:
+                raise PackagingError(f"Encrypted archive member: {info.filename}")
+            if archive.read(info) != expected:
+                raise PackagingError(f"Archive content mismatch: {info.filename}")
+
+
+def checksum_line(payload: bytes, archive_name: str = ARCHIVE_NAME) -> bytes:
+    """Return a standard SHA-256 checksum sidecar line."""
+
+    digest = hashlib.sha256(payload).hexdigest()
+    return f"{digest}  {archive_name}\n".encode("ascii")
+
+
+def atomic_write(path: Path, content: bytes) -> None:
+    """Replace one artifact atomically without following an output symlink."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def expected_artifacts(
+    repo_root: Path = REPOSITORY_ROOT,
+    archive_name: str = ARCHIVE_NAME,
+) -> tuple[bytes, bytes]:
+    """Return exact expected archive and checksum bytes."""
+
+    payload = build_release_bytes(repo_root)
+    return payload, checksum_line(payload, archive_name)
+
+
+def write_release(repo_root: Path, archive_path: Path) -> str:
+    """Write the deterministic archive and checksum and return its digest."""
+
+    payload, sidecar = expected_artifacts(repo_root, archive_path.name)
+    atomic_write(archive_path, payload)
+    atomic_write(checksum_path(archive_path), sidecar)
+    return hashlib.sha256(payload).hexdigest()
+
+
+def check_release(repo_root: Path, archive_path: Path) -> str:
+    """Require committed artifacts to equal a fresh deterministic build."""
+
+    payload, sidecar = expected_artifacts(repo_root, archive_path.name)
+    sidecar_path = checksum_path(archive_path)
+    if archive_path.is_symlink() or not archive_path.is_file():
+        raise PackagingError(f"Release archive is missing or unsafe: {archive_path}")
+    if sidecar_path.is_symlink() or not sidecar_path.is_file():
+        raise PackagingError(f"Checksum sidecar is missing or unsafe: {sidecar_path}")
+    if archive_path.read_bytes() != payload:
+        raise PackagingError("Committed release archive is stale or non-deterministic")
+    if sidecar_path.read_bytes() != sidecar:
+        raise PackagingError("Committed checksum sidecar is stale or malformed")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Build or verify the deterministic Fastlane release package."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Fail unless the committed archive and checksum equal a fresh build",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=REPOSITORY_ROOT / ARCHIVE_NAME,
+        help=f"Archive output path (default: {ARCHIVE_NAME})",
+    )
+    args = parser.parse_args(argv)
+    archive_path = args.output.expanduser().resolve()
+    try:
+        if args.check:
+            digest = check_release(REPOSITORY_ROOT, archive_path)
+            verb = "verified"
+        else:
+            digest = write_release(REPOSITORY_ROOT, archive_path)
+            verb = "wrote"
+    except (OSError, PackagingError, zipfile.BadZipFile) as exc:
+        print(f"Release package failed: {exc}")
+        return 1
+
+    print(f"Release package {verb}: {archive_path}")
+    print(f"SHA-256: {digest}")
+    print(f"Checksum: {checksum_path(archive_path)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
