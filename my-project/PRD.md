@@ -4,12 +4,41 @@
 
 | Field | Value |
 |---|---|
+| Bootstrap release | TODO (release version and source commit/tag) |
+| Workflow mode | `codex-native` |
+| Project mode | `greenfield` / `brownfield` |
+| Delivery profile | `quick-mvp` / `standard` / `high-risk` |
+| Effective risk | `low` / `moderate` / `high` / `critical` |
+| AWS lane | `documentation-only` / `read-only` / `fast-dev` / `explicit-gate` |
 | Specification status | Draft |
-| Requirements-analysis status | `BLOCKED` |
+| Current requirements revision | `REQ-0001` |
+| Gate A derived status | `BLOCKED` |
+| Current design revision | `DES-0001` |
+| Current construction authorization ID | `AUTH-0001` |
+| Gate B derived status | `BLOCKED` |
 | Design status | Not started |
 | Target release | TODO |
 | Last reviewed | TODO |
-| Approver | TODO |
+| Primary owner | TODO |
+
+The delivery profile controls ceremony, not safety. `quick-mvp` keeps the same
+objective acceptance criteria, authorization rules, and release evidence while
+favoring the smallest viable scope. Set effective risk from the actual data,
+identity, external exposure, blast radius, reversibility, and regulatory impact.
+If effective risk is `high` or `critical`, use the `high-risk` profile. The AWS
+lane records intent only; it never grants AWS mutation authority.
+
+Use this canonical mapping. Project lane, one prompt's access mode, and the
+Gate B boundary are separate fields; do not invent synonyms.
+
+| Project AWS lane | Prompt AWS mode | Gate B AWS boundary |
+|---|---|---|
+| `documentation-only` | `DOCS_ONLY` | `DOCS_ONLY` |
+| `read-only` | `READ_ONLY` | `READ_ONLY` |
+| `fast-dev` | `MUTATION` only after read-only preflight | `MUTATE_LISTED_RESOURCES` |
+| `explicit-gate` | `DOCS_ONLY` or `READ_ONLY` | `DOCS_ONLY` or `READ_ONLY`; mutation requires a separate action-specific receipt |
+
+`NONE` means no AWS access for the current prompt.
 
 ## 1. Workload profile
 
@@ -28,6 +57,61 @@
 | Monthly cost ceiling | {{MONTHLY_BUDGET}} |
 | Expected traffic | TODO |
 | Applicable AWS lenses | TODO |
+
+### 1.1 Intake provenance
+
+Keep the intake concise, but make every requirement traceable to a human or an
+observed brownfield fact. After Gate A is approved, this repository is the
+authoritative specification; Notion or chat remains provenance, not a competing
+source of truth.
+
+| Field | Value |
+|---|---|
+| Intake session ID | TODO |
+| Intake source links | TODO (Notion page, issue, transcript, or `NONE`) |
+| Participants and decision owner | TODO |
+| Captured by | TODO |
+| Captured at | TODO (ISO 8601 with timezone) |
+| Last reconciled with sources | TODO (ISO 8601 with timezone) |
+| Owner-stated outcome, in their words | TODO |
+| Unresolved input IDs | TODO / `NONE` |
+| Material source conflicts | TODO / `NONE` |
+
+| Requirement or constraint ID | Basis | Source or evidence | Confidence | Owner confirmation |
+|---|---|---|---|---|
+| FR-001 | `OWNER_FACT` / `REPOSITORY_FACT` / `RECOMMENDATION` / `PROPOSED_ASSUMPTION` / `OPEN_QUESTION` | TODO | TODO | TODO |
+
+Do not paste a second PRD into this section. Summarize the input, preserve links,
+and translate agreed facts into the requirement sections below.
+
+### 1.2 Brownfield baseline and preservation contract
+
+This section is mandatory when project mode is `brownfield`. For `greenfield`,
+set every field to `NOT_APPLICABLE` rather than silently leaving it blank.
+
+| Field | Brownfield baseline |
+|---|---|
+| Repository and baseline commit | TODO |
+| Deployed environments and observed versions | TODO |
+| Existing architecture and ownership | TODO |
+| Current interfaces, schemas, and consumers | TODO |
+| Current data stores and migration constraints | TODO |
+| Existing security and compliance controls | TODO |
+| Baseline verification commands | TODO |
+| Baseline evidence location | TODO |
+| Known defects and accepted debt | TODO |
+| Repository-to-environment drift | TODO / `NONE_OBSERVED` |
+| Dirty or user-owned working-tree changes | TODO / `NONE` |
+| Protected files and components | TODO |
+| Unresolved bootstrap overlay collisions | TODO / `NONE` |
+
+| Preservation ID | Behavior, asset, or constraint to preserve | How it is verified before change | Allowed change | Explicitly prohibited or approval-required change |
+|---|---|---|---|---|
+| PRES-001 | TODO | TODO | TODO | TODO |
+
+Unknown brownfield behavior is not permission to replace it. If the baseline
+cannot be observed, record the gap as a Gate A finding and propose the smallest
+safe discovery step.
 
 # Part I — Requirements
 
@@ -182,17 +266,19 @@ Remove irrelevant rows and add workload-specific threat requirements.
 - Rollback: TODO
 - Teardown: TODO
 
-# Part II — Requirements Analysis Gate
+# Part II — Requirements Analysis and Gate A
 
 ## 13. Cross-requirement analysis
 
 Codex must analyze the requirements as one system before completing Part III.
+It may identify and propose assumptions, but it may never accept an assumption,
+approve Gate A, or write an owner's authorization receipt on the owner's behalf.
 
 ### Findings
 
-| ID | Type | Requirements involved | Finding | Resolution or decision | Status |
-|---|---|---|---|---|---|
-| RA-001 | Ambiguity | TODO | TODO | TODO | Open |
+| ID | Type | Requirements involved | Finding | Resolution or decision | Blocking? | Status |
+|---|---|---|---|---|---|---|
+| RA-001 | Ambiguity | TODO | TODO | TODO | Yes | Open |
 
 Valid types:
 
@@ -207,34 +293,110 @@ Valid types:
 - Security or privacy gap
 - Cost or operational gap
 
-### Assumptions
+### Proposed assumptions
 
-| ID | Assumption | Why needed | Validation plan | Accepted by |
-|---|---|---|---|---|
-| ASM-001 | TODO | TODO | TODO | TODO |
+| ID | Proposed assumption | Why needed | Risk if wrong | Validation plan | Required to proceed? |
+|---|---|---|---|---|---|
+| ASM-001 | TODO | TODO | TODO | TODO | Yes |
+
+Every assumption remains `PROPOSED` unless its ID is explicitly listed in the
+owner acceptance record below. Silence, a prior similar decision, or an agent
+recommendation is not acceptance.
 
 ### Open decisions
 
-| ID | Decision needed | Options | Decision owner | Blocking? |
-|---|---|---|---|---|
-| DEC-001 | TODO | TODO | TODO | Yes |
+| ID | Decision needed | Options | Decision owner | Blocking? | Resolution |
+|---|---|---|---|---|---|
+| DEC-001 | TODO | TODO | TODO | Yes | TODO |
 
-### Analysis outcome
+### Gate A — agent analysis record
 
-- Status: `BLOCKED`
-- Blocking findings: TODO
-- Accepted assumptions: TODO
-- Design may proceed: No
+| Field | Agent-recorded value |
+|---|---|
+| Requirements revision analyzed | TODO |
+| Reviewed commit (optional) | TODO / `NOT_RECORDED` |
+| Analysis performed by | TODO |
+| Analysis completed at | TODO (ISO 8601 with timezone) |
+| Open blocking finding IDs | TODO / `NONE` |
+| Proposed assumption IDs required to proceed | TODO / `NONE` |
+| Open blocking decision IDs | TODO / `NONE` |
+| Agent recommendation | `BLOCKED` / `READY_WITH_PROPOSED_ASSUMPTIONS` / `READY_FOR_OWNER_APPROVAL` |
+| Recommendation rationale | TODO |
 
-Allowed outcomes:
+The agent recommendation is advisory. It is not Gate A authorization.
 
-- `BLOCKED`
-- `READY_WITH_ACCEPTED_ASSUMPTIONS`
-- `READY_FOR_DESIGN`
+### Gate A — owner acceptance record
+
+| Field | Owner-provided value |
+|---|---|
+| Approver | TODO |
+| Owner decision | `PENDING` / `CHANGES_REQUESTED` / `APPROVED` / `STALE` |
+| Authorized requirements revision | TODO |
+| Explicitly accepted assumption IDs | TODO / `NONE` |
+| Explicitly rejected assumption IDs and resolution | TODO / `NONE` |
+| Authorization provided at | TODO (ISO 8601 with timezone) |
+| Authorization source | TODO (message, issue, meeting record, or commit link) |
+| Verbatim owner receipt | TODO |
+| Derived Gate A state | `BLOCKED` / `PENDING_OWNER_APPROVAL` / `APPROVED_FOR_DESIGN` / `STALE` |
+
+For approval, the owner receipt must use this human-readable form with actual
+values substituted:
+
+```text
+APPROVE REQUIREMENTS GATE A
+Requirements revision: <REQ-nnnn>
+Accepted assumptions: <assumption-IDs-or-NONE>
+Approver: <name/handle>
+```
+
+Codex may ask for this receipt and record it verbatim after it is supplied. It
+must not compose, infer, or mark the receipt approved for the owner.
+
+### Gate A validation and invalidation rules
+
+The requirements revision is a monotonic ID (`REQ-0001`, `REQ-0002`, and so on).
+It covers the workflow, project mode, delivery profile, effective risk, AWS lane,
+workload profile, intake provenance, brownfield contract, Parts I and II findings,
+proposed assumptions, and open decisions.
+
+Gate A is valid only when all of the following are true:
+
+1. The current requirements revision is populated.
+2. The agent analyzed that exact revision.
+3. No finding or decision marked blocking remains open.
+4. The agent recommendation is `READY_WITH_PROPOSED_ASSUMPTIONS` or
+   `READY_FOR_OWNER_APPROVAL`.
+5. The owner decision is `APPROVED` for that exact revision.
+6. Every proposed assumption required to proceed is explicitly accepted by ID,
+   or the requirement is revised so that the assumption is no longer needed.
+7. The authorization source and verbatim owner receipt are present and agree
+   with the structured fields.
+
+Any material change to the covered content increments the requirements revision
+and immediately makes **both Gate A and Gate B stale**.
+Changing a finding, proposed assumption, blocking classification, or decision
+after approval also makes Gate A and Gate B stale until the owner approves a
+new requirements revision that incorporates the resolution. Status, timestamp,
+and receipt-recording edits do not increment the revision.
 
 # Part III — Technical Architecture and Implementation Approach
 
-Complete this part only after the requirements-analysis gate allows design.
+Complete this part only after Gate A is valid.
+
+### Technical design revision record
+
+| Field | Value |
+|---|---|
+| Current design revision | `DES-0001` |
+| Requirements revision designed | TODO |
+| Reviewed commit (optional) | TODO / `NOT_RECORDED` |
+| Design prepared by | TODO |
+| Design completed at | TODO (ISO 8601 with timezone) |
+| Remaining design gaps | TODO / `NONE` |
+
+The design revision is monotonic (`DES-0001`, `DES-0002`, and so on), covers
+Parts III and IV, and identifies the exact Gate A-approved requirements revision
+it implements.
 
 ## 14. Architecture overview
 
@@ -374,7 +536,8 @@ Define error taxonomy, safe messages, correlation IDs, retry ownership, timeout 
 | Deployment | TODO | TODO | TODO | TODO |
 | Secrets and encryption | TODO | TODO | TODO | TODO |
 
-Use AWS MCP and current AWS primary documentation when completing this section.
+Use the installed `aws-core` plugin from Agent Toolkit for AWS and current AWS
+primary documentation when completing this section.
 
 ## 21. Implementation boundaries and order
 
@@ -457,3 +620,116 @@ Release is acceptable when:
 - security and reliability evidence passes;
 - deployment, monitoring, rollback, recovery, and cleanup are verified;
 - `VERIFY.md` records the exact release decision and remaining gaps.
+
+# Part V — Gate B: PRD and Construction Authorization
+
+Gate B approves the complete PRD and a bounded construction run. It does not
+grant authority outside the envelope below. Codex may recommend approval, but
+only the decision owner may approve this gate.
+
+## 27. Gate B agent review record
+
+| Field | Agent-recorded value |
+|---|---|
+| Requirements revision reviewed | TODO |
+| Design revision reviewed | TODO |
+| Construction authorization ID reviewed | TODO |
+| Reviewed commit (optional) | TODO / `NOT_RECORDED` |
+| PRD completeness gaps | TODO / `NONE` |
+| Requirement-to-design-and-test traceability gaps | TODO / `NONE` |
+| Unresolved risk or preservation gaps | TODO / `NONE` |
+| Review completed by and at | TODO (identity and ISO 8601 time) |
+| Agent recommendation | `BLOCKED` / `READY_FOR_CONSTRUCTION_APPROVAL` |
+| Recommendation rationale | TODO |
+
+## 28. Construction envelope
+
+Use explicit values; `reasonable`, `as needed`, and blank cells grant no
+authority. `NONE` means prohibited, not undecided.
+
+| Boundary | Authorized value |
+|---|---|
+| Construction authorization ID | `AUTH-0001` |
+| Authorized outcome and requirement/design IDs | TODO |
+| In-scope components and environments | TODO |
+| Allowed repository write set | TODO (exact paths or narrow globs) |
+| Excluded or owner-only write set | TODO |
+| Task boundary | TODO (exact task IDs, or tasks derived only from the authorized IDs and write set) |
+| Maximum generated tasks | TODO (positive integer) |
+| Eligible task status | `READY` |
+| Maximum parallel workers | TODO (positive integer; default `1`) |
+| Parallelism rule | Disjoint write sets, dependencies, and mutable state; otherwise serialize |
+| Attempt budget | TODO (maximum implementation-validation cycles per task before stopping) |
+| Checkpoint cadence | TODO (at minimum after each task or safe wave) |
+| Required checkpoint contents | Task status, changed paths, commands/evidence, blockers, next safe action |
+| Local command boundary | TODO |
+| GitHub boundary | `NONE` / `READ_ONLY` / `ISSUES` / `BRANCH_AND_PR` / `MERGE_WHEN_GREEN` |
+| GitHub repository, branch, and merge constraints | TODO / `NONE` |
+| AWS boundary | `NONE` / `DOCS_ONLY` / `READ_ONLY` / `MUTATE_LISTED_RESOURCES` |
+| AWS account, role, Region, environment, and resources | TODO / `NONE` |
+| Allowed AWS mutations and cost ceiling | TODO / `NONE` |
+| Prohibited AWS actions | TODO |
+| Rollback, recovery, and teardown boundary | TODO |
+| Mandatory stop conditions | TODO |
+| Authorization expiry or completion condition | TODO |
+
+The task boundary may authorize later task generation without another human
+gate only when every generated task traces exclusively to the approved IDs,
+stays inside the allowed write and execution boundaries, and introduces no new
+AWS, GitHub, security, data, cost, or preservation risk. Record the resulting
+`TASKS.md` revision at the first checkpoint. Any task outside those conditions
+requires a revised construction authorization and a new Gate B approval.
+
+## 29. Gate B owner authorization record
+
+| Field | Owner-provided value |
+|---|---|
+| Approver | TODO |
+| Owner decision | `PENDING` / `CHANGES_REQUESTED` / `APPROVED` / `STALE` |
+| Authorized requirements revision | TODO |
+| Authorized design revision | TODO |
+| Authorized construction authorization ID | TODO |
+| Authorization provided at | TODO (ISO 8601 with timezone) |
+| Authorization source | TODO (message, issue, meeting record, or commit link) |
+| Verbatim owner receipt | TODO |
+| Derived Gate B state | `BLOCKED` / `PENDING_OWNER_APPROVAL` / `APPROVED_FOR_CONSTRUCTION` / `STALE` |
+
+For approval, the owner receipt must use this human-readable form with actual
+values substituted:
+
+```text
+APPROVE PRD AND CONSTRUCTION GATE B
+Requirements revision: <REQ-nnnn>
+Design revision: <DES-nnnn>
+Construction authorization: <AUTH-nnnn>
+Use the proposed construction envelope above.
+Approver: <name/handle>
+```
+
+Codex may record a receipt supplied by the owner; it must never create, infer,
+or self-accept one.
+
+## 30. Gate B validation and invalidation rules
+
+The design and construction authorization use monotonic IDs (`DES-0001` and
+`AUTH-0001`, then incrementing). Gate B is valid only when:
+
+1. Gate A remains valid for the same requirements revision.
+2. Parts III and IV contain no unresolved item required for the authorized
+   scope, and the design revision identifies their current approved content.
+3. The agent reviewed those exact requirements, design, and construction
+   authorization IDs, found no blocking gap, and recommended
+   `READY_FOR_CONSTRUCTION_APPROVAL`.
+4. Scope, write set, task boundary, parallelism, attempt budget, checkpoints,
+   GitHub authority, AWS authority, stop conditions, and expiry are explicit.
+5. The owner decision is `APPROVED` for those exact revisions, and its source
+   and verbatim receipt agree with the structured fields.
+
+Any requirements change makes Gate A and Gate B `STALE`. Any design-controlled
+change increments `DES`; any construction-envelope change increments `AUTH`.
+Either change makes Gate B `STALE` while leaving Gate A unchanged. A revision
+mismatch is stale even if a status still says `APPROVED`. Checkpoint updates,
+evidence, and task status changes within the approved envelope do not invalidate
+Gate B. Stop when a boundary would be exceeded, an attempt budget is exhausted,
+a mandatory stop condition occurs, the authorization expires, or a gate becomes
+stale; report the smallest decision needed to continue.
