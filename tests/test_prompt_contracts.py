@@ -309,6 +309,15 @@ class PromptPackContractTests(unittest.TestCase):
         for name, document in documents.items():
             self.assertRegex(document, r"(?m)^## Agent reference", name)
 
+    def test_readmes_use_one_line_gate_flow(self) -> None:
+        gate_line = (
+            "Gate A — approve requirements → Gate B — approve the PRD and "
+            "construction boundary → Codex builds autonomously inside that boundary."
+        )
+        for document in (self.root_readme, self.project_readme):
+            self.assertEqual(document.count(gate_line), 1)
+        self.assertNotIn("| Gate | You approve |", self.root_readme)
+
     def test_task_cards_are_human_first_with_collapsed_exact_metadata(self) -> None:
         self.assertIn("## How to read a task card", self.tasks)
         self.assertIn("- Status: BACKLOG", self.tasks)

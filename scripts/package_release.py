@@ -21,12 +21,13 @@ MANIFEST_FILE = "bootstrap.manifest.json"
 VERSION_FILE = "VERSION"
 ARCHIVE_NAME = "aws-codex-fastlane-bootstrap.zip"
 ARCHIVE_ROOT = "aws-codex-fastlane-bootstrap"
+DEFAULT_OUTPUT_DIRECTORY = "dist"
 FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 SEMVER_PATTERN = re.compile(r"\d+\.\d+\.\d+")
 
 
 class PackagingError(ValueError):
-    """Raised when release inputs or committed artifacts are unsafe or stale."""
+    """Raised when release inputs or generated artifacts are unsafe or stale."""
 
 
 def checksum_path(archive_path: Path) -> Path:
@@ -223,20 +224,14 @@ def write_release(repo_root: Path, archive_path: Path) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def check_release(repo_root: Path, archive_path: Path) -> str:
-    """Require committed artifacts to equal a fresh deterministic build."""
+def check_release(repo_root: Path = REPOSITORY_ROOT) -> str:
+    """Build twice in memory and require byte-for-byte deterministic output."""
 
-    payload, sidecar = expected_artifacts(repo_root, archive_path.name)
-    sidecar_path = checksum_path(archive_path)
-    if archive_path.is_symlink() or not archive_path.is_file():
-        raise PackagingError(f"Release archive is missing or unsafe: {archive_path}")
-    if sidecar_path.is_symlink() or not sidecar_path.is_file():
-        raise PackagingError(f"Checksum sidecar is missing or unsafe: {sidecar_path}")
-    if archive_path.read_bytes() != payload:
-        raise PackagingError("Committed release archive is stale or non-deterministic")
-    if sidecar_path.read_bytes() != sidecar:
-        raise PackagingError("Committed checksum sidecar is stale or malformed")
-    return hashlib.sha256(payload).hexdigest()
+    first = build_release_bytes(repo_root)
+    second = build_release_bytes(repo_root)
+    if first != second:
+        raise PackagingError("Repeated release builds produced different bytes")
+    return hashlib.sha256(first).hexdigest()
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -246,28 +241,32 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Fail unless the committed archive and checksum equal a fresh build",
+        help="Validate the manifest and deterministic archive bytes without writing files",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=REPOSITORY_ROOT / ARCHIVE_NAME,
-        help=f"Archive output path (default: {ARCHIVE_NAME})",
+        default=REPOSITORY_ROOT / DEFAULT_OUTPUT_DIRECTORY / ARCHIVE_NAME,
+        help=(
+            "Archive output path "
+            f"(default: {DEFAULT_OUTPUT_DIRECTORY}/{ARCHIVE_NAME})"
+        ),
     )
     args = parser.parse_args(argv)
     archive_path = args.output.expanduser().resolve()
     try:
         if args.check:
-            digest = check_release(REPOSITORY_ROOT, archive_path)
-            verb = "verified"
+            digest = check_release(REPOSITORY_ROOT)
+            print("Release package verified in memory")
+            print(f"SHA-256: {digest}")
+            return 0
         else:
             digest = write_release(REPOSITORY_ROOT, archive_path)
-            verb = "wrote"
     except (OSError, PackagingError, zipfile.BadZipFile) as exc:
         print(f"Release package failed: {exc}")
         return 1
 
-    print(f"Release package {verb}: {archive_path}")
+    print(f"Release package wrote: {archive_path}")
     print(f"SHA-256: {digest}")
     print(f"Checksum: {checksum_path(archive_path)}")
     return 0

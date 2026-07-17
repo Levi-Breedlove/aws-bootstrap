@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import importlib.util
 import json
 import os
@@ -11,6 +12,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "package_release.py"
@@ -49,18 +51,16 @@ class PackageReleaseTests(unittest.TestCase):
         self.assertEqual(actual, expected)
         self.assertEqual(manifest["required_files"], sorted(expected))
 
-    def test_committed_archive_is_an_exact_deterministic_projection(self) -> None:
+    def test_archive_is_an_exact_deterministic_projection(self) -> None:
         first = package_release.build_release_bytes(REPOSITORY_ROOT)
         second = package_release.build_release_bytes(REPOSITORY_ROOT)
         self.assertEqual(first, second)
 
-        archive_path = REPOSITORY_ROOT / package_release.ARCHIVE_NAME
-        self.assertEqual(archive_path.read_bytes(), first)
         _version, files = package_release.load_release_files(REPOSITORY_ROOT)
         expected_names = [
             package_release.archive_member(relative) for relative, _content in files
         ]
-        with zipfile.ZipFile(archive_path) as archive:
+        with zipfile.ZipFile(io.BytesIO(first)) as archive:
             infos = archive.infolist()
             self.assertEqual([info.filename for info in infos], expected_names)
             self.assertIsNone(archive.testzip())
@@ -73,18 +73,21 @@ class PackageReleaseTests(unittest.TestCase):
                 self.assertEqual(info.comment, b"")
                 self.assertEqual(archive.read(info), content)
 
-    def test_committed_checksum_is_exact(self) -> None:
-        archive_path = REPOSITORY_ROOT / package_release.ARCHIVE_NAME
-        payload = archive_path.read_bytes()
-        expected = (
-            f"{hashlib.sha256(payload).hexdigest()}  {archive_path.name}\n"
-        )
-        self.assertEqual(
-            package_release.checksum_path(archive_path).read_text(encoding="ascii"),
-            expected,
-        )
+    def test_written_checksum_is_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            archive_path = Path(temporary) / package_release.ARCHIVE_NAME
+            digest = package_release.write_release(REPOSITORY_ROOT, archive_path)
+            self.assertEqual(digest, hashlib.sha256(archive_path.read_bytes()).hexdigest())
+            self.assertEqual(
+                package_release.checksum_path(archive_path).read_text(encoding="ascii"),
+                f"{digest}  {archive_path.name}\n",
+            )
 
-    def test_check_cli_verifies_committed_artifacts(self) -> None:
+    def test_check_cli_validates_without_committed_artifacts(self) -> None:
+        self.assertFalse((REPOSITORY_ROOT / package_release.ARCHIVE_NAME).exists())
+        self.assertFalse(
+            (REPOSITORY_ROOT / f"{package_release.ARCHIVE_NAME}.sha256").exists()
+        )
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--check"],
             cwd=REPOSITORY_ROOT,
@@ -93,7 +96,29 @@ class PackageReleaseTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Release package verified", result.stdout)
+        self.assertIn("Release package verified in memory", result.stdout)
+
+    def test_default_output_is_ignored_dist_directory(self) -> None:
+        default_output = (
+            REPOSITORY_ROOT
+            / package_release.DEFAULT_OUTPUT_DIRECTORY
+            / package_release.ARCHIVE_NAME
+        )
+        self.assertEqual(default_output.parent.name, "dist")
+        gitignore = (REPOSITORY_ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("/dist/", gitignore.splitlines())
+
+    def test_check_release_rejects_non_deterministic_builds(self) -> None:
+        with mock.patch.object(
+            package_release,
+            "build_release_bytes",
+            side_effect=[b"first", b"second"],
+        ):
+            with self.assertRaisesRegex(
+                package_release.PackagingError,
+                "different bytes",
+            ):
+                package_release.check_release(REPOSITORY_ROOT)
 
     def test_custom_output_checksum_names_custom_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -104,8 +129,14 @@ class PackageReleaseTests(unittest.TestCase):
                 f"{digest}  {archive_path.name}\n",
             )
             self.assertEqual(
-                package_release.check_release(REPOSITORY_ROOT, archive_path),
-                digest,
+                package_release.expected_artifacts(
+                    REPOSITORY_ROOT,
+                    archive_path.name,
+                ),
+                (
+                    archive_path.read_bytes(),
+                    package_release.checksum_path(archive_path).read_bytes(),
+                ),
             )
 
     def test_unsafe_manifest_path_is_rejected(self) -> None:

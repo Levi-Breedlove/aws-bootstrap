@@ -89,11 +89,13 @@ explain its recommendation.
 
 ## The delivery path
 
+**Gate A — approve requirements → Gate B — approve the PRD and construction boundary → Codex builds autonomously inside that boundary.**
+
 ```text
-BOOT-00 -> guided intake -> requirements analysis -> Gate A
-        -> technical design and construction envelope -> Gate B
-        -> task plan -> bounded autonomous construction -> release review
+BOOT-00 -> guided intake -> Gate A -> technical design -> Gate B -> task plan -> autonomous construction -> release review
 ```
+
+## Agent reference — exact bootstrap operation
 
 There are exactly two routine human gates:
 
@@ -113,8 +115,6 @@ multiple safe waves over a long session, using claims, attempt budgets, Git
 checkpoints, verification evidence, and explicit pause/resume state. It stops
 when approval becomes stale, a boundary is exhausted, state is unsafe, or a
 needed action was not authorized.
-
-## Agent reference — exact bootstrap operation
 
 ## Check the project at any time
 

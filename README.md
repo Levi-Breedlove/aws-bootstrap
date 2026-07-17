@@ -24,10 +24,7 @@ a document factory.
 
 ## The two gates
 
-| Gate | You approve | What Codex can do next |
-|---|---|---|
-| Gate A | A versioned, analyzed requirements set | Complete the technical design |
-| Gate B | The complete PRD and an exact construction envelope | Generate tasks and run the authorized implementation |
+**Gate A — approve requirements → Gate B — approve the PRD and construction boundary → Codex builds autonomously inside that boundary.**
 
 Gate B is the handoff into autonomous construction. GitHub writes, AWS
 mutations, production changes, destructive actions, and other side effects
@@ -36,7 +33,10 @@ action-specific receipt.
 
 ## Start a project
 
-1. Download and verify [`aws-codex-fastlane-bootstrap.zip`](aws-codex-fastlane-bootstrap.zip),
+1. Download the
+   [v1.0.0 bootstrap ZIP](https://github.com/Levi-Breedlove/aws-bootstrap/releases/download/v1.0.0/aws-codex-fastlane-bootstrap.zip)
+   and its
+   [checksum](https://github.com/Levi-Breedlove/aws-bootstrap/releases/download/v1.0.0/aws-codex-fastlane-bootstrap.zip.sha256),
    or clone this repository and open `my-project/`.
 2. Extract the archive and open the extracted folder—the one containing
    `AGENTS.md`, `bootstrap.py`, and `prompts/CODEX-PROMPTS.md`—in Codex.
@@ -57,6 +57,9 @@ Git write yet.
 Codex runs `BOOT-00`, validates the install, explains the current state, and
 returns a prefilled `START GUIDED INTAKE` command. The detailed startup and
 fallback CLI instructions are in [`my-project/README.md`](my-project/README.md).
+
+The ZIP is only the delivery container. The extracted files are the working
+bootstrap, and the package does not contain another nested ZIP.
 
 ## Delivery choices
 
@@ -122,17 +125,17 @@ Get-Content .\aws-codex-fastlane-bootstrap.zip.sha256
 
 ## Maintainer checks
 
-The committed archive is generated only from the exact file list in
-`my-project/bootstrap.manifest.json`. Paths are validated, symlinks are
-rejected, member order and metadata are fixed, and the archive contains the
-source bytes unchanged.
+The release archive is generated only from the exact file list in
+`my-project/bootstrap.manifest.json`. It is not committed to `main`. Paths are
+validated, symlinks are rejected, member order and metadata are fixed, and the
+archive contains the source bytes unchanged.
 
 ```bash
 python -m unittest discover -s tests -v
 python scripts/package_release.py --check
 ```
 
-To rebuild the release artifact and checksum:
+To build the release artifact and checksum under ignored `dist/`:
 
 ```bash
 python scripts/package_release.py

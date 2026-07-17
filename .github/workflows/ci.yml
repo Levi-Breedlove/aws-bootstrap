@@ -28,3 +28,6 @@ jobs:
 
       - name: Run maintainer safety tests
         run: python -m unittest discover -s tests -v
+
+      - name: Verify deterministic release package
+        run: python scripts/package_release.py --check
