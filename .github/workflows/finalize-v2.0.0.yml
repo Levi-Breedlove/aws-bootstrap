@@ -222,6 +222,23 @@ jobs:
             return "$rc"
           }
 
+          load_release() {
+            gh api "repos/$EXPECTED_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+            jq --arg tag "$RELEASE_TAG" \
+              '[.[] | select(.tag_name == $tag)]' \
+              "$RUNNER_TEMP/releases.json" > "$RUNNER_TEMP/release-matches.json"
+            local count
+            count="$(jq 'length' "$RUNNER_TEMP/release-matches.json")"
+            if test "$count" -eq 0; then
+              return 44
+            fi
+            test "$count" -eq 1 || {
+              echo "Multiple releases unexpectedly use tag $RELEASE_TAG" >&2
+              return 1
+            }
+            jq '.[0]' "$RUNNER_TEMP/release-matches.json" > "$RUNNER_TEMP/release.json"
+          }
+
           tag_endpoint="repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG"
           if api_probe "$tag_endpoint"; then
             tag_type="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.type')"
@@ -247,12 +264,11 @@ jobs:
             test "$(peel_tag)" = "$EXPECTED_MAIN_SHA"
           fi
 
-          release_endpoint="repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG"
-          if api_probe "$release_endpoint"; then
+          if load_release; then
             :
           else
-            probe_status=$?
-            test "$probe_status" -eq 44 || exit "$probe_status"
+            release_status=$?
+            test "$release_status" -eq 44 || exit "$release_status"
             gh release create "$RELEASE_TAG" \
               --repo "$EXPECTED_REPOSITORY" \
               --title "$RELEASE_TITLE" \
@@ -260,7 +276,7 @@ jobs:
               --draft \
               --verify-tag
           fi
-          gh api "repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release.json"
+          load_release
 
           test "$(jq -r '.tag_name' "$RUNNER_TEMP/release.json")" = "$RELEASE_TAG"
           test "$(jq -r '.name' "$RUNNER_TEMP/release.json")" = "$RELEASE_TITLE"
@@ -311,7 +327,7 @@ jobs:
             fi
           done
 
-          gh api "repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release.json"
+          load_release
           mapfile -t actual_assets < <(jq -r '.assets[].name' "$RUNNER_TEMP/release.json" | sort -u)
           test "$(printf '%s\n' "${actual_assets[@]}")" = "$(printf '%s\n' "${expected_assets[@]}")"
 
@@ -343,7 +359,7 @@ jobs:
               --draft=false
           fi
 
-          gh api "repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release.json"
+          load_release
           test "$(jq -r '.draft' "$RUNNER_TEMP/release.json")" = "false"
           test "$(jq -r '.prerelease' "$RUNNER_TEMP/release.json")" = "false"
           test "$(peel_tag)" = "$EXPECTED_MAIN_SHA"
