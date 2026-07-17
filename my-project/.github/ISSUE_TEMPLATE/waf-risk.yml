@@ -1,0 +1,68 @@
+name: Well-Architected risk
+description: Track an architectural risk or review finding
+title: "[WAF Risk] "
+labels:
+  - type:risk
+body:
+  - type: dropdown
+    id: pillar
+    attributes:
+      label: Primary pillar
+      options:
+        - Operational Excellence
+        - Security
+        - Reliability
+        - Performance Efficiency
+        - Cost Optimization
+        - Sustainability
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+
+  - type: textarea
+    id: finding
+    attributes:
+      label: Finding
+      description: What risk exists and what evidence supports it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential impact
+      description: Describe user, security, reliability, operational, or cost impact.
+    validations:
+      required: true
+
+  - type: textarea
+    id: remediation
+    attributes:
+      label: Proposed remediation
+      description: State the smallest practical risk-reduction outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance evidence
+      description: What test or AWS evidence will prove the risk is reduced?
+    validations:
+      required: true
+
+  - type: textarea
+    id: deferral
+    attributes:
+      label: Deferral or accepted-risk rationale
+      description: Complete only when the risk will not be remediated now.

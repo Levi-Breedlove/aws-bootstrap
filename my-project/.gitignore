@@ -1,0 +1,57 @@
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials
+credentials.*
+secrets.*
+*secret*.json
+*parameters*.json
+!*.example.json
+
+# AWS and Kubernetes local state
+.aws/
+kubeconfig
+*kubeconfig*
+.cdk.staging/
+cdk.out/
+.aws-sam/
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+build/
+coverage/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated artifacts
+*.zip
+*.tar
+*.tar.gz
+artifacts/
+tmp/

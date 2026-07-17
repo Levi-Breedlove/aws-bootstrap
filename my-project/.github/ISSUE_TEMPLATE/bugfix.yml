@@ -1,0 +1,56 @@
+name: Bugfix
+description: Track a defect analyzed in BUGFIX.md
+title: "[BUG] "
+labels:
+  - type:bug
+body:
+  - type: input
+    id: bug_id
+    attributes:
+      label: Bug ID
+      placeholder: BUG-001
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: unchanged
+    attributes:
+      label: Intentionally unchanged behavior
+      description: Define the regression boundary.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and evidence
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: TASKS.md references
+      placeholder: TASK-004, TASK-005
+
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression tests and properties
+      description: Reference example tests and BUG-PROP IDs.
+    validations:
+      required: true

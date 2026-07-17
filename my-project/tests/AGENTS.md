@@ -1,0 +1,16 @@
+# Verification Engineering Guide
+
+These instructions apply under `tests/` and inherit the root `AGENTS.md`.
+
+## Rules
+
+- Test externally observable behavior rather than private implementation details.
+- Implement approved PRD properties with the language-appropriate property-based testing framework.
+- Cover happy paths, invalid input, authentication, authorization, boundaries, concurrency, and failures.
+- Distinguish unit, integration, end-to-end, security, reliability, performance, and AWS environment tests.
+- Do not weaken, delete, or skip assertions merely to make tests pass.
+- Use synthetic fixtures without real credentials, secrets, or personal data.
+- Make AWS tests safe, scoped, repeatable, and cost-aware.
+- Use mocks for local confidence, but do not treat mocks as deployed integration proof.
+- Record meaningful release evidence in `../VERIFY.md`.
+- Reference test suites or reports rather than listing every test case in Markdown.

@@ -1,0 +1,96 @@
+name: AWS task
+description: Mirror one non-trivial TASKS.md item as a trackable GitHub Issue
+title: "[TASK-XXX] "
+labels:
+  - type:feature
+body:
+  - type: input
+    id: task_id
+    attributes:
+      label: Task ID
+      description: Stable ID from TASKS.md.
+      placeholder: TASK-001
+    validations:
+      required: true
+
+  - type: input
+    id: parent
+    attributes:
+      label: Parent release issue
+      description: Parent issue number or URL.
+      placeholder: "#1"
+
+  - type: input
+    id: wave
+    attributes:
+      label: Wave
+      description: Computed wave from TASKS.md.
+      placeholder: "1"
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: TASK IDs and issue links that must complete first.
+      placeholder: TASK-002 / #12, or NONE
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: One observable user or system outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements and properties
+      description: Reference PRD, BUGFIX, and property IDs.
+      placeholder: FR-001, SEC-002, PROP-001
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: pillars
+    attributes:
+      label: Well-Architected pillars affected
+      options:
+        - label: Operational Excellence
+        - label: Security
+        - label: Reliability
+        - label: Performance Efficiency
+        - label: Cost Optimization
+        - label: Sustainability
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Mirror the task's objective completion conditions.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Required validation and evidence
+      description: Example tests, property tests, AWS checks, metrics, or manual proof.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and non-scope
+      description: Define boundaries and affected write set.
+    validations:
+      required: true
+
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback and cleanup
+      description: How can the change be reversed or removed?
