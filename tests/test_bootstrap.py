@@ -3,10 +3,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest import mock
 
 
@@ -24,8 +25,19 @@ def load_module(name: str, path: Path):
 
 
 bootstrap = load_module(
-    "bootstrap_under_test", REPOSITORY_ROOT / "my-project" / "bootstrap.py"
+    "bootstrap_under_test", REPOSITORY_ROOT / "bootstrap.py"
 )
+
+
+def copy_manifest_template(destination: Path) -> None:
+    manifest = json.loads(
+        (REPOSITORY_ROOT / "bootstrap.manifest.json").read_text(encoding="utf-8")
+    )
+    for relative in manifest["required_files"]:
+        source = REPOSITORY_ROOT.joinpath(*PurePosixPath(relative).parts)
+        target = destination.joinpath(*PurePosixPath(relative).parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
 
 
 def adoption_decision(
@@ -80,6 +92,118 @@ def write_adoption_map(
 
 
 class BootstrapSafetyTests(unittest.TestCase):
+    def test_in_place_template_setup_is_atomic_and_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project = Path(temporary_directory) / "project"
+            project.mkdir()
+            copy_manifest_template(project)
+            values = dict(bootstrap.PLACEHOLDERS)
+            values.update(
+                {
+                    "My AWS Project": "Internal Change Request API",
+                    "{{AWS_REGION}}": "us-west-2",
+                    "{{MONTHLY_BUDGET}}": "$20/month",
+                }
+            )
+
+            original_state = (project / "bootstrap.yaml").read_bytes()
+            preview = bootstrap.initialize_template_in_place(
+                project,
+                values,
+                dry_run=True,
+            )
+            self.assertGreater(preview.planned, 0)
+            self.assertEqual((project / "bootstrap.yaml").read_bytes(), original_state)
+
+            report = bootstrap.initialize_template_in_place(project, values)
+
+            self.assertGreater(report.written, 0)
+            state = json.loads((project / "bootstrap.yaml").read_text(encoding="utf-8"))
+            self.assertEqual(state["setup"], {"status": "CONFIGURED", "method": "IN_PLACE"})
+            self.assertEqual(state["project"]["name"], "Internal Change Request API")
+            self.assertEqual(state["project"]["region"], "us-west-2")
+            self.assertEqual(state["project"]["development_budget"], "$20/month")
+            doctor_ok, doctor_output = bootstrap.run_generated_doctor(project)
+            self.assertTrue(doctor_ok, doctor_output)
+
+            user_file = project / "app" / "implemented_after_setup.py"
+            user_file.write_text("VALUE = 1\n", encoding="utf-8")
+            resumed = bootstrap.initialize_template_in_place(project, values)
+            self.assertEqual(resumed.written, 0)
+            self.assertGreater(resumed.unchanged, 0)
+            self.assertEqual(user_file.read_text(encoding="utf-8"), "VALUE = 1\n")
+
+    def test_in_place_setup_rejects_modified_template_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project = Path(temporary_directory) / "project"
+            project.mkdir()
+            copy_manifest_template(project)
+            (project / "PRD.md").write_text("owner-modified", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "source hash mismatch"):
+                bootstrap.initialize_template_in_place(
+                    project,
+                    dict(bootstrap.PLACEHOLDERS),
+                )
+
+    def test_in_place_setup_rejects_unmanifested_user_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project = Path(temporary_directory) / "project"
+            project.mkdir()
+            copy_manifest_template(project)
+            extra = project / "owner-notes.md"
+            extra.write_text("do not overwrite", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "unexpected: owner-notes.md"):
+                bootstrap.initialize_template_in_place(
+                    project,
+                    dict(bootstrap.PLACEHOLDERS),
+                )
+
+            self.assertEqual(extra.read_text(encoding="utf-8"), "do not overwrite")
+            state = (project / "bootstrap.yaml").read_text(encoding="utf-8")
+            self.assertIn("{{SETUP_STATUS}}", state)
+
+    def test_in_place_setup_rolls_back_when_doctor_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project = Path(temporary_directory) / "project"
+            project.mkdir()
+            copy_manifest_template(project)
+            original = (project / "bootstrap.yaml").read_bytes()
+            values = dict(bootstrap.PLACEHOLDERS)
+            values["My AWS Project"] = "Rollback Example"
+
+            with mock.patch.object(
+                bootstrap,
+                "run_generated_doctor",
+                return_value=(False, "simulated doctor failure"),
+            ):
+                with self.assertRaisesRegex(ValueError, "doctor failed"):
+                    bootstrap.initialize_template_in_place(project, values)
+
+            self.assertEqual((project / "bootstrap.yaml").read_bytes(), original)
+
+    def test_in_place_setup_protects_official_source_and_dirty_clones(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project = Path(temporary_directory) / "project"
+            project.mkdir()
+            (project / ".git").mkdir()
+            with mock.patch.object(
+                bootstrap,
+                "git_text",
+                return_value="git@github.com:Levi-Breedlove/aws-bootstrap.git",
+            ):
+                with self.assertRaisesRegex(ValueError, "official maintainer repository"):
+                    bootstrap.validate_in_place_repository(project)
+
+            with mock.patch.object(
+                bootstrap,
+                "git_text",
+                side_effect=["https://github.com/example/project.git", " M PRD.md"],
+            ):
+                with self.assertRaisesRegex(ValueError, "untouched, clean"):
+                    bootstrap.validate_in_place_repository(project)
+
     def test_runtime_control_hashes_fail_closed_on_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             source = Path(temporary_directory) / "source"

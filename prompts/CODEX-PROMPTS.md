@@ -45,10 +45,12 @@ resources, operations, cost limit, rollback plan, and expiration.
 
 ## Start here
 
-For a new installation, paste **BOOT-00** with an explicit
-**START AWS CODEX BOOTSTRAP** target and local-Git setup choice. It safely initializes a new target or
-resumes an initialized one, explains the workflow, and returns a prefilled
-**START GUIDED INTAKE** command. Paste that command to begin.
+For a GitHub-template or extracted-release installation, paste **BOOT-00** with
+**START AWS CODEX FASTLANE**, `Setup: THIS_REPOSITORY`, and the applicable
+local-Git setup choice. For brownfield adoption, use
+`Setup: ADOPT_EXISTING_REPOSITORY` and an exact absolute target. BOOT-00 safely
+initializes or resumes the project, explains the workflow, and returns a
+prefilled **START GUIDED INTAKE** command. Paste that command to begin.
 
 For an initialized repository, use the prompt matching the current state. Do
 not skip a missing Gate A or Gate B.
@@ -387,26 +389,31 @@ Do not claim an action, test, merge, deployment, or observation without evidence
 
 ## BOOT-00 — Bootstrap Launchpad
 
-**Preconditions:** The user sent START AWS CODEX BOOTSTRAP with an explicit,
-non-root target path and `Local Git setup: INIT_AND_BASELINE_COMMIT`,
-`USE_EXISTING`, or `DO_NOT_INITIALIZE`. The bootstrap template source is
+**Preconditions:** The user sent `START AWS CODEX FASTLANE` with
+`Setup: THIS_REPOSITORY` or `Setup: ADOPT_EXISTING_REPOSITORY`, plus an exact
+local-Git setup choice. The legacy `START AWS CODEX BOOTSTRAP` external-target
+form remains valid for scripted copies. The template files and manifest are
 available.
 
-**Authoritative inputs:** Resolved template and target paths; bootstrap.py dry-run;
-template manifest; bootstrap.yaml mirror; bootstrap doctor output; target tree;
-AGENTS.md files; existing PRD.md, BUGFIX.md,
-TASKS.md, VERIFY.md, and RUNBOOK.md; local Git, Python, prompt-pack, placeholder,
-and aws-core availability checks.
+**Authoritative inputs:** Resolved repository and optional adoption-target paths;
+bootstrap manifest and source hashes; bootstrap.py dry-run; bootstrap.yaml
+mirror; bootstrap doctor JSON; Git state and origin; AGENTS.md files; existing
+PRD.md, BUGFIX.md, TASKS.md, VERIFY.md, and RUNBOOK.md; Python, prompt-pack,
+placeholder, skill, and optional aws-core availability checks.
 
-**Permitted writes:** Collision-free bootstrap files inside the explicitly named
-NEW_TARGET. For brownfield collisions, only a user-confirmed, complete,
-hash-bound adoption map may authorize exact `ADOPT_TEMPLATE` paths; `PRESERVE`
-does not change the target, and `STAGE_FOR_MERGE` writes only to its separate
-explicit staging target. Blanket overwrite is prohibited. ACTIVE targets are
-inspected and resumed without regeneration. When and only when local-Git setup
-is `INIT_AND_BASELINE_COMMIT`, an absent local repository may be initialized and
-the reviewed bootstrap state committed as its baseline using existing Git
-author identity. No remote may be added.
+**Permitted writes:** For `THIS_REPOSITORY`, only allowlisted placeholder
+rendering by `bootstrap.py --in-place-template-instance` after the tree matches
+the versioned manifest, every source hash matches, no symlink or dirty user file
+exists, and the repository is not the official maintainer source. For an
+external new target, only manifest-allowlisted files inside the explicit
+collision-free target. For brownfield collisions, only a user-confirmed,
+complete, hash-bound adoption map may authorize exact `ADOPT_TEMPLATE` paths;
+`PRESERVE` does not change the target and `STAGE_FOR_MERGE` writes only to its
+separate explicit staging target. Blanket overwrite is prohibited. ACTIVE
+targets are inspected and resumed without regeneration. When and only when
+local-Git setup is `INIT_AND_BASELINE_COMMIT`, an absent local repository may
+be initialized and the reviewed bootstrap state committed as its baseline
+using existing Git author identity. No remote may be added.
 
 **GitHub mode:** NONE. Local Git initialization and one baseline commit are not
 GitHub actions and are allowed only by the setup choice above. No remote,
@@ -414,20 +421,23 @@ fetch, push, hosted repository, issue, pull request, or other GitHub write.
 
 **AWS mode:** NONE.
 
-**Required authorization:** The exact START AWS CODEX BOOTSTRAP command
-authorizes only safe local initialization at its explicit target and the exact
-local-Git setup choice. It does not authorize requirements, tasks,
-implementation, remotes, GitHub writes, or AWS access.
+**Required authorization:** The exact start command authorizes only safe local
+initialization or inspection for its named setup method and exact local-Git
+choice. It does not authorize requirements, tasks, implementation, remotes,
+GitHub writes, or AWS access.
 
-**Stop conditions:** Missing/ambiguous target; filesystem root or home target;
-template/target equality or containment; symlink escape; dry-run failure;
-collision or overwrite risk; unresolved source-of-truth conflict; partial write;
-expected-file or placeholder verification failure; doctor failure or partial
-core-contract adoption; unconfirmed adoption plan; adoption-plan digest or
-target-root drift.
+**Stop conditions:** Missing or ambiguous setup; unsafe repository root; ordinary
+external source/target equality or containment; a modified or dirty in-place
+template; official maintainer-source detection; source-hash mismatch; symlink
+escape; dry-run failure; collision or overwrite risk; unresolved
+source-of-truth conflict; partial write; expected-file, skill, placeholder, or
+doctor failure; partial core-contract adoption; unconfirmed adoption plan;
+adoption-plan digest or target-root drift.
 
-**Receipt:** Standard work receipt plus classification, lifecycle state, and
-READY, RESUME, or BLOCKED bootstrap status.
+**Receipt:** Stable doctor-derived READY, RESUME, or BLOCKED receipt containing
+classification, lifecycle, doctor result, next prompt, Git baseline, AWS access,
+Gate A, Gate B, evidence, and AWS authorization state, followed by a standard
+work receipt.
 
 **Next:** State-derived: INTAKE-10, REQ-10, INTAKE-20, DESIGN-10, DESIGN-20,
 TASK-10, BUILD-10, BUILD-20, RELEASE-10, or STOP.
@@ -436,27 +446,52 @@ TASK-10, BUILD-10, BUILD-20, RELEASE-10, or STOP.
 [BOOT-00]
 Process this initiation command:
 
-START AWS CODEX BOOTSTRAP
-Target path: <explicit target path>
-Local Git setup: <INIT_AND_BASELINE_COMMIT|USE_EXISTING|DO_NOT_INITIALIZE>
+START AWS CODEX FASTLANE
+Setup: <THIS_REPOSITORY|ADOPT_EXISTING_REPOSITORY>
+Target path: <required only for ADOPT_EXISTING_REPOSITORY>
+Local Git setup: <INIT_AND_BASELINE_COMMIT|USE_EXISTING>
 
-Act as the AWS Codex Fastlane installer and launchpad. Resolve the template and
-target without relying on an unresolved variable, glob, home shortcut, or
-command substitution. Refuse a root/home target, equality, either-direction
-containment, or symlink escape.
+Act as the AWS Codex Fastlane installer and launchpad. For THIS_REPOSITORY, use
+the repository containing this prompt as both the template instance and project
+root. For ADOPT_EXISTING_REPOSITORY, resolve the exact absolute target without
+an unresolved variable, glob, home shortcut, or command substitution. Refuse a
+filesystem root, home directory, Git metadata path, or symlink escape.
+
+Ask no more than these three setup questions, and ask only for values the user
+did not already supply:
+1. What should the project be called?
+2. Which AWS Region should planning prefer?
+3. What monthly development budget should the design stay within?
+
+Recommend `us-west-2` and `$20/month` when the owner is unsure. These are
+planning inputs, not AWS authorization.
 
 Inspect before writing and classify exactly one:
 - TEMPLATE_SOURCE: this is the reusable source, not an initialized target;
+- UNCONFIGURED_TEMPLATE: an untouched GitHub-template or release-ZIP instance;
 - NEW_TARGET: explicit absent or empty target safe to initialize;
 - ACTIVE_GREENFIELD: initialized target without an existing production system;
 - ACTIVE_BROWNFIELD: existing project or system being overlaid or resumed;
 - BLOCKED: target safety, collision, integrity, or authority is unresolved.
 
-For NEW_TARGET, run bootstrap.py dry-run/collision checks first. If clean,
-initialize only the missing expected files at the explicit target using the
-bootstrap's safe path. Never use `--force`. For an uninitialized brownfield
-target, produce an overlay preview with rendered-template and target SHA-256
-digests. You may propose a decision map, but START AWS CODEX BOOTSTRAP does not
+For UNCONFIGURED_TEMPLATE, first run the in-place command with `--dry-run`, then
+run it without `--dry-run` only when the manifest, source hashes, Git protection,
+symlink checks, and collision checks pass:
+
+python bootstrap.py --target <repository root> --project-name <name> --region <region> --budget <budget> --in-place-template-instance --dry-run
+python bootstrap.py --target <repository root> --project-name <name> --region <region> --budget <budget> --in-place-template-instance
+
+Only the allowlisted placeholders may change. The full update is atomic and
+must pass the doctor; a failure rolls back every changed file.
+
+For NEW_TARGET, run bootstrap.py dry-run and collision checks first. If clean,
+initialize only the manifest-allowlisted files at the explicit target. Never use `--force`.
+Ordinary external source/target equality or containment remains
+prohibited.
+
+For an uninitialized brownfield target, produce an overlay preview with
+rendered-template and target SHA-256 digests. You may propose a decision map,
+but START AWS CODEX FASTLANE does not
 authorize you to choose `ADOPT_TEMPLATE` for the owner. Make no target change
 until every collision has exactly one hash-bound decision: `PRESERVE`,
 `ADOPT_TEMPLATE`, or `STAGE_FOR_MERGE` at a separate, explicit, non-overlapping
@@ -499,19 +534,19 @@ ACTIVE_GREENFIELD or ACTIVE_BROWNFIELD with a coherent bootstrap, resume it
 without regeneration.
 
 Apply the local-Git choice exactly. `INIT_AND_BASELINE_COMMIT` may run local
-`git init` only when `.git` is absent, validate the generated bootstrap, and
+`git init` only when `.git` is absent, validate the configured bootstrap, and
 commit that exact reviewed state as the baseline using already configured
 author identity. `USE_EXISTING` requires an existing local repository and
-records its current commit plus dirty paths. `DO_NOT_INITIALIZE` performs no Git
-write and leaves Gate B blocked until the owner later authorizes a repository
-and baseline. Never add a remote, create a hosted repository, fetch, or push.
+records its current commit plus any protected dirty paths. Never add a remote,
+create a hosted repository, fetch, or push.
 
 After initialization or resume, verify:
 - expected bootstrap files and applicable nested AGENTS.md files;
 - no unresolved project placeholders outside documented examples;
 - prompt-pack title/version and all canonical prompt IDs;
 - Git and Python availability and whether the target is already a Git repo;
-- aws-core availability, without authenticated AWS access;
+- repo-scoped Fastlane skill files and distinct trigger policies;
+- aws-core availability when useful, without authenticated AWS access;
 - source-of-truth file coherence.
 
 Run `python scripts/bootstrap_doctor.py --root <target>` after initialization and on
@@ -538,12 +573,28 @@ Do not write requirements, design, tasks, application code, or infrastructure.
 Outside the exact local-Git setup choice, do not initialize or change Git.
 Never create GitHub objects or access/mutate AWS.
 
-Print classification, lifecycle state, target, files added or NONE, collisions
-or NONE, checks, and exactly one status: READY, RESUME, or BLOCKED. Explain the
-two routine human gates, that autonomous work begins only inside Gate B's
-envelope, and the next three steps in plain language. Return the standard work
-receipt. Only when the state-derived next prompt is INTAKE-10, end with this
-prefilled command exactly:
+Print this stable machine-derived header before any natural-language
+explanation. Use READY, RESUME, or BLOCKED from doctor state; do not infer or
+rewrite these values:
+
+AWS CODEX FASTLANE — <READY|RESUME|BLOCKED>
+
+Classification: <doctor classification>
+Lifecycle: <doctor lifecycle_state>
+Doctor: <PASS|FAIL>
+Next prompt: <doctor next_prompt>
+Git baseline: <doctor git_baseline>
+AWS access: <doctor aws_access with underscores rendered as spaces>
+Gate A: <derived Gate A state>
+Gate B: <derived Gate B state>
+Evidence: <derived evidence state>
+AWS authorization: <NONE|exact current authorization ID>
+
+Then print target, files changed or NONE, collisions or NONE, and checks.
+Explain the two routine human gates, that autonomous work begins only inside
+Gate B's boundary, and the next three steps in plain language. Return the
+standard work receipt. Only when the state-derived next prompt is INTAKE-10,
+end with this prefilled command exactly:
 
 START GUIDED INTAKE
 Project path: <resolved target path>

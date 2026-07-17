@@ -57,6 +57,8 @@ CANONICAL_PLACEHOLDERS = {
     "My AWS Project",
     "{{AWS_REGION}}",
     "{{MONTHLY_BUDGET}}",
+    "{{SETUP_METHOD}}",
+    "{{SETUP_STATUS}}",
 }
 MANDATORY_REQUIRED_FILES = {
     ".github/ISSUE_TEMPLATE/aws-vertical-slice.yml",
@@ -64,10 +66,18 @@ MANDATORY_REQUIRED_FILES = {
     ".github/ISSUE_TEMPLATE/waf-risk.yml",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".gitignore",
+    ".agents/skills/build-fastlane/SKILL.md",
+    ".agents/skills/launch-fastlane/SKILL.md",
+    ".agents/skills/operate-fastlane-aws/SKILL.md",
+    ".agents/skills/plan-fastlane/SKILL.md",
     "AGENTS.md",
     "BUGFIX.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
     "PRD.md",
+    "README.md",
     "RUNBOOK.md",
+    "SECURITY.md",
     "TASKS.md",
     "VERIFY.md",
     "app/AGENTS.md",
@@ -75,6 +85,7 @@ MANDATORY_REQUIRED_FILES = {
     "bootstrap.py",
     "bootstrap.yaml",
     "docs/adr/0000-template.md",
+    "docs/demo/internal-change-request-api.md",
     "infrastructure/AGENTS.md",
     "prompts/CODEX-PROMPTS.md",
     "scripts/bootstrap_doctor.py",
@@ -1311,6 +1322,7 @@ def validate_manifest(ctx: Context, manifest: dict[str, Any]) -> None:
         "canonical_prompt_ids",
         "template_placeholders",
         "control_sha256",
+        "source_sha256",
     }
     if set(manifest) != expected_fields:
         ctx.error(
@@ -1354,6 +1366,43 @@ def validate_manifest(ctx: Context, manifest: dict[str, Any]) -> None:
             "template_placeholders must contain the canonical render tokens",
             MANIFEST_FILE,
         )
+    source_hashes = manifest.get("source_sha256")
+    expected_source_paths = seen - {MANIFEST_FILE}
+    if not isinstance(source_hashes, dict) or set(source_hashes) != expected_source_paths:
+        ctx.error(
+            "MANIFEST_SOURCE_HASHES",
+            "source_sha256 must map every required file except the manifest itself",
+            MANIFEST_FILE,
+        )
+    else:
+        for relative in sorted(expected_source_paths):
+            expected = source_hashes.get(relative)
+            if (
+                not isinstance(expected, str)
+                or re.fullmatch(r"[0-9a-f]{64}", expected) is None
+            ):
+                ctx.error(
+                    "MANIFEST_SOURCE_HASHES",
+                    f"Invalid source SHA-256 for {relative}",
+                    MANIFEST_FILE,
+                )
+                continue
+            if ctx.template_source and not has_symlink_component(ctx.root, relative):
+                try:
+                    actual = hashlib.sha256((ctx.root / relative).read_bytes()).hexdigest()
+                except OSError as exc:
+                    ctx.error(
+                        "MANIFEST_SOURCE_HASHES",
+                        f"Unable to hash template source: {exc}",
+                        relative,
+                    )
+                    continue
+                if actual != expected:
+                    ctx.error(
+                        "MANIFEST_SOURCE_HASHES",
+                        f"Template source hash mismatch for {relative}",
+                        relative,
+                    )
     controls = manifest.get("control_sha256")
     if not isinstance(controls, dict) or set(controls) != CONTROL_HASH_FILES:
         ctx.error(
@@ -1433,20 +1482,41 @@ def validate_placeholders(ctx: Context) -> None:
 
 
 def validate_state_schema(ctx: Context, state: dict[str, Any]) -> bool:
-    expected_top = {"schema_version", "bootstrap_version", "project", "lifecycle", "execution"}
+    expected_top = {
+        "schema_version",
+        "bootstrap_version",
+        "setup",
+        "project",
+        "lifecycle",
+        "execution",
+    }
     if set(state) != expected_top:
         ctx.error("STATE_SCHEMA", f"State keys must be exactly {sorted(expected_top)}", STATE_FILE)
     if state.get("schema_version") != 1:
         ctx.error("STATE_SCHEMA", "Unsupported state schema_version", STATE_FILE)
 
+    setup = state.get("setup")
     project = state.get("project")
     lifecycle = state.get("lifecycle")
     execution = state.get("execution")
-    if not isinstance(project, dict) or not isinstance(lifecycle, dict) or not isinstance(execution, dict):
-        ctx.error("STATE_SCHEMA", "project, lifecycle, and execution must be objects", STATE_FILE)
+    if (
+        not isinstance(setup, dict)
+        or not isinstance(project, dict)
+        or not isinstance(lifecycle, dict)
+        or not isinstance(execution, dict)
+    ):
+        ctx.error(
+            "STATE_SCHEMA",
+            "setup, project, lifecycle, and execution must be objects",
+            STATE_FILE,
+        )
         return False
 
+    setup_expected = {"status", "method"}
     project_expected = {
+        "name",
+        "region",
+        "development_budget",
         "mode",
         "delivery_profile",
         "effective_risk",
@@ -1473,12 +1543,30 @@ def validate_state_schema(ctx: Context, state: dict[str, Any]) -> bool:
         "last_checkpoint",
     }
     for name, value, expected in (
+        ("setup", setup, setup_expected),
         ("project", project, project_expected),
         ("lifecycle", lifecycle, lifecycle_expected),
         ("execution", execution, execution_expected),
     ):
         if set(value) != expected:
             ctx.error("STATE_SCHEMA", f"{name} keys must be exactly {sorted(expected)}", STATE_FILE)
+
+    setup_status = setup.get("status")
+    setup_method = setup.get("method")
+    allowed_setup_statuses = {"UNCONFIGURED_TEMPLATE", "CONFIGURED"}
+    if ctx.template_source:
+        allowed_setup_statuses.add("{{SETUP_STATUS}}")
+    if setup_status not in allowed_setup_statuses:
+        ctx.error("STATE_SETUP", "Invalid setup.status", STATE_FILE)
+    allowed_methods = {"IN_PLACE", "EXTERNAL_COPY"}
+    if ctx.template_source:
+        allowed_methods.add("{{SETUP_METHOD}}")
+    if setup_method not in allowed_methods:
+        ctx.error("STATE_SETUP", "Invalid setup.method", STATE_FILE)
+    for key in ("name", "region", "development_budget"):
+        value = project.get(key)
+        if not isinstance(value, str) or not value.strip():
+            ctx.error("PROJECT_IDENTITY", f"project.{key} must be non-empty text", STATE_FILE)
 
     for key, allowed in (
         ("mode", PROJECT_MODES),
@@ -3098,14 +3186,30 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
     manifest = load_json_document(ctx, MANIFEST_FILE, "MANIFEST_PARSE")
     state = load_json_document(ctx, STATE_FILE, "STATE_PARSE")
     if manifest is None or state is None:
-        return build_report(ctx, "BLOCKED", "STOP", {}, TaskSummary())
+        return build_report(
+            ctx,
+            "BLOCKED",
+            "STOP",
+            {},
+            TaskSummary(),
+            manifest=manifest,
+            state=state,
+        )
 
     validate_manifest(ctx, manifest)
     state_sections_valid = validate_state_schema(ctx, state)
     validate_prompt_pack(ctx, manifest, state)
     if not state_sections_valid:
         validate_placeholders(ctx)
-        return build_report(ctx, "BLOCKED", "STOP", {}, TaskSummary())
+        return build_report(
+            ctx,
+            "BLOCKED",
+            "STOP",
+            {},
+            TaskSummary(),
+            manifest=manifest,
+            state=state,
+        )
     prd_fields, envelope, _selections, requirements_present = validate_prd(ctx, state)
     tasks = validate_tasks(ctx, state, prd_fields, envelope)
     release_decision = validate_release_decision(ctx)
@@ -3131,7 +3235,36 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
     )
     if ctx.has_errors:
         lifecycle_state, next_prompt = "BLOCKED", "STOP"
-    return build_report(ctx, lifecycle_state, next_prompt, prd_fields, tasks)
+    return build_report(
+        ctx,
+        lifecycle_state,
+        next_prompt,
+        prd_fields,
+        tasks,
+        manifest=manifest,
+        state=state,
+        release_decision=release_decision,
+        envelope=envelope,
+    )
+
+
+def inspect_git_baseline(root: Path) -> str:
+    """Return the current commit or PENDING without changing Git state."""
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--verify", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "PENDING"
+    if result.returncode != 0:
+        return "PENDING"
+    commit = result.stdout.strip()
+    return commit if re.fullmatch(r"[0-9a-fA-F]{40,64}", commit) else "PENDING"
 
 
 def build_report(
@@ -3140,12 +3273,87 @@ def build_report(
     next_prompt: str,
     prd_fields: dict[str, str],
     tasks: TaskSummary,
+    *,
+    manifest: dict[str, Any] | None = None,
+    state: dict[str, Any] | None = None,
+    release_decision: str = "NOT_READY",
+    envelope: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    manifest = manifest or {}
+    state = state or {}
+    setup = state.get("setup") if isinstance(state.get("setup"), dict) else {}
+    project = state.get("project") if isinstance(state.get("project"), dict) else {}
+    lifecycle = (
+        state.get("lifecycle") if isinstance(state.get("lifecycle"), dict) else {}
+    )
+    envelope = envelope or {}
+    if ctx.template_source:
+        classification = "TEMPLATE_SOURCE"
+    elif setup.get("status") == "UNCONFIGURED_TEMPLATE":
+        classification = "UNCONFIGURED_TEMPLATE"
+    elif project.get("mode") == "brownfield":
+        classification = "ACTIVE_BROWNFIELD"
+    else:
+        classification = "ACTIVE_GREENFIELD"
+    if ctx.has_errors:
+        status = "BLOCKED"
+    elif lifecycle_state == "INTAKE_REQUIRED":
+        status = "READY"
+    else:
+        status = "RESUME"
+    lane = project.get("aws_lane")
+    aws_access = {
+        None: "NOT_USED",
+        "documentation-only": "DOCUMENTATION_ONLY",
+        "read-only": "READ_ONLY",
+        "fast-dev": "AUTHORIZED_BOUNDARY_REQUIRED",
+        "explicit-gate": "EXACT_AUTHORIZATION_REQUIRED",
+    }.get(lane, "NOT_USED")
+    gate_a = prd_fields.get("gate_a") or lifecycle.get("gate_a") or "BLOCKED"
+    gate_b = prd_fields.get("gate_b") or lifecycle.get("gate_b") or "BLOCKED"
+    authorization_id = (
+        prd_fields.get("construction_authorization")
+        or lifecycle.get("construction_authorization")
+    )
+    construction_authorization = (
+        authorization_id if gate_b == "APPROVED_FOR_CONSTRUCTION" else "NONE"
+    )
+    aws_boundary = envelope.get("AWS boundary", "NONE")
+    aws_authorization = (
+        authorization_id
+        if gate_b == "APPROVED_FOR_CONSTRUCTION"
+        and aws_boundary in {"READ_ONLY", "MUTATE_LISTED_RESOURCES"}
+        else "NONE"
+    )
     return {
+        "schema_version": 1,
+        "bootstrap_version": manifest.get(
+            "bootstrap_version", state.get("bootstrap_version")
+        ),
+        "status": status,
+        "classification": classification,
         "ok": not ctx.has_errors,
         "lifecycle_state": lifecycle_state,
         "resume_safe": not ctx.has_errors,
         "next_prompt": next_prompt,
+        "project": {
+            "name": project.get("name"),
+            "region": project.get("region"),
+            "development_budget": project.get("development_budget"),
+            "mode": project.get("mode"),
+            "delivery_profile": project.get("delivery_profile"),
+        },
+        "git_baseline": inspect_git_baseline(ctx.root),
+        "aws_access": aws_access,
+        "gates": {
+            "gate_a": gate_a,
+            "gate_b": gate_b,
+        },
+        "evidence_state": release_decision,
+        "authorizations": {
+            "construction": construction_authorization,
+            "aws": aws_authorization,
+        },
         "basis": {
             "requirements_revision": prd_fields.get("requirements_revision"),
             "design_revision": prd_fields.get("design_revision"),
@@ -3164,6 +3372,7 @@ def print_human(report: dict[str, Any]) -> None:
     status = "PASS" if report["ok"] else "BLOCKED"
     basis = report["basis"]
     print(f"AWS Codex Fastlane Doctor: {status}")
+    print(f"Classification: {report['classification']}")
     print(f"Lifecycle: {report['lifecycle_state']}")
     print(
         "Basis: "
@@ -3173,6 +3382,12 @@ def print_human(report: dict[str, Any]) -> None:
     )
     print(f"Resume safe: {'yes' if report['resume_safe'] else 'no'}")
     print(f"Next prompt: {report['next_prompt']}")
+    print(f"Git baseline: {report['git_baseline']}")
+    print(f"AWS access: {report['aws_access']}")
+    print(f"Gate A: {report['gates']['gate_a']}")
+    print(f"Gate B: {report['gates']['gate_b']}")
+    print(f"Evidence: {report['evidence_state']}")
+    print(f"AWS authorization: {report['authorizations']['aws']}")
     for item in report["diagnostics"]:
         location = f" ({item['path']})" if item.get("path") else ""
         print(f"{item['severity']} {item['code']}{location}: {item['message']}")

@@ -28,7 +28,7 @@ def load_module(name: str, path: Path):
 
 task_waves = load_module(
     "task_waves_under_test",
-    REPOSITORY_ROOT / "my-project" / "scripts" / "task_waves.py",
+    REPOSITORY_ROOT / "scripts" / "task_waves.py",
 )
 
 
@@ -189,7 +189,7 @@ def parse_document(text: str):
 
 def write_matching_state(root: Path, tasks_text: str) -> Path:
     state = json.loads(
-        (REPOSITORY_ROOT / "my-project" / "bootstrap.yaml").read_text(encoding="utf-8")
+        (REPOSITORY_ROOT / "bootstrap.yaml").read_text(encoding="utf-8")
     )
     snap = task_waves.parse_snapshot(tasks_text)
     tasks = task_waves.parse_tasks(tasks_text)

@@ -1,7 +1,14 @@
 {
   "schema_version": 1,
   "bootstrap_version": "1.0.0",
+  "setup": {
+    "status": "{{SETUP_STATUS}}",
+    "method": "{{SETUP_METHOD}}"
+  },
   "project": {
+    "name": "My AWS Project",
+    "region": "{{AWS_REGION}}",
+    "development_budget": "{{MONTHLY_BUDGET}}",
     "mode": null,
     "delivery_profile": null,
     "effective_risk": null,

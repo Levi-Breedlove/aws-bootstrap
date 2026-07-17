@@ -16,7 +16,7 @@ from pathlib import Path, PurePosixPath
 from typing import Sequence
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE_DIRECTORY = "my-project"
+TEMPLATE_DIRECTORY = "."
 MANIFEST_FILE = "bootstrap.manifest.json"
 VERSION_FILE = "VERSION"
 ARCHIVE_NAME = "aws-codex-fastlane-bootstrap.zip"
@@ -77,7 +77,7 @@ def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tup
     """Load the version and exact manifest-ordered release file bytes."""
 
     repo_root = repo_root.resolve()
-    template_root = repo_root / TEMPLATE_DIRECTORY
+    template_root = (repo_root / TEMPLATE_DIRECTORY).resolve()
     manifest_path = template_root / MANIFEST_FILE
     version_path = repo_root / VERSION_FILE
     if template_root.is_symlink() or not template_root.is_dir():

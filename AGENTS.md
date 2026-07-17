@@ -21,6 +21,11 @@ A, completes the technical PRD, and asks for construction approval at Gate B.
 After Gate B it may continue through normal tasks without asking for approval
 again unless scope, risk, cost, authority, or observed state materially changes.
 
+Codex loads this `AGENTS.md` automatically. The repo-scoped skills under
+`.agents/skills/` provide the canonical launch, planning, construction, and AWS
+operating procedures. Use `operate-fastlane-aws` only when the owner explicitly
+invokes it; the other three skills may route matching Fastlane work.
+
 ## Sources of truth
 
 | Subject | Authoritative source |
@@ -435,9 +440,17 @@ or AWS authorization requirements.
 
 ## AWS evidence and research
 
-- Use the installed `aws-core` plugin from Agent Toolkit for AWS and current AWS primary documentation for AWS decisions.
-- Retrieve applicable `aws-core` skills and verify service behavior and regional availability when they affect the design.
-- Do not rely on memory for IAM, quotas, networking, service behavior, encryption, recovery, cost, or deployment guidance.
+- `aws-core` is optional during intake. Use it only when a current AWS fact
+  affects requirements feasibility.
+- During technical design or AWS operations, use applicable `aws-core`
+  capabilities and current primary AWS documentation to verify service
+  behavior, Region availability, IAM, quotas, networking, encryption, recovery,
+  and cost.
+- If `aws-core` is unavailable, planning may continue only with the limitation
+  recorded and without asserting an unverified current AWS fact. AWS operations
+  stop until the required capability and current evidence are available.
+- Do not rely on memory for IAM, quotas, networking, service behavior,
+  encryption, recovery, cost, or deployment guidance.
 - Distinguish recommendations from verified repository facts.
 - Distinguish local evidence from deployed AWS evidence.
 

@@ -27,7 +27,7 @@ class PackageReleaseTests(unittest.TestCase):
     def test_version_matches_release_manifest(self) -> None:
         version = (REPOSITORY_ROOT / "VERSION").read_text(encoding="utf-8").strip()
         manifest = json.loads(
-            (REPOSITORY_ROOT / "my-project" / "bootstrap.manifest.json").read_text(
+            (REPOSITORY_ROOT / "bootstrap.manifest.json").read_text(
                 encoding="utf-8"
             )
         )
@@ -36,13 +36,15 @@ class PackageReleaseTests(unittest.TestCase):
         self.assertIn("README.md", manifest["required_files"])
 
     def test_manifest_is_the_exact_template_file_inventory(self) -> None:
-        template = REPOSITORY_ROOT / "my-project"
+        template = REPOSITORY_ROOT
         actual = {
             path.relative_to(template).as_posix()
             for path in template.rglob("*")
             if path.is_file()
+            and ".git" not in path.parts
             and "__pycache__" not in path.parts
             and path.suffix != ".pyc"
+            and "dist" not in path.parts
         }
         manifest = json.loads(
             (template / "bootstrap.manifest.json").read_text(encoding="utf-8")
@@ -72,6 +74,89 @@ class PackageReleaseTests(unittest.TestCase):
                 self.assertEqual(info.extra, b"")
                 self.assertEqual(info.comment, b"")
                 self.assertEqual(archive.read(info), content)
+                self.assertFalse(info.filename.endswith((".zip", ".zip.sha256")))
+
+    def test_extracted_release_configures_in_place_and_passes_doctor(self) -> None:
+        payload = package_release.build_release_bytes(REPOSITORY_ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary)
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                archive.extractall(destination)
+            project = destination / package_release.ARCHIVE_ROOT
+            setup = subprocess.run(
+                [
+                    sys.executable,
+                    "bootstrap.py",
+                    "--target",
+                    str(project),
+                    "--project-name",
+                    "Release ZIP Example",
+                    "--region",
+                    "us-west-2",
+                    "--budget",
+                    "$20/month",
+                    "--in-place-template-instance",
+                ],
+                cwd=project,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(setup.returncode, 0, setup.stdout + setup.stderr)
+            doctor = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/bootstrap_doctor.py",
+                    "--root",
+                    str(project),
+                    "--json",
+                ],
+                cwd=project,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(doctor.returncode, 0, doctor.stdout + doctor.stderr)
+            report = json.loads(doctor.stdout)
+            self.assertEqual(report["classification"], "ACTIVE_GREENFIELD")
+            self.assertEqual(report["status"], "READY")
+            self.assertEqual(report["next_prompt"], "INTAKE-10")
+
+    def test_manifest_hashes_and_credential_free_demo_pass(self) -> None:
+        manifest_check = subprocess.run(
+            [sys.executable, "scripts/update_manifest.py", "--check"],
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            manifest_check.returncode,
+            0,
+            manifest_check.stdout + manifest_check.stderr,
+        )
+        demo = subprocess.run(
+            [sys.executable, "scripts/run_demo.py", "--json"],
+            cwd=REPOSITORY_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(demo.returncode, 0, demo.stdout + demo.stderr)
+        report = json.loads(demo.stdout)
+        self.assertEqual(report["result"], "PASS")
+        self.assertEqual(
+            report["executed_evidence"]["task_runtime"]["ready_tasks"],
+            ["TASK-0001"],
+        )
+        self.assertEqual(
+            report["executed_evidence"]["aws_preflight"]["aws_api_calls"],
+            0,
+        )
+        self.assertIn(
+            "NOT EXECUTED OUTPUT",
+            report["illustrative_dialogue"]["label"],
+        )
 
     def test_written_checksum_is_exact(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -142,9 +227,8 @@ class PackageReleaseTests(unittest.TestCase):
     def test_unsafe_manifest_path_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "my-project").mkdir()
             (root / "VERSION").write_text("1.0.0\n", encoding="utf-8")
-            (root / "my-project" / "bootstrap.manifest.json").write_text(
+            (root / "bootstrap.manifest.json").write_text(
                 json.dumps(
                     {
                         "bootstrap_version": "1.0.0",
@@ -160,8 +244,7 @@ class PackageReleaseTests(unittest.TestCase):
     def test_symlinked_release_file_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            template = root / "my-project"
-            template.mkdir()
+            template = root
             (root / "VERSION").write_text("1.0.0\n", encoding="utf-8")
             outside = root / "outside"
             outside.write_text("not release content", encoding="utf-8")
@@ -184,8 +267,7 @@ class PackageReleaseTests(unittest.TestCase):
     def test_version_drift_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            template = root / "my-project"
-            template.mkdir()
+            template = root
             (root / "VERSION").write_text("1.0.1\n", encoding="utf-8")
             (template / "bootstrap.manifest.json").write_text(
                 json.dumps(
