@@ -19,12 +19,15 @@ Initial public release.
   in `bootstrap_doctor.py`.
 - A machine-readable lifecycle mirror and sealed runtime-control hashes.
 - A deterministic, manifest-driven release archive and SHA-256 sidecar.
+- Release-only packaging that keeps generated ZIP files out of `main`.
 
 ### Changed
 
 - Replaced the document-heavy AWS AIDLC flow with a Codex-native fast lane.
 - Made the repository authoritative while keeping Notion suitable as a prompt
   launcher and status view.
+- Put Gate A and Gate B on one plain-language lifecycle line in both start
+  guides.
 - Restricted brownfield adoption to explicit per-path preserve, adopt, or stage
   decisions bound to the exact source, target, and content digests.
 - Required objective AWS identity, scope, cost, artifact, rollback, and expiry
