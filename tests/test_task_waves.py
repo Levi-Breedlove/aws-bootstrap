@@ -72,6 +72,16 @@ class TaskWaveSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing Status metadata"):
             task_waves.validate(tasks)
 
+    def test_duplicate_singleton_metadata_is_invalid(self) -> None:
+        text = task_block("TASK-001", "READY").replace(
+            "- Status: `READY`",
+            "- Status: `BACKLOG`\n- Status: `READY`",
+        )
+        tasks = task_waves.parse_tasks(text)
+
+        with self.assertRaisesRegex(ValueError, "duplicate Status metadata"):
+            task_waves.validate(tasks)
+
     def test_cannot_start_task_with_incomplete_dependency(self) -> None:
         text = "".join(
             [
@@ -123,6 +133,22 @@ class TaskWaveSafetyTests(unittest.TestCase):
 
             self.assertEqual(path.read_text(encoding="utf-8"), original)
             self.assertEqual(list(path.parent.glob(".TASKS.md.*.tmp")), [])
+
+    def test_concurrent_update_fails_instead_of_losing_work(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "TASKS.md"
+            original = task_block("TASK-001", "READY")
+            path.write_text(original, encoding="utf-8")
+
+            with task_waves.task_file_lock(path):
+                with self.assertRaisesRegex(ValueError, "already being updated"):
+                    task_waves.update_task_file(
+                        path,
+                        "TASK-001",
+                        status="IN_PROGRESS",
+                    )
+
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
 
 
 if __name__ == "__main__":
