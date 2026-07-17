@@ -20,6 +20,10 @@ Initial public release.
 - A machine-readable lifecycle mirror and sealed runtime-control hashes.
 - A deterministic, manifest-driven release archive and SHA-256 sidecar.
 - Release-only packaging that keeps generated ZIP files out of `main`.
+- A ready-to-use repository-root layout for GitHub Template adoption.
+- Four repo-scoped Fastlane skills and a credential-free executable showcase.
+- Additive, machine-stable doctor fields for setup, gates, evidence, and
+  authorization state.
 
 ### Changed
 
@@ -32,6 +36,8 @@ Initial public release.
   decisions bound to the exact source, target, and content digests.
 - Required objective AWS identity, scope, cost, artifact, rollback, and expiry
   boundaries before mutation.
+- Made GitHub **Use this template** the primary adoption path, with an equivalent
+  release ZIP as the secondary recovery path.
 
 ### Security
 

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Operate Fastlane AWS"
+  short_description: "Preflight, deploy, verify, or tear down AWS"
+  default_prompt: "Use $operate-fastlane-aws to run the exact AWS preflight or authorized operation for this project."
+policy:
+  allow_implicit_invocation: false

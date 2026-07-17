@@ -29,5 +29,37 @@ jobs:
       - name: Run maintainer safety tests
         run: python -m unittest discover -s tests -v
 
+      - name: Verify template manifest hashes
+        run: python scripts/update_manifest.py --check
+
       - name: Verify deterministic release package
         run: python scripts/package_release.py --check
+
+      - name: Run credential-free template showcase
+        run: python scripts/run_demo.py --json
+
+  windows-smoke:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Windows safety tests
+        shell: pwsh
+        run: python -m unittest discover -s tests -v
+
+      - name: Verify manifest and release package
+        shell: pwsh
+        run: |
+          python .\scripts\update_manifest.py --check
+          python .\scripts\package_release.py --check
+
+      - name: Run PowerShell template showcase smoke test
+        shell: pwsh
+        run: python .\scripts\run_demo.py --json

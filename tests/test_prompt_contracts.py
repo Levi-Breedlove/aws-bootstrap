@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = REPOSITORY_ROOT / "my-project"
+PROJECT_ROOT = REPOSITORY_ROOT
 PROMPT_PACK = PROJECT_ROOT / "prompts" / "CODEX-PROMPTS.md"
 
 PROMPT_IDS = [
@@ -53,8 +53,8 @@ class PromptPackContractTests(unittest.TestCase):
         cls.tasks = (PROJECT_ROOT / "TASKS.md").read_text(encoding="utf-8")
         cls.runbook = (PROJECT_ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
         cls.verify = (PROJECT_ROOT / "VERIFY.md").read_text(encoding="utf-8")
+        cls.security = (PROJECT_ROOT / "SECURITY.md").read_text(encoding="utf-8")
         cls.root_readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
-        cls.project_readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
 
     def prompt_section(self, prompt_id: str) -> str:
         pattern = re.compile(
@@ -252,22 +252,24 @@ class PromptPackContractTests(unittest.TestCase):
     def test_owner_facing_profile_and_security_language_is_concrete(self) -> None:
         owner_documents = (
             self.root_readme,
-            self.project_readme,
             self.agents,
             self.prd,
             self.tasks,
             self.prompts,
         )
+        rejected = (
+            "controls " + "ceremony",
+            "not weaker " + "security",
+            "Deeper " + "threat",
+            "threat " + "requirements",
+            "privilege-escalation " + "properties",
+        )
         for document in owner_documents:
-            self.assertNotIn("controls ceremony", document)
-            self.assertNotIn("not weaker security", document)
-            self.assertNotIn("Deeper threat", document)
-            self.assertNotIn("threat requirements", document)
-            self.assertNotIn("privilege-escalation properties", document)
+            for phrase in rejected:
+                self.assertNotIn(phrase, document)
 
         for document in (
             self.root_readme,
-            self.project_readme,
             self.agents,
             self.prd,
             self.prompts,
@@ -287,11 +289,18 @@ class PromptPackContractTests(unittest.TestCase):
         )
         self.assertIn("Invalid, malformed, and oversized inputs are rejected", self.prd)
         self.assertIn("actual discovered defect", self.prd)
+        for phrase in (
+            "approved access succeeds and unapproved access is denied",
+            "secrets stay out of code and logs",
+            "invalid or oversized input is rejected",
+            "IAM permits only required actions",
+            "sensitive data uses approved encryption",
+        ):
+            self.assertIn(phrase, self.security)
 
     def test_human_first_documents_label_the_exact_agent_reference(self) -> None:
         documents = {
             "root README": self.root_readme,
-            "project README": self.project_readme,
             "root AGENTS": self.agents,
             "PRD": self.prd,
             "TASKS": self.tasks,
@@ -309,14 +318,101 @@ class PromptPackContractTests(unittest.TestCase):
         for name, document in documents.items():
             self.assertRegex(document, r"(?m)^## Agent reference", name)
 
-    def test_readmes_use_one_line_gate_flow(self) -> None:
+    def test_readme_uses_one_line_gate_flow(self) -> None:
         gate_line = (
             "Gate A — approve requirements → Gate B — approve the PRD and "
             "construction boundary → Codex builds autonomously inside that boundary."
         )
-        for document in (self.root_readme, self.project_readme):
-            self.assertEqual(document.count(gate_line), 1)
+        self.assertEqual(self.root_readme.count(gate_line), 1)
         self.assertNotIn("| Gate | You approve |", self.root_readme)
+
+    def test_template_first_readme_sets_complete_user_expectations(self) -> None:
+        self.assertIn(
+            "https://github.com/Levi-Breedlove/aws-bootstrap/generate",
+            self.root_readme,
+        )
+        self.assertIn("Setup: THIS_REPOSITORY", self.root_readme)
+        self.assertIn("Local Git setup: USE_EXISTING", self.root_readme)
+        self.assertIn("Local Git setup: INIT_AND_BASELINE_COMMIT", self.root_readme)
+        self.assertIn("Setup: ADOPT_EXISTING_REPOSITORY", self.root_readme)
+        self.assertIn("AWS CODEX FASTLANE — READY", self.root_readme)
+        self.assertIn("Classification: ACTIVE_GREENFIELD", self.root_readme)
+        self.assertIn("Lifecycle: INTAKE_REQUIRED", self.root_readme)
+        self.assertIn("Doctor: PASS", self.root_readme)
+        self.assertIn("Next prompt: INTAKE-10", self.root_readme)
+        self.assertIn("AWS access: NOT USED", self.root_readme)
+        self.assertIn("## What is deterministic and what uses agent judgment", self.root_readme)
+        self.assertIn("docs/demo/internal-change-request-api.md", self.root_readme)
+        for path in (
+            "AGENTS.md",
+            "PRD.md",
+            "TASKS.md",
+            "VERIFY.md",
+            "RUNBOOK.md",
+            "bootstrap.manifest.json",
+            ".agents/skills/",
+            "docs/demo/",
+        ):
+            self.assertIn(path, self.root_readme)
+        self.assertFalse((REPOSITORY_ROOT / "my-project" / "README.md").exists())
+
+    def test_boot_prompt_has_stable_template_first_contract(self) -> None:
+        boot = self.prompt_section("BOOT-00")
+        self.assertIn("START AWS CODEX FASTLANE", boot)
+        self.assertIn("Setup: <THIS_REPOSITORY|ADOPT_EXISTING_REPOSITORY>", boot)
+        self.assertIn("Ask no more than these three setup questions", boot)
+        self.assertIn("--in-place-template-instance --dry-run", boot)
+        self.assertIn("UNCONFIGURED_TEMPLATE", boot)
+        for field in (
+            "Classification:",
+            "Lifecycle:",
+            "Doctor:",
+            "Next prompt:",
+            "Git baseline:",
+            "AWS access:",
+            "Gate A:",
+            "Gate B:",
+            "Evidence:",
+            "AWS authorization:",
+        ):
+            self.assertIn(field, boot)
+
+    def test_repo_scoped_skills_have_distinct_safe_trigger_contracts(self) -> None:
+        implicit = {
+            "launch-fastlane": "true",
+            "plan-fastlane": "true",
+            "build-fastlane": "true",
+            "operate-fastlane-aws": "false",
+        }
+        descriptions: set[str] = set()
+        for name, expected_implicit in implicit.items():
+            root = REPOSITORY_ROOT / ".agents" / "skills" / name
+            skill = (root / "SKILL.md").read_text(encoding="utf-8")
+            config = (root / "agents" / "openai.yaml").read_text(encoding="utf-8")
+            self.assertTrue(skill.startswith("---\nname: " + name + "\n"))
+            description = re.search(r"(?m)^description:\s*(.+)$", skill)
+            self.assertIsNotNone(description)
+            descriptions.add(description.group(1) if description else "")
+            self.assertIn("interface:", config)
+            self.assertIn("display_name:", config)
+            self.assertIn("short_description:", config)
+            self.assertIn("default_prompt:", config)
+            self.assertIn(
+                f"allow_implicit_invocation: {expected_implicit}",
+                config,
+            )
+            for forbidden in ("model:", "permissions:", "hooks:", "mcp_servers:"):
+                self.assertNotIn(forbidden, config)
+        self.assertEqual(len(descriptions), len(implicit))
+        aws_skill = (
+            REPOSITORY_ROOT
+            / ".agents"
+            / "skills"
+            / "operate-fastlane-aws"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Use only when the user explicitly invokes this skill", aws_skill)
+        self.assertIn("They never authorize an AWS change", aws_skill)
 
     def test_task_cards_are_human_first_with_collapsed_exact_metadata(self) -> None:
         self.assertIn("## How to read a task card", self.tasks)

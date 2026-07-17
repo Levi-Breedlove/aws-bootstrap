@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -20,6 +21,8 @@ PLACEHOLDERS = {
     "My AWS Project": "AWS Codex Project",
     "{{AWS_REGION}}": "us-west-2",
     "{{MONTHLY_BUDGET}}": "$50/month",
+    "{{SETUP_METHOD}}": "EXTERNAL_COPY",
+    "{{SETUP_STATUS}}": "CONFIGURED",
 }
 
 SKIP_NAMES = {".git", "__pycache__"}
@@ -317,6 +320,241 @@ def validate_template_control_hashes(source: Path) -> None:
             raise ValueError(f"Runtime control hash mismatch: {relative}")
 
 
+def load_template_manifest(source: Path) -> dict[str, object]:
+    """Load one structurally valid template manifest."""
+
+    manifest_path = source / "bootstrap.manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ValueError(f"Template manifest is missing or unsafe: {manifest_path}")
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Unable to read template manifest: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Template manifest must be a JSON object")
+    return payload
+
+
+def load_manifest_required_files(source: Path) -> list[str]:
+    """Return the exact canonical file allowlist from the manifest."""
+
+    manifest = load_template_manifest(source)
+    raw_files = manifest.get("required_files")
+    if not isinstance(raw_files, list) or not raw_files:
+        raise ValueError("Template manifest required_files must be a non-empty array")
+    required: list[str] = []
+    folded: set[str] = set()
+    for raw in raw_files:
+        if not isinstance(raw, str):
+            raise ValueError(f"Template manifest path must be text: {raw!r}")
+        relative = validate_relative_path(raw)
+        if relative.casefold() in folded:
+            raise ValueError(f"Duplicate or case-colliding manifest path: {relative}")
+        folded.add(relative.casefold())
+        required.append(relative)
+    if required != sorted(required):
+        raise ValueError("Template manifest required_files must be sorted canonically")
+    if "bootstrap.manifest.json" not in required:
+        raise ValueError("Template manifest must include bootstrap.manifest.json")
+    return required
+
+
+def validate_template_source_hashes(source: Path, required: Sequence[str]) -> None:
+    """Require the untouched source bytes recorded for an in-place template."""
+
+    manifest = load_template_manifest(source)
+    raw_hashes = manifest.get("source_sha256")
+    expected_paths = set(required) - {"bootstrap.manifest.json"}
+    if not isinstance(raw_hashes, dict) or set(raw_hashes) != expected_paths:
+        raise ValueError(
+            "Template manifest source_sha256 must name every required file except itself"
+        )
+    for relative in sorted(expected_paths):
+        expected = validate_digest(raw_hashes[relative], "source_sha256", relative)
+        path = source.joinpath(*PurePosixPath(relative).parts)
+        if has_unsafe_parent(source, path) or path.is_symlink() or not path.is_file():
+            raise ValueError(f"Template source file is missing or unsafe: {relative}")
+        observed = sha256_bytes(path.read_bytes())
+        if observed != expected:
+            raise ValueError(
+                f"Template source hash mismatch for {relative}: "
+                f"expected {expected}, observed {observed}"
+            )
+
+
+def validate_template_tree_inventory(source: Path, required: Sequence[str]) -> None:
+    """Require an initial in-place tree to contain only manifest source files."""
+
+    expected = set(required)
+    actual: set[str] = set()
+    for item in source.rglob("*"):
+        relative_path = item.relative_to(source)
+        folded_parts = {part.casefold() for part in relative_path.parts}
+        if ".git" in folded_parts or "__pycache__" in folded_parts:
+            continue
+        if item.is_symlink():
+            raise ValueError(
+                "In-place template tree contains an unsupported symbolic link: "
+                f"{relative_path.as_posix()}"
+            )
+        if item.is_file() and item.suffix.casefold() != ".pyc":
+            actual.add(relative_path.as_posix())
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    if missing or extra:
+        details: list[str] = []
+        if missing:
+            details.append("missing: " + ", ".join(missing))
+        if extra:
+            details.append("unexpected: " + ", ".join(extra))
+        raise ValueError(
+            "In-place template tree does not match bootstrap.manifest.json ("
+            + "; ".join(details)
+            + ")"
+        )
+
+
+def git_text(root: Path, *arguments: str, allow_failure: bool = False) -> str:
+    """Run one read-only Git query or fail closed."""
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), *arguments],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError(f"Unable to inspect the Git repository: {exc}") from exc
+    if result.returncode != 0:
+        if allow_failure:
+            return ""
+        message = result.stderr.strip() or result.stdout.strip() or "Git query failed"
+        raise ValueError(f"Unable to inspect the Git repository: {message}")
+    return result.stdout.strip()
+
+
+def validate_in_place_repository(source: Path) -> None:
+    """Protect the official source and user changes during in-place setup."""
+
+    if not (source / ".git").exists():
+        return
+    origin = git_text(
+        source,
+        "config",
+        "--get",
+        "remote.origin.url",
+        allow_failure=True,
+    )
+    normalized = origin.casefold().strip().rstrip("/")
+    for prefix in ("https://", "http://", "ssh://git@"):
+        if normalized.startswith(prefix):
+            normalized = normalized.removeprefix(prefix)
+            break
+    if normalized.startswith("git@github.com:"):
+        normalized = "github.com/" + normalized.removeprefix("git@github.com:")
+    official_names = {
+        "github.com/levi-breedlove/aws-bootstrap",
+        "github.com/levi-breedlove/aws-bootstrap.git",
+    }
+    if normalized in official_names:
+        raise ValueError(
+            "In-place setup is disabled in the official maintainer repository; "
+            "use GitHub 'Use this template' or the release ZIP"
+        )
+    dirty = git_text(source, "status", "--porcelain", "--untracked-files=all")
+    if dirty:
+        raise ValueError(
+            "In-place setup requires an untouched, clean template repository"
+        )
+
+
+def run_generated_doctor(root: Path) -> tuple[bool, str]:
+    """Run the generated project's read-only doctor."""
+
+    doctor = root / "scripts" / "bootstrap_doctor.py"
+    try:
+        result = subprocess.run(
+            [sys.executable, str(doctor), "--root", str(root), "--json"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, str(exc)
+    output = result.stdout.strip() or result.stderr.strip()
+    return result.returncode == 0, output
+
+
+def initialize_template_in_place(
+    source: Path,
+    values: dict[str, str],
+    *,
+    dry_run: bool = False,
+) -> CopyReport:
+    """Atomically configure an untouched template instance at its own root."""
+
+    source = source.resolve()
+    if source in {Path(source.anchor).resolve(), Path.home().resolve()}:
+        raise ValueError(f"In-place template root is unsafe: {source}")
+    required = load_manifest_required_files(source)
+    validate_template_control_hashes(source)
+
+    renderable = [relative for relative in required if relative not in NO_RENDER_PATHS]
+    placeholder_bytes = [token.encode("utf-8") for token in PLACEHOLDERS]
+    remaining = {
+        relative
+        for relative in renderable
+        if any(
+            token in source.joinpath(*PurePosixPath(relative).parts).read_bytes()
+            for token in placeholder_bytes
+        )
+    }
+    if not remaining:
+        ok, output = run_generated_doctor(source)
+        if not ok:
+            raise ValueError(f"Configured template doctor failed: {output}")
+        return CopyReport(unchanged=len(required))
+
+    validate_in_place_repository(source)
+    validate_template_tree_inventory(source, required)
+    validate_template_source_hashes(source, required)
+    values = dict(values)
+    values["{{SETUP_METHOD}}"] = "IN_PLACE"
+    operations: list[tuple[str, Path, bytes, bytes]] = []
+    for relative in renderable:
+        path = source.joinpath(*PurePosixPath(relative).parts)
+        original = path.read_bytes()
+        rendered = rendered_bytes(path, values, render=True)
+        if original != rendered:
+            operations.append((relative, path, original, rendered))
+
+    report = CopyReport(planned=len(operations))
+    if dry_run:
+        for relative, _path, _original, rendered in operations:
+            print(f"WOULD CONFIGURE {relative} sha256={sha256_bytes(rendered)}")
+        return report
+
+    written: list[tuple[Path, bytes]] = []
+    try:
+        for relative, path, original, rendered in operations:
+            atomic_write_bytes(path, rendered, path)
+            written.append((path, original))
+            report.written += 1
+            print(f"CONFIGURED {relative} sha256={sha256_bytes(rendered)}")
+        ok, output = run_generated_doctor(source)
+        if not ok:
+            raise ValueError(f"Configured template doctor failed: {output}")
+    except Exception:
+        for path, original in reversed(written):
+            atomic_write_bytes(path, original, path)
+        raise
+    return report
+
+
 def load_adoption_plan(path: Path, source: Path, target: Path) -> AdoptionPlan:
     """Load a strict, duplicate-free, hash-bound brownfield adoption plan."""
 
@@ -510,6 +748,7 @@ def copy_template(
     dry_run: bool = False,
     adoption_plan: AdoptionPlan | None = None,
     staging_target: Path | None = None,
+    allowed_files: Sequence[str] | None = None,
 ) -> CopyReport:
     """Preflight and apply a new install or a reviewed brownfield overlay."""
 
@@ -544,9 +783,20 @@ def copy_template(
         if staging_target.exists() and not staging_target.is_dir():
             raise ValueError(f"Staging target is not a directory: {staging_target}")
 
-    discovered_items = sorted(
-        source.rglob("*"), key=lambda item: item.relative_to(source).parts
-    )
+    if allowed_files is None:
+        discovered_items = sorted(
+            source.rglob("*"), key=lambda item: item.relative_to(source).parts
+        )
+    else:
+        discovered_items = []
+        for relative in allowed_files:
+            canonical = validate_relative_path(relative)
+            item = source.joinpath(*PurePosixPath(canonical).parts)
+            if has_unsafe_parent(source, item) or item.is_symlink():
+                raise ValueError(f"Manifest file uses an unsafe source path: {canonical}")
+            if not item.is_file():
+                raise ValueError(f"Manifest file is missing: {canonical}")
+            discovered_items.append(item)
     symlinks = [item for item in discovered_items if item.is_symlink()]
     if symlinks:
         raise ValueError(
@@ -808,6 +1058,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         help='Monthly cost ceiling, for example "$50/month"',
     )
     parser.add_argument(
+        "--in-place-template-instance",
+        action="store_true",
+        help=(
+            "Configure an untouched GitHub-template or extracted-ZIP instance "
+            "at its own root; ordinary source/target overlap remains rejected"
+        ),
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Deprecated and rejected; use --adoption-map",
@@ -840,21 +1098,38 @@ def main(argv: Sequence[str] | None = None) -> int:
     values["{{MONTHLY_BUDGET}}"] = args.budget
 
     try:
-        validate_template_control_hashes(source)
-        adoption_plan = (
-            load_adoption_plan(args.adoption_map, source, target)
-            if args.adoption_map
-            else None
-        )
-        report = copy_template(
-            source,
-            target,
-            values,
-            args.force,
-            dry_run=args.dry_run,
-            adoption_plan=adoption_plan,
-            staging_target=args.staging_target,
-        )
+        if args.in_place_template_instance:
+            if target != source:
+                raise ValueError(
+                    "--in-place-template-instance requires --target to name this template root"
+                )
+            if args.force or args.adoption_map or args.staging_target:
+                raise ValueError(
+                    "In-place setup cannot use --force, --adoption-map, or --staging-target"
+                )
+            report = initialize_template_in_place(
+                source,
+                values,
+                dry_run=args.dry_run,
+            )
+        else:
+            validate_template_control_hashes(source)
+            required_files = load_manifest_required_files(source)
+            adoption_plan = (
+                load_adoption_plan(args.adoption_map, source, target)
+                if args.adoption_map
+                else None
+            )
+            report = copy_template(
+                source,
+                target,
+                values,
+                args.force,
+                dry_run=args.dry_run,
+                adoption_plan=adoption_plan,
+                staging_target=args.staging_target,
+                allowed_files=required_files,
+            )
     except (OSError, ValueError) as exc:
         print(f"Bootstrap failed: {exc}", file=sys.stderr)
         return 2

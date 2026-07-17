@@ -1,0 +1,6 @@
+interface:
+  display_name: "Build Fastlane"
+  short_description: "Execute approved tasks with checkpoints"
+  default_prompt: "Use $build-fastlane to resume the approved task plan and continue within Gate B."
+policy:
+  allow_implicit_invocation: true
