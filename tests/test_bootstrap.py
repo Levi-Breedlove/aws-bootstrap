@@ -266,6 +266,10 @@ class BootstrapSafetyTests(unittest.TestCase):
             source.mkdir()
             (source / "Policy.md").write_text("first", encoding="utf-8")
             (source / "policy.md").write_text("second", encoding="utf-8")
+            if len(list(source.iterdir())) != 2:
+                self.skipTest(
+                    "The current filesystem cannot create case-colliding source names"
+                )
 
             with self.assertRaisesRegex(ValueError, "case-insensitive filesystem"):
                 bootstrap.copy_template(source, target, {})

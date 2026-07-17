@@ -53,6 +53,8 @@ class PromptPackContractTests(unittest.TestCase):
         cls.tasks = (PROJECT_ROOT / "TASKS.md").read_text(encoding="utf-8")
         cls.runbook = (PROJECT_ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
         cls.verify = (PROJECT_ROOT / "VERIFY.md").read_text(encoding="utf-8")
+        cls.root_readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
+        cls.project_readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
 
     def prompt_section(self, prompt_id: str) -> str:
         pattern = re.compile(
@@ -247,6 +249,104 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("All profiles still use only Gate A and Gate B", self.prompts)
         self.assertIn("without adding lifecycle gates", self.agents)
 
+    def test_owner_facing_profile_and_security_language_is_concrete(self) -> None:
+        owner_documents = (
+            self.root_readme,
+            self.project_readme,
+            self.agents,
+            self.prd,
+            self.tasks,
+            self.prompts,
+        )
+        for document in owner_documents:
+            self.assertNotIn("controls ceremony", document)
+            self.assertNotIn("not weaker security", document)
+            self.assertNotIn("Deeper threat", document)
+            self.assertNotIn("threat requirements", document)
+            self.assertNotIn("privilege-escalation properties", document)
+
+        for document in (
+            self.root_readme,
+            self.project_readme,
+            self.agents,
+            self.prd,
+            self.prompts,
+        ):
+            self.assertRegex(
+                document,
+                r"A Quick MVP is one small, reversible development release",
+            )
+            self.assertRegex(
+                document,
+                r"An AWS lane describes planned access; it does not authorize a\s+change",
+            )
+
+        self.assertIn(
+            "approved access succeeds and unapproved access is denied",
+            self.prd,
+        )
+        self.assertIn("Invalid, malformed, and oversized inputs are rejected", self.prd)
+        self.assertIn("actual discovered defect", self.prd)
+
+    def test_human_first_documents_label_the_exact_agent_reference(self) -> None:
+        documents = {
+            "root README": self.root_readme,
+            "project README": self.project_readme,
+            "root AGENTS": self.agents,
+            "PRD": self.prd,
+            "TASKS": self.tasks,
+            "prompt pack": self.prompts,
+            "app AGENTS": (PROJECT_ROOT / "app" / "AGENTS.md").read_text(
+                encoding="utf-8"
+            ),
+            "infrastructure AGENTS": (
+                PROJECT_ROOT / "infrastructure" / "AGENTS.md"
+            ).read_text(encoding="utf-8"),
+            "tests AGENTS": (PROJECT_ROOT / "tests" / "AGENTS.md").read_text(
+                encoding="utf-8"
+            ),
+        }
+        for name, document in documents.items():
+            self.assertRegex(document, r"(?m)^## Agent reference", name)
+
+    def test_task_cards_are_human_first_with_collapsed_exact_metadata(self) -> None:
+        self.assertIn("## How to read a task card", self.tasks)
+        self.assertIn("- Status: BACKLOG", self.tasks)
+        self.assertIn("- Owner: UNASSIGNED", self.tasks)
+        self.assertIn("- Blocker: NONE", self.tasks)
+        self.assertIn("- GitHub issue: PENDING_SYNC", self.tasks)
+        self.assertIn("<details>", self.tasks)
+        self.assertIn("Exact metadata used by Codex and task_waves.py", self.tasks)
+        required_metadata = (
+            "Status",
+            "Requirements",
+            "Design",
+            "Authorization",
+            "Depends on",
+            "Dependency waivers",
+            "Owner",
+            "Run ID",
+            "Risk",
+            "Write set",
+            "External state",
+            "AWS mode",
+            "Attempt budget",
+            "Attempts used",
+            "Evidence",
+            "Blocker",
+            "Skip record",
+            "GitHub issue",
+            "Last checkpoint",
+            "Last updated",
+        )
+        task_template = self.tasks.split("~~~text", 1)[1].split("~~~", 1)[0]
+        for key in required_metadata:
+            self.assertEqual(
+                task_template.count(f"- {key}:"),
+                1,
+                f"Task template must contain one {key} metadata line",
+            )
+
     def test_brownfield_adoption_requires_exact_user_confirmation(self) -> None:
         boot = self.prompt_section("BOOT-00")
         self.assertIn("does not\nauthorize you to choose `ADOPT_TEMPLATE`", boot)
@@ -265,10 +365,11 @@ class PromptPackContractTests(unittest.TestCase):
             "#### Acceptance criteria",
             "#### Validation",
             "#### Execution log",
+            "#### Agent execution details",
         ):
             self.assertIn(heading, task_prompt)
             self.assertIn(heading, self.tasks)
-        self.assertIn("every singleton metadata line", task_prompt)
+        self.assertIn("every remaining singleton metadata line", task_prompt)
         self.assertIn("A READY task cannot contain `TODO`", self.tasks)
         self.assertIn("- Dependency waivers: NONE", self.tasks)
         self.assertRegex(
@@ -408,9 +509,9 @@ class PromptPackContractTests(unittest.TestCase):
     def test_manifest_matches_pack_and_required_files_exist(self) -> None:
         manifest_path = PROJECT_ROOT / "bootstrap.manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["bootstrap_version"], "2.0.0")
+        self.assertEqual(manifest["bootstrap_version"], "1.0.0")
         self.assertEqual(manifest["canonical_prompt_ids"], PROMPT_IDS)
-        self.assertIn("**Pack version:** 2.0.0", self.prompts)
+        self.assertIn("**Pack version:** 1.0.0", self.prompts)
         missing = [
             path
             for path in manifest["required_files"]

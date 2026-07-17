@@ -4,7 +4,7 @@ Turn a rough AWS idea—or an existing repository—into a reviewed product plan
 then let Codex implement the approved work for long stretches without creating
 a document factory.
 
-**Current release:** `2.0.0`
+**Current release:** `1.0.0`
 **Runtime:** Python 3.11+ with no third-party Python dependencies
 
 ## What the fast lane does
@@ -70,10 +70,17 @@ Project mode and delivery profile are independent:
 | `standard` | Broader integration and operational coverage |
 | `high-risk` | Production, sensitive data, payments, tenancy, migrations, or other high-blast-radius work |
 
-Faster delivery changes scope and ceremony, not identity, security, testing,
-cost, rollback, or evidence standards.
+A Quick MVP is one small, reversible development release. Use `high-risk` when
+work involves production, sensitive or regulated data, payments, customer
+isolation, shared infrastructure, irreversible data changes, or a potentially
+large outage or cost increase. The profile changes scope and review depth; it
+never reduces required testing or approval.
 
-## Operating model
+An AWS lane describes planned access; it does not authorize a change. AWS
+changes require an approved record naming the account, Region, environment,
+resources, operations, cost limit, rollback plan, and expiration.
+
+## Agent reference — exact operating model
 
 The repository is authoritative. Notion can launch prompts and show status, but
 it is not a second PRD.

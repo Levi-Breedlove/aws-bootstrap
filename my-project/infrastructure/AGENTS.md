@@ -5,6 +5,14 @@ These instructions apply under `infrastructure/` and inherit the root
 validation, preflight, deployment, and evidence reconciliation are readiness
 checks inside the current construction authorization (`AUTH`).
 
+## Plain-language summary
+
+Start with read-only inspection. Change AWS only when the current approval names
+the exact account, Region, environment, resources, operations, cost limit,
+rollback plan, and expiration. Stop if the observed target or final change no
+longer matches that approval. Never treat credentials or tool access as
+permission.
+
 ## Read first
 
 - Current REQ/DES/AUTH IDs, Gate B state, AWS lane, construction envelope, and
@@ -15,7 +23,7 @@ checks inside the current construction authorization (`AUTH`).
 - Deployment, rollback, interrupted-action, recovery, and separately authorized
   teardown procedures in `../RUNBOOK.md`
 
-## Authority and task boundary
+## Agent reference — authority and task boundary
 
 - Infrastructure work requires a current Gate B
   `APPROVED_FOR_CONSTRUCTION`, matching REQ/DES/AUTH IDs, and an assigned task

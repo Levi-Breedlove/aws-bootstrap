@@ -4,6 +4,23 @@
 
 Build and operate **My AWS Project** according to the approved requirements and design in `PRD.md`.
 
+## How to use this guide
+
+The owner should be able to answer three questions without reading the agent
+reference below:
+
+1. Is this a new project (`greenfield`) or a change to an existing system
+   (`brownfield`)?
+2. Is this one small development release (`quick-mvp`), a broader release
+   (`standard`), or work that needs deeper review (`high-risk`)?
+3. Is AWS access limited to documentation, read-only inspection, an approved
+   non-production fast-development boundary, or a separate deployment approval?
+
+Codex records the answers in `PRD.md`, asks for requirements approval at Gate
+A, completes the technical PRD, and asks for construction approval at Gate B.
+After Gate B it may continue through normal tasks without asking for approval
+again unless scope, risk, cost, authority, or observed state materially changes.
+
 ## Sources of truth
 
 | Subject | Authoritative source |
@@ -30,7 +47,7 @@ Determine the work type before planning implementation:
 - **Defect or regression:** use `BUGFIX.md`, while referencing unchanged requirements in `PRD.md`.
 - **Mixed work:** separate the defect correction from new behavior unless one cannot be completed safely without the other.
 
-## Operating mode and delivery profile
+## Project choices — plain-language guide
 
 Record these independent choices in `PRD.md` before requirements approval:
 
@@ -38,16 +55,19 @@ Record these independent choices in `PRD.md` before requirements approval:
 - Delivery profile: `quick-mvp`, `standard`, or `high-risk`.
 - AWS lane: `documentation-only`, `read-only`, `fast-dev`, or `explicit-gate`.
 
-Default a new small project to `quick-mvp` and `explicit-gate`. Brownfield is a
-project mode, not a risk profile. A quick MVP is a smaller approved scope; it is
-not weaker engineering or weaker security.
+Default a new small project to `quick-mvp` and `explicit-gate`.
 
-Treat the effective profile as `high-risk` when work involves production,
-regulated or highly sensitive data, payments, tenant isolation, consequential
-identity or trust changes, irreversible migration or deletion, public exposure,
-shared infrastructure, multi-account or multi-Region coordination, strict
-recovery targets, or material unbounded spend. Record the trigger. A faster
-selected profile never overrides an objective risk trigger.
+A Quick MVP is one small, reversible development release. Use `high-risk` when
+work involves production, sensitive or regulated data, payments, customer
+isolation, shared infrastructure, irreversible data changes, or a potentially
+large outage or cost increase. Also use it for consequential identity changes,
+public exposure, multi-account or multi-Region coordination, or strict recovery
+targets. Record the reason in `PRD.md`.
+
+The profile changes scope and review depth; it never reduces required testing
+or approval. An AWS lane describes planned access; it does not authorize a
+change. AWS changes require an approved record naming the account, Region,
+environment, resources, operations, cost limit, rollback plan, and expiration.
 
 Apply these overlays without adding lifecycle gates:
 
@@ -56,8 +76,9 @@ Apply these overlays without adding lifecycle gates:
   by default;
 - `standard`: full intended-environment operational coverage and only proven,
   bounded task parallelism;
-- `high-risk`: deeper threat, data, tenancy, migration, recovery, rollback, and
-  audit analysis, smaller mutation batches, and stronger evidence.
+- `high-risk`: deeper review of identity, data access, customer separation,
+  migration, recovery, rollback, shared-resource impact, and audit needs;
+  smaller mutation batches; and stronger evidence.
 
 Every overlay retains the same security baseline, objective acceptance rules,
 AWS identity checks, and Gate A/Gate B authority model.
@@ -65,6 +86,8 @@ AWS identity checks, and Gate A/Gate B authority model.
 Gate A and Gate B each use one compact readiness card in PRD.md. Fill every
 listed field with explicit current facts and stable IDs. Use `NOT_APPLICABLE —
 <reason>` only when genuinely inapplicable; never use it to avoid discovery.
+
+## Agent reference — exact lifecycle and execution rules
 
 ## Two-gate lifecycle
 

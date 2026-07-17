@@ -1,6 +1,6 @@
 # AWS Codex Fastlane Prompt Pack
 
-**Pack version:** 2.0.0
+**Pack version:** 1.0.0
 
 This pack turns a rough idea or an existing repository into a reviewed,
 executable AWS delivery plan, then lets Codex run the approved work for long
@@ -31,6 +31,18 @@ external side effects may still need action-specific authorization when they
 were not explicitly included in the approved construction envelope. Those are
 safety authorizations, not extra lifecycle gates.
 
+### Owner quick guide
+
+A Quick MVP is one small, reversible development release. Use `high-risk` when
+work involves production, sensitive or regulated data, payments, customer
+isolation, shared infrastructure, irreversible data changes, or a potentially
+large outage or cost increase. The profile changes scope and review depth; it
+never reduces required testing or approval.
+
+An AWS lane describes planned access; it does not authorize a change. AWS
+changes require an approved record naming the account, Region, environment,
+resources, operations, cost limit, rollback plan, and expiration.
+
 ## Start here
 
 For a new installation, paste **BOOT-00** with an explicit
@@ -41,7 +53,7 @@ resumes an initialized one, explains the workflow, and returns a prefilled
 For an initialized repository, use the prompt matching the current state. Do
 not skip a missing Gate A or Gate B.
 
-## Authority and operating model
+## Agent reference — exact authority and operating model
 
 The repository is authoritative:
 
@@ -67,10 +79,10 @@ Every run declares two independent axes:
 - **Project mode:** greenfield or brownfield.
 - **Delivery profile:** quick-mvp, standard, or high-risk.
 
-Quick-mvp is the default when risk and requirements allow it. It means the
-smallest useful, observable, reversible release—not weaker security, tests, or
-AWS controls. Brownfield mode begins with repository discovery and preserves
-existing conventions unless an approved requirement justifies changing them.
+Quick-mvp is the default when the project can be delivered as one small,
+reversible development release. Brownfield mode begins with repository
+discovery and preserves existing conventions unless an approved requirement
+justifies changing them.
 
 Apply the selected delivery profile as an overlay, never as a substitute for
 the common safety contract:
@@ -79,9 +91,11 @@ the common safety contract:
 |---|---|
 | `quick-mvp` | One thin outcome, one development environment and Region where feasible, the fewest independently verifiable tasks, one worker by default, and release as soon as the approved outcome is safe and observable. |
 | `standard` | Complete operational design for the intended environments, explicit integration and migration coverage, and bounded parallelism only where task isolation is proven. |
-| `high-risk` | Deeper threat, data, tenancy, migration, recovery, rollback, audit, and failure analysis; stronger evidence and smaller mutation batches; production or destructive actions remain separately authorized when not already exact. |
+| `high-risk` | Deeper review of identity, data access, customer separation, migration, recovery, rollback, shared-resource impact, audit needs, and failure handling; stronger evidence and smaller mutation batches; production or destructive actions remain separately authorized when not already exact. |
 
-An objective high-risk trigger selects `high-risk` even if a faster profile was
+Select `high-risk` for production, sensitive or regulated data, payments,
+customer isolation, shared infrastructure, irreversible data changes, or a
+potentially large outage or cost increase, even if a faster profile was
 requested. All profiles still use only Gate A and Gate B as routine lifecycle
 gates.
 
@@ -1020,11 +1034,12 @@ For every task include:
 - GitHub link or PENDING_SYNC;
 - concise execution log.
 
-Emit each record in the validator's exact shape: one
-`### <TASK-ID> — <title>` heading; every singleton metadata line from TASKS.md's
-Required task record schema spelled exactly once; and the four sections
-`#### Outcome`, `#### Acceptance criteria`, `#### Validation`, and
-`#### Execution log`. A READY task cannot contain TODO in its outcome,
+Emit each record in the validator's exact human-first shape: one
+`### <TASK-ID> — <title>` heading; visible Status, Owner, Blocker, and GitHub
+issue fields; `#### Outcome`, `#### Acceptance criteria`, `#### Validation`, and
+`#### Execution log`; then a collapsed `#### Agent execution details` section
+containing every remaining singleton metadata line from TASKS.md's Required
+task record schema, spelled exactly once. A READY task cannot contain TODO in its outcome,
 acceptance criteria, validation, boundary, or traceability. Acceptance criteria
 must be checkboxes, and a DONE task must have every acceptance checkbox checked,
 non-NONE Evidence, and an observed execution-log entry.

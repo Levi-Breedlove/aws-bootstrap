@@ -9,6 +9,20 @@ selection, checkpoints, verification, deployment preflight, and release checks
 are execution controls inside an approved envelope; they are not additional
 human gates.
 
+## How to read a task card
+
+Start with four visible fields: status, owner, blocker, and GitHub issue. Then
+read the Outcome, Acceptance criteria, and Validation sections to understand
+what will change, what “done” means, and how the result will be proved.
+
+The collapsed **Agent execution details** section contains exact requirement,
+design, authorization, dependency, write-boundary, attempt, evidence, and
+checkpoint data. Those fields keep a long-running Codex session safe and
+resumable; a human normally needs them only when reviewing a boundary or
+investigating a stop.
+
+## Agent reference — exact run and task state
+
 ## Active execution snapshot
 
 This is a resumable snapshot, not a new authorization. It must match the
@@ -167,33 +181,18 @@ routes to `TASK-10`, not construction.
 | `Last checkpoint` | Coordinator checkpoint ID or `NONE` |
 | `Last updated` | ISO 8601 timestamp or `TODO` before initialization |
 
-`TASK-10` emits every real record in this exact structural shape. Replace every
-angle-bracket value; do not leave unresolved values on a `READY`, `IN_PROGRESS`,
-or `DONE` task.
+`TASK-10` emits every real record in this exact structural shape. The four
+human-status fields remain visible and every other singleton metadata field is
+kept in the collapsed agent section. Replace every angle-bracket value; do not
+leave unresolved values on a `READY`, `IN_PROGRESS`, or `DONE` task.
 
 ~~~text
 ### <TASK-ID> — <short title>
 
 - Status: BACKLOG
-- Requirements: <current REQ ID and requirement IDs>
-- Design: <current DES ID and sections or decisions>
-- Authorization: <current AUTH ID>
-- Depends on: NONE
-- Dependency waivers: NONE
 - Owner: UNASSIGNED
-- Run ID: NONE
-- Risk: <objective risk>
-- Write set: <exact paths or narrow globs>
-- External state: NONE
-- AWS mode: NONE
-- Attempt budget: <positive integer from AUTH>
-- Attempts used: 0
-- Evidence: NONE
 - Blocker: NONE
-- Skip record: NONE
 - GitHub issue: PENDING_SYNC
-- Last checkpoint: NONE
-- Last updated: <ISO 8601 timestamp>
 
 #### Outcome
 
@@ -212,6 +211,30 @@ or `DONE` task.
 #### Execution log
 
 - <timestamped coordinator entry or NOT_STARTED>
+
+#### Agent execution details
+
+<details>
+<summary>Exact metadata used by Codex and task_waves.py</summary>
+
+- Requirements: <current REQ ID and requirement IDs>
+- Design: <current DES ID and sections or decisions>
+- Authorization: <current AUTH ID>
+- Depends on: NONE
+- Dependency waivers: NONE
+- Run ID: NONE
+- Risk: <objective risk>
+- Write set: <exact paths or narrow globs>
+- External state: NONE
+- AWS mode: NONE
+- Attempt budget: <positive integer from AUTH>
+- Attempts used: 0
+- Evidence: NONE
+- Skip record: NONE
+- Last checkpoint: NONE
+- Last updated: <ISO 8601 timestamp>
+
+</details>
 ~~~
 
 A READY task cannot contain `TODO` in its outcome, acceptance, validation,
