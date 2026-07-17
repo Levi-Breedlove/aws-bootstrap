@@ -2,6 +2,11 @@
   "schema_version": 1,
   "bootstrap_version": "2.0.0",
   "python_requires": ">=3.11",
+  "control_sha256": {
+    "bootstrap.py": "05279f6b48283679a0b226c07a7a2577c435c21a54fc29c224e2996990f442b4",
+    "scripts/bootstrap_doctor.py": "32daa940dad83d3848c751d45c4eb7f49702885bb29d095471ba2994b4c451ea",
+    "scripts/task_waves.py": "02a80f0c4f9d1f971546a8492463b96e05ac5418bbb62438f6ffa7e1439c0b70"
+  },
   "required_files": [
     ".github/ISSUE_TEMPLATE/aws-vertical-slice.yml",
     ".github/ISSUE_TEMPLATE/bugfix.yml",
@@ -17,9 +22,11 @@
     "app/AGENTS.md",
     "bootstrap.manifest.json",
     "bootstrap.py",
+    "bootstrap.yaml",
     "docs/adr/0000-template.md",
     "infrastructure/AGENTS.md",
     "prompts/CODEX-PROMPTS.md",
+    "scripts/bootstrap_doctor.py",
     "scripts/task_waves.py",
     "tests/AGENTS.md"
   ],

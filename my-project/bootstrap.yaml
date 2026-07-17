@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "bootstrap_version": "2.0.0",
+  "project": {
+    "mode": null,
+    "delivery_profile": null,
+    "effective_risk": null,
+    "aws_lane": null,
+    "brownfield_baseline": "UNASSESSED"
+  },
+  "lifecycle": {
+    "requirements_revision": "REQ-0001",
+    "design_revision": "DES-0001",
+    "construction_authorization": "AUTH-0001",
+    "gate_a": "BLOCKED",
+    "gate_b": "BLOCKED"
+  },
+  "execution": {
+    "plan_revision": null,
+    "plan_state": "UNINITIALIZED",
+    "run_id": null,
+    "coordinator": null,
+    "mode": "NONE",
+    "state": "IDLE",
+    "basis": null,
+    "active_tasks": [],
+    "attempts": {},
+    "last_checkpoint": null
+  }
+}

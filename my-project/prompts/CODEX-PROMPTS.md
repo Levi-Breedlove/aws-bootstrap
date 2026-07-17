@@ -34,7 +34,7 @@ safety authorizations, not extra lifecycle gates.
 ## Start here
 
 For a new installation, paste **BOOT-00** with an explicit
-**START AWS CODEX BOOTSTRAP** target. It safely initializes a new target or
+**START AWS CODEX BOOTSTRAP** target and local-Git setup choice. It safely initializes a new target or
 resumes an initialized one, explains the workflow, and returns a prefilled
 **START GUIDED INTAKE** command. Paste that command to begin.
 
@@ -53,12 +53,14 @@ The repository is authoritative:
 | Tasks, dependencies, waves, status, and execution log | TASKS.md |
 | Evidence actually observed | VERIFY.md |
 | Deployment, rollback, recovery, operations, and teardown | RUNBOOK.md |
+| Machine-readable lifecycle and resume mirror | bootstrap.yaml (derived only; never authorization) |
 | Durable review and collaboration | GitHub issues and pull requests |
 | Runtime behavior | Code, tests, schemas, configuration, and infrastructure |
 
 Notion may launch the prompts and present status, but it is not a second source
 of truth. When sources conflict, stop and report the conflict. Do not silently
-choose one or create another planning document.
+choose one or create another planning document. A `bootstrap.yaml` mismatch is
+a stop condition; never use the mirror to infer approval or widen authority.
 
 Every run declares two independent axes:
 
@@ -70,6 +72,19 @@ smallest useful, observable, reversible release—not weaker security, tests, or
 AWS controls. Brownfield mode begins with repository discovery and preserves
 existing conventions unless an approved requirement justifies changing them.
 
+Apply the selected delivery profile as an overlay, never as a substitute for
+the common safety contract:
+
+| Profile | Planning and construction overlay |
+|---|---|
+| `quick-mvp` | One thin outcome, one development environment and Region where feasible, the fewest independently verifiable tasks, one worker by default, and release as soon as the approved outcome is safe and observable. |
+| `standard` | Complete operational design for the intended environments, explicit integration and migration coverage, and bounded parallelism only where task isolation is proven. |
+| `high-risk` | Deeper threat, data, tenancy, migration, recovery, rollback, audit, and failure analysis; stronger evidence and smaller mutation batches; production or destructive actions remain separately authorized when not already exact. |
+
+An objective high-risk trigger selects `high-risk` even if a faster profile was
+requested. All profiles still use only Gate A and Gate B as routine lifecycle
+gates.
+
 ## Common prompt contract
 
 Apply this contract to every prompt below.
@@ -79,6 +94,8 @@ Apply this contract to every prompt below.
 - Tool availability, credentials, a task state, a GitHub label, prior access,
   silence, or continued conversation never equals authorization.
 - Codex cannot approve its own proposal or fill in an approver identity.
+- Reject `Codex`, `agent`, `automation`, `system`, `AI`, and every other model
+  or service identity as a gate approver, case-insensitively.
 - Local read-only inspection is allowed unless the user restricts it.
 - Local writes must be within the prompt's declared write set.
 - GitHub reads and writes are separate modes. A write requires the current
@@ -115,6 +132,7 @@ APPROVE PRD AND CONSTRUCTION GATE B
 Requirements revision: REQ-0001
 Design revision: DES-0001
 Construction authorization: AUTH-0001
+Construction envelope SHA-256: sha256:<64-lowercase-hex>
 Use the proposed construction envelope above.
 Approver: <name/handle>
 ~~~
@@ -131,6 +149,74 @@ requirements gate to `APPROVED_FOR_DESIGN`. A valid Gate B receipt sets the
 current PRD and construction gate to `APPROVED_FOR_CONSTRUCTION`. Codex may
 record those receipts but may never create or self-accept them.
 
+When recording a valid receipt, also record its observed ISO 8601 time and the
+exact source locator available in the current interaction (for example, a
+message, issue, or meeting-record link). Those provenance fields are metadata,
+not extra receipt lines. Do not invent a source link or approver identity; if
+the source cannot be durably identified, stop and ask the owner how it should
+be cited.
+
+For Gate B, compute the digest from the canonical complete construction-envelope
+table defined in PRD.md: header, separator, and every boundary row in stored
+order; trailing whitespace removed per line; LF separators and one final LF;
+UTF-8 bytes; SHA-256 lowercase hex. The agent review, owner record, proposed
+receipt, and returned receipt must all contain the same digest. Any envelope
+change increments AUTH, makes Gate B stale, and requires a new digest and owner
+receipt.
+
+### Exact conditional AWS action receipts
+
+These receipts authorize one bounded external action; they are not additional
+routine lifecycle gates. A deployment receipt is required for an
+`explicit-gate` mutation. A fast-dev mutation instead must fit the current Gate
+B envelope exactly; a mismatch makes Gate B stale and cannot be repaired by an
+action receipt. Teardown always requires its own receipt. After trimming
+surrounding whitespace, accept only the complete block with actual values,
+exact current IDs, no placeholders, and no extra, missing, duplicate,
+reordered, commented, or fenced lines.
+
+~~~text
+AUTHORIZE AWS DEPLOYMENT
+AWS authorization: AWS-AUTH-0001
+Construction authorization: AUTH-0001
+Profile or role: <allowlisted profile or role>
+Account: <12-digit account ID or approved alias>
+Region: <AWS Region>
+Environment: <non-production or production>
+Artifact digest: <immutable digest>
+Stack, application, and resources: <exact boundary>
+Allowed operations: <exact create/update/delete operations>
+Cost ceiling: <currency and amount>
+Rollback boundary: <exact allowed rollback or NONE>
+Valid until: <ISO 8601 time or exact one-operation condition>
+Approver: <name/handle>
+~~~
+
+~~~text
+AUTHORIZE AWS TEARDOWN
+Teardown authorization: TEARDOWN-AUTH-0001
+Construction authorization: AUTH-0001
+Profile or role: <allowlisted profile or role>
+Account: <12-digit account ID or approved alias>
+Region: <AWS Region>
+Environment: <environment>
+Stack, application, and resources to remove: <exact boundary>
+Resources and data to retain: <exact list or NONE>
+Allowed deletion operations: <exact operations>
+Shared dependencies: <exact list or NONE>
+Cost effect: <expected continuing and removed billing dimensions>
+Post-teardown verification: <read-only checks>
+Valid until: <ISO 8601 time or exact one-operation condition>
+Approver: <name/handle>
+~~~
+
+Record a supplied receipt verbatim in the action journal or durable evidence
+location named by the active envelope, plus its observed time and source. It
+activates only the exact AWS mutation contemplated by the current
+`explicit-gate` envelope; it never widens construction scope, local or GitHub
+writes, resource boundaries, or platform authority. A deployment receipt never
+authorizes teardown.
+
 ### Construction envelope
 
 Gate B approves only the versioned envelope recorded in PRD.md. It must state:
@@ -144,6 +230,11 @@ Gate B approves only the versioned envelope recorded in PRD.md. It must state:
 - cost, security, data, environment, and destructive-action limits;
 - whether merge and branch cleanup are allowed;
 - authorization ID and expiry or completion condition.
+
+It also requires a resolvable local Git baseline, explicit protected dirty
+paths, exact external-state targets, literal allowed command prefixes, and the
+canonical complete-envelope SHA-256. Use PRD.md's exact row grammars; do not
+replace them with prose or synonyms.
 
 If a fast development deployment is proposed, the envelope must also include
 the complete AWS mutation boundary listed below. Otherwise Gate B does not
@@ -190,7 +281,9 @@ environment
 stack, application, and resource boundary
 approved operation
 approved resource summary
+artifact authorization and provenance
 billable impact or budget ceiling
+prohibited operations
 rollback or teardown path
 authorization ID, approver, and validity window
 ~~~
@@ -220,10 +313,18 @@ Use evidence states that do not overclaim:
 
 ~~~text
 NOT_STARTED -> IMPLEMENTED -> LOCAL_PASS -> PENDING_AWS -> VERIFIED
+                    \-> FAILED | BLOCKED
+Any formerly passing state -> STALE when its revision, artifact, environment,
+or target identity no longer matches.
 ~~~
 
 Local tests cannot produce deployed AWS evidence. A task can be DONE when its
 approved task-level criteria pass while AWS-only evidence remains PENDING_AWS.
+Before any DONE mutation, record each cited local `EV-nnnn` exactly once in
+VERIFY.md under `Task completion evidence`, with the exact task, observed
+command/result, actor, timezone-qualified time, tested commit/worktree/artifact,
+durable source, and `LOCAL_PASS` or `VERIFIED`. Placeholder, duplicate,
+wrong-task, fenced, URL-only, and non-passing rows grant no completion evidence.
 
 ### Standard work receipt
 
@@ -260,10 +361,10 @@ Do not claim an action, test, merge, deployment, or observation without evidence
 | BUILD-10 | Execute one approved task | BUILD-10, RELEASE-10, or STOP |
 | BUILD-20 | Run approved tasks autonomously | RELEASE-10 or STOP |
 | SYNC-10 | Reconcile authorized GitHub tracking | BUILD-20, RELEASE-10, or STOP |
-| RELEASE-10 | Review and, if authorized, finalize the release | AWS-10 or STOP |
+| RELEASE-10 | Review and, if authorized, finalize the release | AWS-10, AWS-40, or STOP |
 | AWS-10 | Read-only deployment preflight | AWS-20 or STOP |
 | AWS-20 | Execute an authorized deployment | AWS-30 |
-| AWS-30 | Reconcile deployed evidence | AWS-40 or STOP |
+| AWS-30 | Reconcile deployed evidence | RELEASE-10 |
 | AWS-40 | Read-only residual and teardown review | AWS-50 or STOP |
 | AWS-50 | Execute an authorized teardown | STOP |
 | LEARN-10 | Add concise teaching to another prompt | Same as wrapped prompt |
@@ -273,30 +374,43 @@ Do not claim an action, test, merge, deployment, or observation without evidence
 ## BOOT-00 — Bootstrap Launchpad
 
 **Preconditions:** The user sent START AWS CODEX BOOTSTRAP with an explicit,
-non-root target path. The bootstrap template source is available.
+non-root target path and `Local Git setup: INIT_AND_BASELINE_COMMIT`,
+`USE_EXISTING`, or `DO_NOT_INITIALIZE`. The bootstrap template source is
+available.
 
 **Authoritative inputs:** Resolved template and target paths; bootstrap.py dry-run;
-template manifest; target tree; AGENTS.md files; existing PRD.md, BUGFIX.md,
+template manifest; bootstrap.yaml mirror; bootstrap doctor output; target tree;
+AGENTS.md files; existing PRD.md, BUGFIX.md,
 TASKS.md, VERIFY.md, and RUNBOOK.md; local Git, Python, prompt-pack, placeholder,
 and aws-core availability checks.
 
 **Permitted writes:** Collision-free bootstrap files inside the explicitly named
-NEW_TARGET or resolved brownfield overlay target. Never overwrite. ACTIVE
-targets are inspected and resumed without regeneration.
+NEW_TARGET. For brownfield collisions, only a user-confirmed, complete,
+hash-bound adoption map may authorize exact `ADOPT_TEMPLATE` paths; `PRESERVE`
+does not change the target, and `STAGE_FOR_MERGE` writes only to its separate
+explicit staging target. Blanket overwrite is prohibited. ACTIVE targets are
+inspected and resumed without regeneration. When and only when local-Git setup
+is `INIT_AND_BASELINE_COMMIT`, an absent local repository may be initialized and
+the reviewed bootstrap state committed as its baseline using existing Git
+author identity. No remote may be added.
 
-**GitHub mode:** NONE. Local Git availability and repository-state inspection
-are allowed; no init, commit, push, branch, issue, pull request, or other write.
+**GitHub mode:** NONE. Local Git initialization and one baseline commit are not
+GitHub actions and are allowed only by the setup choice above. No remote,
+fetch, push, hosted repository, issue, pull request, or other GitHub write.
 
 **AWS mode:** NONE.
 
 **Required authorization:** The exact START AWS CODEX BOOTSTRAP command
-authorizes only safe local initialization at its explicit target. It does not
-authorize requirements, tasks, implementation, GitHub writes, or AWS access.
+authorizes only safe local initialization at its explicit target and the exact
+local-Git setup choice. It does not authorize requirements, tasks,
+implementation, remotes, GitHub writes, or AWS access.
 
 **Stop conditions:** Missing/ambiguous target; filesystem root or home target;
 template/target equality or containment; symlink escape; dry-run failure;
 collision or overwrite risk; unresolved source-of-truth conflict; partial write;
-expected-file or placeholder verification failure.
+expected-file or placeholder verification failure; doctor failure or partial
+core-contract adoption; unconfirmed adoption plan; adoption-plan digest or
+target-root drift.
 
 **Receipt:** Standard work receipt plus classification, lifecycle state, and
 READY, RESUME, or BLOCKED bootstrap status.
@@ -310,6 +424,7 @@ Process this initiation command:
 
 START AWS CODEX BOOTSTRAP
 Target path: <explicit target path>
+Local Git setup: <INIT_AND_BASELINE_COMMIT|USE_EXISTING|DO_NOT_INITIALIZE>
 
 Act as the AWS Codex Fastlane installer and launchpad. Resolve the template and
 target without relying on an unresolved variable, glob, home shortcut, or
@@ -325,15 +440,57 @@ Inspect before writing and classify exactly one:
 
 For NEW_TARGET, run bootstrap.py dry-run/collision checks first. If clean,
 initialize only the missing expected files at the explicit target using the
-bootstrap's safe path. Never overwrite. For an uninitialized brownfield target,
-produce an overlay preview first; write only when every planned path is absent
-and collision checks are clean. On a collision, make no changes. Preserve every
-existing path and return a per-path adoption map. Offer only these safe choices:
-1. keep the existing path and adapt the Fastlane contract around it; or
-2. generate the template at a separate, explicit, collision-free staging path,
-   compare it, and propose an exact per-path merge for later authorization.
-Never silently merge or overwrite. For ACTIVE_GREENFIELD or ACTIVE_BROWNFIELD
-with a coherent bootstrap, resume it without regeneration.
+bootstrap's safe path. Never use `--force`. For an uninitialized brownfield
+target, produce an overlay preview with rendered-template and target SHA-256
+digests. You may propose a decision map, but START AWS CODEX BOOTSTRAP does not
+authorize you to choose `ADOPT_TEMPLATE` for the owner. Make no target change
+until every collision has exactly one hash-bound decision: `PRESERVE`,
+`ADOPT_TEMPLATE`, or `STAGE_FOR_MERGE` at a separate, explicit, non-overlapping
+staging target. Before applying any `ADOPT_TEMPLATE` decision, require the user
+to return the exact generated confirmation card containing both canonical
+roots, complete ordered decision payload, human owner, time, source, and
+`plan_sha256`. Compute `plan_sha256` from canonical JSON containing
+`schema_version`, canonical `source_root`, canonical `target_root`, and the
+ordered full decisions; each decision contains path, action, expected target
+SHA-256, and expected rendered-template SHA-256. It never hashes decisions
+alone. Bind application to that receipt and reject a paraphrase, omitted path
+or digest, different order, root, schema, or changed hash. Generate the card in
+this shape, with one canonical decision line for every collision and no
+placeholders:
+
+CONFIRM BOOTSTRAP ADOPTION PLAN
+schema_version: 1
+source_root: <canonical absolute template source>
+target_root: <canonical absolute target>
+authorized_by: <human owner>
+authorized_at: <RFC 3339 timestamp with timezone>
+authorization_source: OWNER_CONFIRMATION
+plan_sha256: <64 lowercase hex characters>
+Decisions:
+<relative path> | <action> | <expected target SHA-256> | <expected rendered-template SHA-256>
+
+Compute the plan digest from the UTF-8 canonical JSON encoding of the complete
+plan object—schema version, roots, and ordered decisions—using `sort_keys=true`
+and compact separators. Authorization metadata is stored alongside the hash but
+is not part of its canonical input. The
+observed time and exact owner-message source must agree with the authorization
+object. Never invent the authorized identity, time, or source.
+
+Abort the whole preflight on an omitted/unknown/duplicate path, digest
+drift, unsafe path, symlink, or root mismatch. Preserving or staging a core
+control file is PARTIAL_ADOPTION until doctor validation succeeds. This is a
+one-time collision authorization, not Gate A or Gate B. Never silently merge or
+overwrite. For
+ACTIVE_GREENFIELD or ACTIVE_BROWNFIELD with a coherent bootstrap, resume it
+without regeneration.
+
+Apply the local-Git choice exactly. `INIT_AND_BASELINE_COMMIT` may run local
+`git init` only when `.git` is absent, validate the generated bootstrap, and
+commit that exact reviewed state as the baseline using already configured
+author identity. `USE_EXISTING` requires an existing local repository and
+records its current commit plus dirty paths. `DO_NOT_INITIALIZE` performs no Git
+write and leaves Gate B blocked until the owner later authorizes a repository
+and baseline. Never add a remote, create a hosted repository, fetch, or push.
 
 After initialization or resume, verify:
 - expected bootstrap files and applicable nested AGENTS.md files;
@@ -343,21 +500,29 @@ After initialization or resume, verify:
 - aws-core availability, without authenticated AWS access;
 - source-of-truth file coherence.
 
+Run `python scripts/bootstrap_doctor.py --root <target>` after initialization and on
+resume. The doctor is read-only. Unsafe, contradictory, or unreconciled
+interrupted state routes to STOP. A coherent `STALE` gate routes to its
+requirements or design repair prompt below while construction remains stopped.
+
 Determine lifecycle state from the current PRD revisions and derived gates,
 TASKS.md, and release evidence. Route to exactly one next prompt:
 - no material requirements: INTAKE-10;
 - intake exists but requirements need analysis: REQ-10;
+- Gate A is STALE: INTAKE-10 when owner facts are missing, otherwise REQ-10;
 - Gate A awaits a current owner receipt: INTAKE-20;
 - Gate A approved and design incomplete: DESIGN-10;
+- Gate A is current and Gate B is STALE: DESIGN-10;
 - Gate B awaits a current owner receipt: DESIGN-20;
-- Gate B approved and tasks absent: TASK-10;
+- Gate B approved and Task-plan state is UNINITIALIZED or STALE: TASK-10;
 - one named task requested or only one task is READY: BUILD-10;
 - multiple eligible tasks and autonomous execution is authorized: BUILD-20;
 - authorized tasks are terminal: RELEASE-10;
-- stale/conflicting state or no authorized action: STOP.
+- conflicting state, an unsafe interrupted run, or no authorized action: STOP.
 
 Do not write requirements, design, tasks, application code, or infrastructure.
-Do not initialize or change Git, create GitHub objects, or access/mutate AWS.
+Outside the exact local-Git setup choice, do not initialize or change Git.
+Never create GitHub objects or access/mutate AWS.
 
 Print classification, lifecycle state, target, files added or NONE, collisions
 or NONE, checks, and exactly one status: READY, RESUME, or BLOCKED. Explain the
@@ -384,7 +549,11 @@ repository code, tests, IaC, configuration, and recent relevant history.
 workload profile, intake provenance, brownfield contract, and Part I only after
 reflecting proposed facts to the user. A material edit to previously approved
 requirements must atomically mark both derived gates STALE. No design or task
-writes.
+writes. Update the matching non-authoritative `bootstrap.yaml` project and
+lifecycle mirror and the identity/state fields in TASKS.md's Active execution
+snapshot in the same coordinator checkpoint; do not generate or rewrite task
+blocks. If a CURRENT plan has IN_PROGRESS work, stop and reconcile/archive that
+work before applying the requirements change and marking the plan STALE.
 
 **GitHub mode:** NONE by default; READ_ONLY only when needed to understand an
 identified brownfield repository.
@@ -445,8 +614,13 @@ Return the standard work receipt.
 current primary documentation needed to validate external constraints.
 
 **Permitted writes:** PRD.md requirements-revision-controlled content plus the
-Document status requirements revision and derived Gate A/Gate B states. Update
-the summary and detailed analysis atomically.
+Document status requirements revision and derived Gate A/Gate B states;
+TASKS.md's Active execution snapshot identity, Gate B, run-stop, and next-action
+fields only. Update the summary, detailed analysis, task snapshot, and matching
+`bootstrap.yaml` lifecycle mirror as one coordinator checkpoint. Do not
+generate a replacement graph. When invalidating an existing plan, reconcile
+IN_PROGRESS tasks to DONE with evidence or BLOCKED with the revision reason,
+commit/archive the stopped ledger, then mark its Task-plan state STALE.
 
 **GitHub mode:** READ_ONLY only if authorized and needed for brownfield facts.
 
@@ -478,15 +652,38 @@ Record in PRD.md:
 - contradictions, ambiguities, undefined terms, missing cases, and feasibility;
 - relevant AWS Well-Architected impacts.
 
+Fill the Gate A readiness card with these exact fields: Outcome; Owner and
+users; Scope and non-goals; Measurable requirement/acceptance IDs; Data
+boundary; Identity/security boundary; Environment/Region; Failure/recovery;
+Cost ceiling; Intake provenance. Every value must be explicit and trace to the
+current revision. Use `NOT_APPLICABLE — <reason>` only when genuinely
+inapplicable; a blank, TODO, TBD, UNKNOWN, or bare NONE keeps readiness BLOCKED.
+
+For brownfield mode, do not mark ready until repository/baseline,
+deployments, architecture/ownership, interfaces/consumers, data/migration,
+security controls, baseline commands/evidence, and protected components are
+observed and explicit. Only drift, dirty changes, known debt/defects, and
+overlay collisions may use the exact nullable forms defined in PRD.md.
+
 Set readiness to exactly one:
 - BLOCKED;
 - READY_WITH_PROPOSED_ASSUMPTIONS;
 - READY_FOR_OWNER_APPROVAL.
 
 Do not silently resolve contradictions, choose architecture, approve
-assumptions, or mark Gate A accepted. If blocked, ask at most three plain
-questions using the INTAKE-10 style. Otherwise prepare a concise Gate A decision
-brief for INTAKE-20. Return the standard work receipt.
+assumptions, or mark Gate A accepted. If blocked, set Gate A to `BLOCKED` and
+ask at most three plain questions using the INTAKE-10 style. When either ready
+recommendation is recorded, atomically set both the Document status and detailed
+Gate A owner state to `PENDING_OWNER_APPROVAL`, keep Gate B `BLOCKED` for a new
+project or `STALE` after invalidating an earlier design. Mirror both gate states
+in bootstrap.yaml and copy the current REQ plus non-runnable Gate B state into
+TASKS.md's Active execution snapshot. Reset the Gate A owner decision to
+`PENDING`, clear any prior approver/provenance/authorization fields, and render
+the current proposed receipt with an approver placeholder; never carry an old
+receipt into a new revision. Existing tasks become non-runnable and an active
+run becomes `BLOCKED`; never silently retarget them to the new revision. Set the
+reconciled plan STALE, then prepare a concise Gate A decision brief for
+INTAKE-20. Return the standard work receipt.
 ~~~
 
 ## INTAKE-20 — Requirements Gate A
@@ -498,7 +695,9 @@ BLOCKED.
 
 **Permitted writes:** PRD.md Gate A owner record and the matching Document
 status Gate A state only after receiving an exact valid receipt. Update both
-atomically.
+and the matching `bootstrap.yaml` lifecycle mirror as one coordinator
+checkpoint. TASKS.md remains non-runnable; update only its identity/state
+snapshot if needed to repair a mirror mismatch, never task blocks.
 
 **GitHub mode:** NONE.
 
@@ -520,6 +719,7 @@ Present the current requirements for human Gate A.
 
 Show a concise decision brief:
 - requirements revision and delivery profile;
+- all ten fields from the current Gate A readiness card;
 - user outcome and measurable success;
 - in scope and non-goals;
 - accepted-fact candidates versus proposed assumptions;
@@ -542,10 +742,14 @@ Approver: <name/handle>
 The revision and assumptions must exactly match the proposed card. Reject extra
 or duplicate fields, comments, reordered lines, partial blocks, and code fences.
 Silence, continued conversation, task state, or tool access never counts. After
-a valid receipt, record it and atomically update the detailed owner record and
-Document status to APPROVED_FOR_DESIGN. Return a standard work receipt whose
-Next is DESIGN-10. Before acceptance, return WAITING_FOR_GATE_A and put the
-exact proposed approval receipt last.
+a valid receipt, preserve the complete normalized receipt inside the uniquely
+marked Gate A receipt block, then atomically update the detailed owner record,
+Document status, and lifecycle mirror to APPROVED_FOR_DESIGN. Record the
+observed ISO 8601 authorization time and exact message/issue/meeting-record
+source as structured provenance without adding either value to the receipt.
+Do not invent a source. Return a standard work receipt whose Next is DESIGN-10.
+Before acceptance, return WAITING_FOR_GATE_A and put the exact proposed
+approval receipt last.
 ~~~
 
 ## DESIGN-10 — Technical PRD and Construction Envelope
@@ -558,8 +762,13 @@ IaC, config, schemas, and relevant history; current AWS primary documentation.
 
 **Permitted writes:** PRD.md Parts III and IV, proposed construction envelope,
 and matching Document status DES/AUTH/design/Gate B fields; narrowly scoped ADR
-only for a consequential, hard-to-reverse decision. Update summary and detailed
-records atomically.
+only for a consequential, hard-to-reverse decision; TASKS.md's Active execution
+snapshot identity, Gate B, maximum-worker, baseline, protected-path, run-stop,
+and next-action fields only. Update summary and detailed records, task snapshot,
+and the matching `bootstrap.yaml` lifecycle mirror as one coordinator
+checkpoint. Do not generate a replacement graph. When invalidating a CURRENT
+plan, first reconcile active tasks and commit/archive the stopped ledger, then
+mark the plan STALE.
 
 **GitHub mode:** READ_ONLY only when authorized and needed for design facts.
 
@@ -594,6 +803,14 @@ Complete only the design needed to build safely:
 - brownfield compatibility, rollout, migration, and rollback when applicable;
 - explicit decisions, alternatives, assumptions, and Well-Architected effects.
 
+Fill the Gate B readiness card with these exact fields: Design basis IDs;
+Architecture/components; Interfaces/data flow; Identity/secrets;
+Failure/retry/concurrency; Deployment/operations; Validation/evidence;
+Rollback/recovery/teardown; Brownfield compatibility/migration; Outstanding
+gaps. Use explicit values and stable IDs; `NOT_APPLICABLE — <reason>` is allowed
+only when genuinely inapplicable. Outstanding gaps is exactly `NONE` or stable
+gap IDs, and any gap keeps Gate B BLOCKED.
+
 Prefer the simplest architecture satisfying the accepted requirements. In
 quick-mvp, avoid VPCs, NAT Gateways, public IPv4, container platforms,
 always-on compute, and provisioned databases unless a requirement demands one.
@@ -603,8 +820,30 @@ GitHub writes default to branch/commit/push/pull-request only when explicitly
 listed. Merge and branch deletion default to not authorized. AWS defaults to
 DOCS_ONLY. A fast-dev AWS mutation envelope may be proposed only when every AWS
 mutation-boundary field is complete, the environment is non-production, the
-cost ceiling is explicit, and rollback/teardown is proven feasible.
+cost ceiling is explicit, rollback/teardown is proven feasible, artifact
+authority is an exact lowercase SHA-256 digest or deterministic authorized
+source rule, and the exact finite expiry remains in the future. Use
+`ENVIRONMENT: <exact>; CLASS: NON_PRODUCTION`, `EXACT_DIGEST: sha256:<64
+lowercase hex>` or `DERIVED_FROM_AUTHORIZED_SOURCE: SHA-256 from baseline <full
+authorized commit>; <deterministic rule>`, and
+`Expires at <ISO 8601 with timezone>; earlier completion: <exact condition>`.
 
+Use every exact envelope row and grammar in PRD.md. Require a local Git
+repository and resolvable baseline commit before readiness. Compute and record
+the canonical complete-envelope SHA-256 after the final table edit; copy the
+same digest into the Gate B agent review and proposed owner receipt.
+
+If the PRD or envelope is incomplete, keep Gate B `BLOCKED`. When the design and
+envelope review recommendation is `READY_FOR_CONSTRUCTION_APPROVAL`, atomically
+set both the Document status and detailed owner Gate B state to
+`PENDING_OWNER_APPROVAL`; copy the exact REQ/DES/AUTH IDs, Gate B state, maximum
+workers, baseline, and protected dirty paths into TASKS.md's Active execution
+snapshot; and mirror lifecycle state in bootstrap.yaml. Keep any old task plan
+STALE and non-runnable until the new Gate B is approved and TASK-10 replaces it.
+Reset
+the Gate B owner decision to `PENDING`, clear any prior approver, provenance,
+authorized-ID, and receipt fields, and render the current proposed receipt with
+an approver placeholder; never carry an old receipt into a new design or AUTH.
 Do not implement, generate tasks, approve the design, or perform GitHub/AWS
 writes. Return the standard work receipt.
 ~~~
@@ -618,7 +857,9 @@ proposed DES revision and AUTH envelope.
 
 **Permitted writes:** PRD.md Gate B owner record and the matching Document
 status Gate B state only after an exact valid human receipt. Update both
-atomically.
+plus TASKS.md's Active execution snapshot and the matching `bootstrap.yaml`
+lifecycle mirror as one coordinator checkpoint. Do not generate or rewrite
+task blocks.
 
 **GitHub mode:** NONE.
 
@@ -640,6 +881,8 @@ Review the complete PRD and proposed construction envelope for human Gate B.
 
 Show a concise decision brief:
 - REQ, DES, and AUTH IDs;
+- canonical complete construction-envelope SHA-256;
+- all ten fields from the current Gate B readiness card;
 - architecture and key tradeoffs;
 - requirement-to-design/test traceability;
 - security, data, availability, cost, migration, rollback, and teardown risks;
@@ -662,16 +905,26 @@ APPROVE PRD AND CONSTRUCTION GATE B
 Requirements revision: REQ-0001
 Design revision: DES-0001
 Construction authorization: AUTH-0001
+Construction envelope SHA-256: sha256:<64-lowercase-hex>
 Use the proposed construction envelope above.
 Approver: <name/handle>
 
-All IDs must exactly match the proposed card. Reject extra or duplicate fields,
+All IDs and the canonical complete-envelope SHA-256 must exactly match the
+proposed card and structured owner record. Reject extra or duplicate fields,
 comments, reordered lines, partial blocks, and code fences. Silence, continued
 conversation, task state, or tool access never counts. After a valid receipt,
-record it and atomically update the detailed owner record and Document status to
-APPROVED_FOR_CONSTRUCTION. Activate only that envelope. Return a standard work
-receipt whose Next is TASK-10. Before acceptance, return WAITING_FOR_GATE_B and
-put the exact proposed approval receipt last.
+preserve the complete normalized receipt inside the uniquely marked Gate B
+receipt block, then atomically update the detailed owner record, Document
+status, TASKS.md Active execution snapshot, and lifecycle mirror to
+APPROVED_FOR_CONSTRUCTION. Record the observed ISO 8601 authorization time and
+exact message/issue/meeting-record source as structured provenance without
+adding either value to the receipt. Do not invent a source. Activate only that
+envelope, and ensure the task snapshot contains the exact REQ/DES/AUTH IDs,
+approved Gate B state, authorized maximum workers, baseline, protected dirty
+paths, and `TASK-10` as the next safe action while the plan state is
+UNINITIALIZED or STALE.
+Return a standard work receipt whose Next is TASK-10. Before acceptance, return
+WAITING_FOR_GATE_B and put the exact proposed approval receipt last.
 ~~~
 
 ## BUG-10 — Active Defect Contract
@@ -724,9 +977,10 @@ return the standard work receipt.
 authorization; or a defect fully covered by that authorization.
 
 **Authoritative inputs:** AGENTS.md; PRD.md; BUGFIX.md when applicable; current code/tests/IaC;
-TASKS.md; VERIFY.md; RUNBOOK.md.
+TASKS.md; VERIFY.md; RUNBOOK.md; bootstrap.yaml; passing bootstrap doctor output.
 
-**Permitted writes:** TASKS.md only; no implementation.
+**Permitted writes:** TASKS.md and its matching `bootstrap.yaml` task-plan mirror
+as one checkpoint; no implementation.
 
 **GitHub mode:** NONE. Planning GitHub objects is allowed, creating them is not.
 
@@ -745,40 +999,68 @@ dependency; validation cannot objectively prove acceptance.
 [TASK-10]
 Translate the accepted PRD or BUGFIX contract into executable TASKS.md entries.
 
+Run the read-only bootstrap doctor first. Task-plan state is exactly
+UNINITIALIZED, CURRENT, or STALE. Set the next monotonic Task-plan revision such
+as PLAN-0001 and change state to CURRENT only after the complete replacement
+graph validates. If the old state is STALE, first reconcile every IN_PROGRESS
+task, checkpoint and commit the non-runnable graph, add its plan/REQ/DES/AUTH and
+archive commit to the registry, then replace the current graph without reusing
+task IDs.
+
 For every task include:
 - stable ID and outcome;
 - status: BACKLOG, READY, IN_PROGRESS, BLOCKED, DONE, or SKIPPED;
 - requirement/bug and design traceability;
-- dependencies and safe wave;
+- current AUTH ID, dependencies, and explicit skipped-dependency waivers or NONE;
 - exact write set and external-state set;
 - acceptance criteria;
 - validation commands and required evidence;
-- risk class and model/reasoning recommendation when useful;
+- risk class, AWS mode, attempt budget/used count, owner, run ID, blocker,
+  skip record, and checkpoint fields;
 - GitHub link or PENDING_SYNC;
 - concise execution log.
 
+Emit each record in the validator's exact shape: one
+`### <TASK-ID> — <title>` heading; every singleton metadata line from TASKS.md's
+Required task record schema spelled exactly once; and the four sections
+`#### Outcome`, `#### Acceptance criteria`, `#### Validation`, and
+`#### Execution log`. A READY task cannot contain TODO in its outcome,
+acceptance criteria, validation, boundary, or traceability. Acceptance criteria
+must be checkboxes, and a DONE task must have every acceptance checkbox checked,
+non-NONE Evidence, and an observed execution-log entry.
+
 Keep tasks thin enough to validate independently. Mark READY only when all
-dependencies, inputs, and authorization are satisfied. Compute waves so tasks
-share neither files nor mutable application/AWS state. Anything sharing a
+dependencies, inputs, and authorization are satisfied. A SKIPPED dependency is
+not satisfied without a current waiver naming the dependency, downstream task,
+authority, rationale, and replacement evidence. Compute structural waves, then
+compute conservative execution groups so concurrent tasks share neither files
+nor mutable application/AWS state. Anything sharing a
 manifest, lockfile, schema, stack, database, generated output, or deployment
-target must be serialized unless isolation is proven.
+target must be serialized unless isolation and separate worktrees are proven.
 
 Plan a single coordinator as the writer for shared control files such as
-TASKS.md and VERIFY.md. Do not let parallel workers update them. Do not create
+TASKS.md, VERIFY.md, RUNBOOK.md, and bootstrap.yaml. Do not let parallel workers
+update them. Do not create
 GitHub objects, implement code, or access AWS. Validate task graph consistency
-with scripts/task_waves.py when available. Return the standard work receipt.
+with `python scripts/task_waves.py TASKS.md`, inspect candidates with
+`python scripts/task_waves.py TASKS.md --ready --json`, commit the validated
+current plan locally within the Gate B command/write boundary, update Last
+known-green and the checkpoint registry, and rerun the doctor. Never push or
+touch a remote unless separately authorized. Return the standard work receipt.
 ~~~
 
 ## BUILD-10 — Execute One Task
 
-**Preconditions:** Named READY task; valid current AUTH; dependencies complete;
-write and external-state sets are available.
+**Preconditions:** Named READY task on a CURRENT plan; valid current AUTH;
+dependencies complete; write and external-state sets are available; local Git
+baseline resolves.
 
 **Authoritative inputs:** Applicable AGENTS.md; task-linked PRD/BUGFIX sections; task entry;
-relevant code, tests, IaC, VERIFY.md, and RUNBOOK.md.
+relevant code, tests, IaC, VERIFY.md, RUNBOOK.md, bootstrap.yaml, and doctor output.
 
-**Permitted writes:** Named task write set; serialized updates to TASKS.md and VERIFY.md;
-RUNBOOK.md only when repeatable operations change.
+**Permitted writes:** Named task write set; coordinator-serialized updates to
+TASKS.md, VERIFY.md, and bootstrap.yaml; RUNBOOK.md only when repeatable
+operations change.
 
 **GitHub mode:** Only operations explicitly allowed by current AUTH or current
 user instruction.
@@ -800,30 +1082,82 @@ impact outside boundary; repeated failure without a new hypothesis.
 [BUILD-10]
 Execute task <TASK-ID> and no unrelated task.
 
-Before editing, verify its READY state, dependencies, exact write set, active
-REQ/DES/AUTH IDs, and external authorization. Mark it IN_PROGRESS. Inspect
-before changing code and make the smallest coherent implementation.
+Before editing, run doctor and verify its READY state, dependencies (DONE or an
+explicitly waived SKIPPED prerequisite), exact write set, active REQ/DES/AUTH
+IDs, and external authorization. Use the coordinator tool rather than hand
+editing run or claim fields. Allocate the next unused monotonic IDs and replace
+the illustrative IDs below, then run this exact start-and-claim sequence:
+
+```bash
+python scripts/task_waves.py TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode SINGLE_TASK
+python scripts/task_waves.py TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
+```
+
+If the same run is safely checkpointed instead of new, reconcile the checkpoint
+and use this exact resume-and-claim sequence:
+
+```bash
+python scripts/task_waves.py TASKS.md --resume-run RUN-0001 --coordinator codex-coordinator
+python scripts/task_waves.py TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002
+```
+
+A persisted `RUNNING` run is interrupted/recovery-required and must not be
+started over or automatically resumed. Claiming atomically records owner, run
+ID, base checkpoint, and the incremented persistent attempt before editing.
+Inspect before changing code and make the smallest coherent implementation.
 
 Run the task's validation plus relevant regression, security, IaC, and failure
-checks. Record observed evidence in VERIFY.md. Update RUNBOOK.md only if a
+checks. Record observed evidence in the exact VERIFY.md `Task completion
+evidence` table before citing its EV ID. Update RUNBOOK.md only if a
 repeatable procedure changed. Mark DONE only when every acceptance criterion
 and required local check passes; otherwise mark BLOCKED with the next useful
-action. Leave AWS-only evidence PENDING_AWS until observed.
+action. Reconcile the task first, then checkpoint the run; never pause with an
+IN_PROGRESS task:
 
-Perform only GitHub/AWS actions listed in the active authorization. A connected
-tool does not grant permission. Stop on any common-contract condition. Return
-the standard work receipt.
+```bash
+python scripts/task_waves.py TASKS.md --set-status TASK-0001 DONE --evidence EV-0001 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001
+python scripts/task_waves.py TASKS.md --pause-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002
+```
+
+Use `--complete-run RUN-0001 --coordinator codex-coordinator --checkpoint
+CP-0002` instead of `--pause-run`
+only when every task is terminal. For a blocked attempt, use `--set-status
+TASK-0001 BLOCKED --blocker "<observed blocker and next action>" --run-id
+RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001`, then pause.
+Leave AWS-only evidence PENDING_AWS until observed.
+
+Claims cite the current base checkpoint; concurrent claims may share it only
+when their isolation is proven. Each `IN_PROGRESS` reconciliation consumes the
+next unique checkpoint. Pause or completion consumes a later unique checkpoint
+and requires the newest complete checkpoint row plus VERIFY.md reference. Run
+start and issue synchronization do not invent checkpoints. A DONE
+reconciliation at CP-0001 is therefore followed by pause or completion at
+CP-0002; never reuse CP-0001.
+
+Before pausing, inspect the final diff, record `EV-0001`-style evidence, commit
+only the authorized validated task changes, and update Last known-green commit
+and the checkpoint row to that commit. Run doctor after those updates. Do not
+commit a protected dirty path or use a remote Git operation unless separately
+authorized.
+
+Perform only GitHub actions listed in the active authorization. BUILD-10 never
+executes an AWS mutation directly: if the task reaches a mutation boundary,
+record and checkpoint the local state, route through AWS-10 and AWS-20, and use
+AWS-30 to reconcile evidence. A connected tool does not grant permission. Stop
+on any common-contract condition. Return the standard work receipt.
 ~~~
 
 ## BUILD-20 — Autonomous Construction Run
 
 **Preconditions:** Valid Gate B; active AUTH explicitly permits autonomous
-execution; TASKS.md graph is valid; at least one READY task.
+execution; TASKS.md plan is CURRENT and its graph is valid; at least one READY
+task; local Git baseline resolves.
 
-**Authoritative inputs:** All sources required by eligible tasks.
+**Authoritative inputs:** All sources required by eligible tasks; bootstrap.yaml;
+passing doctor output; last clean coordinator checkpoint.
 
 **Permitted writes:** Eligible task write sets; coordinator-only serialized writes to
-TASKS.md, VERIFY.md, RUNBOOK.md, shared manifests, lockfiles, schemas,
+TASKS.md, VERIFY.md, RUNBOOK.md, bootstrap.yaml, shared manifests, lockfiles, schemas,
 generated output, and other shared paths.
 
 **GitHub mode:** Only operations explicitly listed in AUTH; no merge or branch
@@ -848,23 +1182,68 @@ approved attempt budget exhausted without a materially new hypothesis.
 Run the approved task graph autonomously inside the active construction
 authorization until completion or a stop condition.
 
-Use this loop:
-1. reconcile REQ/DES/AUTH IDs and task states;
-2. select only READY tasks whose dependencies are DONE;
-3. form a wave only from disjoint file and external-state sets;
-4. assign one owner per path and one coordinator for shared control files;
-5. if isolation cannot be guaranteed, serialize;
-6. mark selected tasks IN_PROGRESS before implementation;
-7. implement, validate, and collect evidence;
-8. have the coordinator alone update TASKS.md and VERIFY.md between waves;
-9. mark tasks DONE only on observed acceptance evidence;
-10. run the relevant aggregate suite before the next wave.
+Allocate the next unused monotonic run ID and acquire it with this exact command
+shape before selecting work:
 
-Workers must not edit shared control files, the same manifest/lockfile/schema,
-or overlapping generated output concurrently. Do not have multiple agents push
-the same branch. Keep GitHub synchronization serialized and within
-authorization. Serialize every AWS mutation, even when tasks are otherwise
-eligible for parallel work.
+```bash
+python scripts/task_waves.py TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS
+python scripts/task_waves.py TASKS.md --safe-ready --isolated-worktrees --json
+```
+
+On a safely PAUSED or BLOCKED run, reconcile state and resume only the same run
+and coordinator:
+
+```bash
+python scripts/task_waves.py TASKS.md --resume-run RUN-0001 --coordinator codex-coordinator
+```
+
+Use this loop:
+1. run doctor and reconcile PRD, TASKS.md, bootstrap.yaml, REQ/DES/AUTH, baseline,
+   protected dirty paths, task states, and last external-operation journal;
+2. atomically acquire one durable coordinator run ID; a pre-existing RUNNING
+   state is recovery-required and is never auto-cleared;
+3. select only READY tasks whose dependencies are DONE or explicitly waived
+   SKIPPED prerequisites;
+4. form a concurrency group only from disjoint file and external-state sets;
+5. require isolated worktrees for more than one worker; otherwise serialize;
+6. atomically claim each selected task with owner, run ID, base checkpoint, and
+   incremented persistent attempt count before implementation. Use this serial
+   form for one worker:
+
+   ```bash
+   python scripts/task_waves.py TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
+   ```
+
+   Every claim in a concurrent group uses the isolated-worktree form:
+
+   ```bash
+   python scripts/task_waves.py TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000 --isolated-worktrees
+   ```
+
+7. implement, validate, inspect actual worker diffs, and collect evidence in
+   exact VERIFY.md `Task completion evidence` rows;
+8. have the coordinator alone update control files and mirrors between groups;
+9. mark tasks DONE only on observed acceptance evidence;
+10. checkpoint attempts, changed paths, external operations, evidence, blockers,
+    and next safe action; after every task is reconciled out of IN_PROGRESS,
+    inspect the integrated diff, record EV evidence, commit only the authorized
+    validated wave, and update Last known-green and the checkpoint row to that
+    commit. Use `--complete-run RUN-0001 --coordinator codex-coordinator
+    --checkpoint CP-0002` only when all tasks are terminal. Otherwise run
+    `python scripts/task_waves.py TASKS.md --pause-run RUN-0001 --coordinator
+    codex-coordinator --checkpoint CP-0002`, then run doctor and aggregate
+    tests. Resume the same run and coordinator before claiming the next group.
+    Never run doctor against a persisted RUNNING snapshot or commit protected
+    dirty paths.
+
+Workers must not edit shared control files, protected/user-dirty paths, the same
+manifest/lockfile/schema, or overlapping generated output. Reject a receipt
+whose actual diff exceeds its task boundary. Do not have multiple agents push
+the same branch. Journal every external operation before execution; an UNKNOWN
+or partial result requires read-only reconciliation and must not be blindly
+retried. Keep GitHub synchronization serialized and within authorization.
+Route AWS mutation through AWS-10/AWS-20 and serialize every mutation, even when
+tasks are otherwise eligible for parallel work.
 
 Continue through safe waves without asking routine questions. Pause only for a
 declared stop condition or authority that Gate B did not grant. Return receipts
@@ -933,9 +1312,11 @@ GitHub scope.
 **Stop conditions:** Failed required check; unmitigated critical risk; missing
 rollback; evidence gap; scope/revision drift; unauthorized merge/release.
 
-**Receipt:** Standard work receipt with READY or BLOCKED.
+**Receipt:** Standard work receipt with READY or BLOCKED and the exact release
+state `NOT_READY`, `READY_TO_DEPLOY`, or `RELEASE_VERIFIED` in Validation.
 
-**Next:** AWS-10 when deployment is in scope; otherwise STOP.
+**Next:** AWS-10 only from READY_TO_DEPLOY; AWS-40 after verified deployment
+when residual review is in scope; otherwise STOP.
 
 ~~~text
 [RELEASE-10]
@@ -949,7 +1330,12 @@ Verify:
 - GitHub review and required checks when accessible;
 - which evidence is LOCAL_PASS versus PENDING_AWS.
 
-Record observed evidence and return READY or BLOCKED with specific reasons.
+Set exactly one release state in VERIFY.md: NOT_READY when any required evidence
+is incomplete/failed/stale; READY_TO_DEPLOY when all pre-deployment evidence is
+current for the immutable artifact and AWS deployment is the only remaining
+required step; RELEASE_VERIFIED only when every required local and deployed
+acceptance item is VERIFIED or explicitly not applicable. Record observed
+evidence and return READY or BLOCKED with specific reasons.
 If authorization explicitly permits finalization, perform only the named
 GitHub operations after required checks pass. Never infer permission to merge,
 publish a release, delete a branch, or deploy. Return the standard work receipt.
@@ -957,7 +1343,7 @@ publish a release, delete a branch, or deploy. Return the standard work receipt.
 
 ## AWS-10 — Read-Only Deployment Preflight
 
-**Preconditions:** RELEASE-10 is READY for the intended artifact; target account,
+**Preconditions:** RELEASE-10 recorded `READY_TO_DEPLOY` for the intended immutable artifact; target account,
 Region, environment, and stack are named; authenticated read access is
 explicitly authorized.
 
@@ -968,7 +1354,7 @@ skills/docs; read-only AWS identity, configuration, quotas, and target state.
 
 **GitHub mode:** NONE or authorized READ_ONLY for artifact/check identity.
 
-**AWS mode:** DOCS_ONLY plus explicitly authorized READ_ONLY. No mutation.
+**AWS mode:** READ_ONLY. Documentation grounding may accompany it; no mutation.
 
 **Required authorization:** Exact read-only account/profile/Region/environment scope.
 
@@ -1015,7 +1401,9 @@ RUNBOOK.md only for observed procedural correction.
 **AWS mode:** MUTATION, limited to exact authorization.
 
 **Required authorization:** A valid Gate B fast-dev envelope or a current human
-authorization naming all mutation-boundary fields. Tool access is insufficient.
+action receipt equal to the complete `AUTHORIZE AWS DEPLOYMENT` block in the
+common contract and naming all mutation-boundary fields. Tool access is
+insufficient.
 
 **Stop conditions:** Any field mismatch; authorization expired; unexpected
 change set/cost/resource; alarm or smoke-test failure; rollback condition;
@@ -1030,6 +1418,15 @@ without secrets.
 [AWS-20]
 Execute only the AWS deployment authorized by <AWS-AUTH-ID or active fast-dev
 AUTH-ID>.
+
+For `explicit-gate`, first compare the supplied owner message to the exact
+`AUTHORIZE AWS DEPLOYMENT` block in this pack. Reject placeholders, extra or
+missing lines, field-order changes, a stale AUTH, or any value that differs from
+AWS-10. Record the valid receipt verbatim with its observed time and exact
+source before mutation. Under `fast-dev`, prove instead that the final action is
+fully and exactly contained in the current Gate B mutation envelope; otherwise
+mark Gate B stale and route to DESIGN-10. An action-specific receipt cannot
+repair a fast-dev envelope mismatch.
 
 Reconfirm caller identity, account, Region, environment, artifact digest, exact
 change set, cost ceiling, and rollback path immediately before mutation. Use
@@ -1065,9 +1462,12 @@ explicit mutation authorization.
 **Stop conditions:** Identity mismatch; telemetry unavailable; security/data
 anomaly; failed acceptance test; correction would mutate AWS.
 
-**Receipt:** Standard work receipt with VERIFIED, PENDING_AWS, or BLOCKED facts.
+**Receipt:** Standard work receipt with `COMPLETE` or `BLOCKED`; put
+`VERIFIED`, `PENDING_AWS`, or failed evidence states in Validation and Open
+risks, not in the work-receipt Status field.
 
-**Next:** AWS-40, an authorized AWS-20 correction, or STOP.
+**Next:** RELEASE-10 after recording evidence. RELEASE-10 decides whether the
+release is RELEASE_VERIFIED, still NOT_READY, or needs an authorized correction.
 
 ~~~text
 [AWS-30]
@@ -1083,8 +1483,8 @@ Observe:
 
 Record what was actually observed, when, where, and by which read-only identity.
 Mark VERIFIED only with objective evidence. Keep unavailable or time-dependent
-checks PENDING_AWS. Do not mutate to repair a failed check. Return the standard
-work receipt.
+checks PENDING_AWS. Do not mutate to repair a failed check. Do not set the
+release state here. Return the standard work receipt whose Next is RELEASE-10.
 ~~~
 
 ## AWS-40 — Residual Resource and Teardown Review
@@ -1147,7 +1547,8 @@ only for observed procedural correction.
 **AWS mode:** MUTATION limited to exact teardown authorization.
 
 **Required authorization:** Current action-specific teardown authorization. A deployment
-authorization does not imply teardown permission.
+authorization does not imply teardown permission. The human message must equal
+the complete `AUTHORIZE AWS TEARDOWN` block in the common contract.
 
 **Stop conditions:** Resource/identity mismatch; shared or retained dependency;
 unexpected data; scope expansion; protection requiring an unauthorized change;
@@ -1161,6 +1562,13 @@ post-teardown observed resources.
 ~~~text
 [AWS-50]
 Execute only teardown operation <TEARDOWN-AUTH-ID>.
+
+Before mutation, compare the supplied owner message to the exact `AUTHORIZE AWS
+TEARDOWN` block in this pack. Reject placeholders, extra or missing lines,
+field-order changes, stale IDs, or a value that differs from AWS-40's observed
+inventory. Record the valid receipt verbatim with its observed time and exact
+source. Gate B fast-dev, a deployment receipt, credentials, and prior cleanup
+discussion never substitute for this receipt.
 
 Reconfirm identity and exact resource inventory immediately before mutation.
 Preserve every resource/data class marked retained. Use the documented order

@@ -50,6 +50,9 @@ class PromptPackContractTests(unittest.TestCase):
         cls.prompts = PROMPT_PACK.read_text(encoding="utf-8")
         cls.prd = (PROJECT_ROOT / "PRD.md").read_text(encoding="utf-8")
         cls.agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        cls.tasks = (PROJECT_ROOT / "TASKS.md").read_text(encoding="utf-8")
+        cls.runbook = (PROJECT_ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
+        cls.verify = (PROJECT_ROOT / "VERIFY.md").read_text(encoding="utf-8")
 
     def prompt_section(self, prompt_id: str) -> str:
         pattern = re.compile(
@@ -88,6 +91,9 @@ class PromptPackContractTests(unittest.TestCase):
 
         self.assertIn("Only the owner", self.prompts)
         self.assertIn("Only the owner", self.agents)
+        for reserved in ("`Codex`", "`agent`", "`automation`", "`system`", "`AI`"):
+            self.assertIn(reserved, self.prd)
+            self.assertIn(reserved, self.prompts)
 
     def test_gate_and_revision_vocabulary_does_not_drift(self) -> None:
         required = {
@@ -132,15 +138,264 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("matching Document\nstatus Gate A state", gate_a)
         self.assertIn("Document status DES/AUTH/design/Gate B fields", design)
         self.assertIn("matching Document\nstatus Gate B state", gate_b)
-        self.assertIn("Update both\natomically", gate_a)
-        self.assertIn("Update both\natomically", gate_b)
+        self.assertIn("lifecycle mirror as one coordinator\ncheckpoint", gate_a)
+        self.assertIn("lifecycle mirror as one coordinator checkpoint", gate_b)
+
+    def test_ready_recommendations_transition_to_pending_and_sync_snapshot(self) -> None:
+        requirements = self.prompt_section("REQ-10")
+        design = self.prompt_section("DESIGN-10")
+        gate_b = self.prompt_section("DESIGN-20")
+
+        self.assertIn("Gate A owner state to `PENDING_OWNER_APPROVAL`", requirements)
+        self.assertIn("TASKS.md's Active execution snapshot", requirements)
+        self.assertIn("Gate B state to\n`PENDING_OWNER_APPROVAL`", design)
+        self.assertIn("maximum\nworkers, baseline, and protected dirty paths", design)
+        self.assertIn("TASKS.md Active execution snapshot", gate_b)
+        self.assertIn("APPROVED_FOR_CONSTRUCTION", gate_b)
+        self.assertRegex(
+            self.agents,
+            r"Do not leave\s+an agent-ready gate marked `BLOCKED`",
+        )
+
+    def test_stale_gates_have_recovery_routes(self) -> None:
+        boot = self.prompt_section("BOOT-00")
+        self.assertIn("Gate A is STALE: INTAKE-10", boot)
+        self.assertIn("otherwise REQ-10", boot)
+        self.assertIn("Gate A is current and Gate B is STALE: DESIGN-10", boot)
+        self.assertIn("stale Gate B with a current Gate A routes to `DESIGN-10`", self.agents)
+
+    def test_gate_receipts_record_provenance_without_extra_lines(self) -> None:
+        gate_a = self.prompt_section("INTAKE-20")
+        gate_b = self.prompt_section("DESIGN-20")
+        for section in (gate_a, gate_b):
+            self.assertIn("observed ISO 8601 authorization time", section)
+            self.assertRegex(section, r"without\s+adding either value to the receipt")
+            self.assertIn("Do not invent a source", section)
+        self.assertIn("Authorization provided at", self.prd)
+        self.assertIn("Authorization source", self.prd)
+        self.assertIn("subset, superset, reordered list", self.prd)
 
     def test_launchpad_routes_from_existing_lifecycle_state(self) -> None:
         boot = self.prompt_section("BOOT-00")
         self.assertIn("Determine lifecycle state", boot)
         self.assertIn("Gate A awaits a current owner receipt: INTAKE-20", boot)
-        self.assertIn("Gate B approved and tasks absent: TASK-10", boot)
+        self.assertIn(
+            "Gate B approved and Task-plan state is UNINITIALIZED or STALE: TASK-10",
+            boot,
+        )
         self.assertIn("Only when the state-derived next prompt is INTAKE-10", boot)
+
+    def test_launchpad_and_build_use_executable_safety_controls(self) -> None:
+        boot = self.prompt_section("BOOT-00")
+        tasks = self.prompt_section("TASK-10")
+        build = self.prompt_section("BUILD-20")
+
+        self.assertIn("Never use `--force`", boot)
+        self.assertIn("bootstrap_doctor.py", boot)
+        self.assertIn("hash-bound decision", boot)
+        self.assertIn("Task-plan revision", tasks)
+        self.assertIn("explicit skipped-dependency waivers", tasks)
+        self.assertIn("durable coordinator run ID", build)
+        self.assertIn("isolated worktrees", build)
+        self.assertIn("UNKNOWN", build)
+
+    def test_run_lifecycle_commands_are_complete_and_mode_specific(self) -> None:
+        single = self.prompt_section("BUILD-10")
+        autonomous = self.prompt_section("BUILD-20")
+        common_claim = (
+            "--claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 "
+            "--coordinator codex-coordinator --checkpoint CP-0000"
+        )
+        self.assertIn("--start-run RUN-0001 --coordinator codex-coordinator --run-mode SINGLE_TASK", single)
+        self.assertIn(common_claim, single)
+        self.assertIn("--pause-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002", single)
+        self.assertIn("--set-status TASK-0001 DONE --evidence EV-0001 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001", single)
+        self.assertIn("--complete-run RUN-0001 --coordinator codex-coordinator", single)
+        self.assertIn("--resume-run RUN-0001 --coordinator codex-coordinator", single)
+        self.assertIn("--start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS", autonomous)
+        self.assertIn("--safe-ready --isolated-worktrees --json", autonomous)
+        self.assertIn(common_claim, autonomous)
+        self.assertIn(common_claim + " --isolated-worktrees", autonomous)
+        self.assertRegex(
+            autonomous,
+            r"Never\s+run doctor against a persisted RUNNING snapshot",
+        )
+
+    def test_aws_mutations_use_canonical_prompts_and_exact_action_receipts(self) -> None:
+        build_single = self.prompt_section("BUILD-10")
+        build_auto = self.prompt_section("BUILD-20")
+        preflight = self.prompt_section("AWS-10")
+        evidence = self.prompt_section("AWS-30")
+
+        self.assertIn("BUILD-10 never\nexecutes an AWS mutation directly", build_single)
+        self.assertIn("Route AWS mutation through AWS-10/AWS-20", build_auto)
+        self.assertIn("**AWS mode:** READ_ONLY.", preflight)
+        self.assertNotIn("DOCS_ONLY plus", preflight)
+        self.assertIn("AUTHORIZE AWS DEPLOYMENT", self.prompts)
+        self.assertIn("AUTHORIZE AWS TEARDOWN", self.prompts)
+        self.assertIn("AUTHORIZE AWS DEPLOYMENT", self.runbook)
+        self.assertIn("AUTHORIZE AWS TEARDOWN", self.runbook)
+        self.assertIn("action-authorization evidence", self.runbook)
+        self.assertIn("## Action authorization provenance", self.verify)
+        self.assertIn("put\n`VERIFIED`, `PENDING_AWS`", evidence)
+
+    def test_profiles_are_overlays_not_additional_gates(self) -> None:
+        for document in (self.prompts, self.prd, self.agents):
+            self.assertIn("`quick-mvp`", document)
+            self.assertIn("`standard`", document)
+            self.assertIn("`high-risk`", document)
+        self.assertIn("All profiles still use only Gate A and Gate B", self.prompts)
+        self.assertIn("without adding lifecycle gates", self.agents)
+
+    def test_brownfield_adoption_requires_exact_user_confirmation(self) -> None:
+        boot = self.prompt_section("BOOT-00")
+        self.assertIn("does not\nauthorize you to choose `ADOPT_TEMPLATE`", boot)
+        self.assertIn("CONFIRM BOOTSTRAP ADOPTION PLAN", boot)
+        self.assertIn("plan_sha256: <64 lowercase hex characters>", boot)
+        self.assertIn("authorized_by: <human owner>", boot)
+        self.assertIn("authorization_source: OWNER_CONFIRMATION", boot)
+        self.assertIn("schema version, roots, and ordered decisions", boot)
+        self.assertIn("It never hashes decisions\nalone", boot)
+        self.assertIn("complete ordered decision map", self.agents)
+
+    def test_task_prompt_and_ledger_define_validator_shape(self) -> None:
+        task_prompt = self.prompt_section("TASK-10")
+        for heading in (
+            "#### Outcome",
+            "#### Acceptance criteria",
+            "#### Validation",
+            "#### Execution log",
+        ):
+            self.assertIn(heading, task_prompt)
+            self.assertIn(heading, self.tasks)
+        self.assertIn("every singleton metadata line", task_prompt)
+        self.assertIn("A READY task cannot contain `TODO`", self.tasks)
+        self.assertIn("- Dependency waivers: NONE", self.tasks)
+        self.assertRegex(
+            self.tasks,
+            r"#### Validation\n\n```bash\n<exact validation command>\n```",
+        )
+
+    def test_readiness_cards_are_complete_and_prompt_filled(self) -> None:
+        gate_a_fields = (
+            "Outcome",
+            "Owner and users",
+            "Scope and non-goals",
+            "Measurable requirement/acceptance IDs",
+            "Data boundary",
+            "Identity/security boundary",
+            "Environment/Region",
+            "Failure/recovery",
+            "Cost ceiling",
+            "Intake provenance",
+        )
+        gate_b_fields = (
+            "Design basis IDs",
+            "Architecture/components",
+            "Interfaces/data flow",
+            "Identity/secrets",
+            "Failure/retry/concurrency",
+            "Deployment/operations",
+            "Validation/evidence",
+            "Rollback/recovery/teardown",
+            "Brownfield compatibility/migration",
+            "Outstanding gaps",
+        )
+        self.assertIn("### Gate A — readiness card", self.prd)
+        self.assertIn("### Gate B — readiness card", self.prd)
+        for field in (*gate_a_fields, *gate_b_fields):
+            self.assertIn(f"| {field} |", self.prd)
+        self.assertIn("Fill the Gate A readiness card with these exact fields", self.prompt_section("REQ-10"))
+        self.assertIn("Fill the Gate B readiness card with these exact fields", self.prompt_section("DESIGN-10"))
+        self.assertIn("`NOT_APPLICABLE — <reason>`", self.prd)
+
+    def test_gate_b_binds_canonical_complete_envelope_digest(self) -> None:
+        receipt_line = "Construction envelope SHA-256: sha256:<64-lowercase-hex>"
+        self.assertIn("| Authorized construction envelope SHA-256 |", self.prd)
+        self.assertIn("| Construction envelope SHA-256 reviewed |", self.prd)
+        self.assertIn(receipt_line, self.prd)
+        self.assertEqual(self.prompts.count(receipt_line), 2)
+        self.assertIn("header, separator, and every boundary row", self.prd)
+        self.assertIn("append one final LF", self.prd)
+
+    def test_construction_envelope_uses_bindable_grammars(self) -> None:
+        required_rows = (
+            "Project mode",
+            "Delivery profile and effective risk",
+            "Project AWS lane",
+            "Authorized requirement and design IDs",
+            "Authorized baseline commit",
+            "Protected dirty paths",
+            "Allowed external-state targets",
+            "Local command boundary",
+            "Task boundary",
+            "GitHub repository, branch, and merge constraints",
+            "Authorization expiry or completion condition",
+        )
+        for row in required_rows:
+            self.assertIn(f"| {row} |", self.prd)
+        self.assertIn("`<profile> / <risk>`", self.prd)
+        self.assertIn("`ALLOW_PREFIXES: prefix; prefix`", self.prd)
+        self.assertIn("`DERIVED_FROM_AUTHORIZED_IDS_AND_WRITE_SET`", self.prd)
+        self.assertIn("`REPO: owner/name; BRANCH: branch; MERGE: ALLOWED\\|PROHIBITED`", self.prd)
+        self.assertIn(
+            "`ENVIRONMENT: <exact name>; CLASS: NON_PRODUCTION\\|PRODUCTION`",
+            self.prd,
+        )
+        self.assertIn("`EXACT_DIGEST: sha256:<64 lowercase hex>`", self.prd)
+        self.assertIn(
+            "`DERIVED_FROM_AUTHORIZED_SOURCE: SHA-256 from baseline <full authorized commit>; <deterministic rule>`",
+            self.prd,
+        )
+        self.assertIn(
+            "`Expires at <ISO 8601 with timezone>; earlier completion: <exact condition>`",
+            self.prd,
+        )
+        for row in (
+            "AWS account", "AWS role or profile", "AWS Region", "AWS environment",
+            "AWS stack or application", "AWS resource allowlist", "AWS allowed operations",
+            "AWS cost ceiling", "AWS prohibited operations",
+            "AWS artifact authorization and provenance", "AWS rollback boundary",
+            "AWS authorization validity",
+        ):
+            self.assertIn(f"| {row} |", self.prd)
+
+    def test_git_checkpoint_plan_and_release_lifecycles_are_explicit(self) -> None:
+        self.assertIn("| Task-plan state | `UNINITIALIZED` |", self.tasks)
+        for state in ("UNINITIALIZED", "CURRENT", "STALE"):
+            self.assertIn(state, self.tasks)
+        self.assertRegex(self.tasks, r"commits? only authorized wave changes")
+        self.assertIn("Last known-green commit", self.tasks)
+        for state in ("NOT_READY", "READY_TO_DEPLOY", "RELEASE_VERIFIED"):
+            self.assertIn(state, self.verify)
+            self.assertIn(state, self.prompt_section("RELEASE-10"))
+        self.assertIn("AWS-30 | Reconcile deployed evidence | RELEASE-10", self.prompts)
+        self.assertIn("**Next:** RELEASE-10", self.prompt_section("AWS-30"))
+        self.assertIn("Local Git setup:", self.prompt_section("BOOT-00"))
+
+    def test_done_requires_structured_observed_local_evidence(self) -> None:
+        header = (
+            "| Evidence ID | Task | Command or observation | Result | Actor | "
+            "Observed at | Commit / worktree / artifact | Durable source | Status |"
+        )
+        self.assertIn("## Task completion evidence", self.verify)
+        self.assertIn(header, self.verify)
+        for document in (self.agents, self.tasks, self.prompts):
+            self.assertIn("Task completion evidence", document)
+        for field in (
+            "command/result",
+            "actor",
+            "commit/worktree/artifact",
+            "LOCAL_PASS",
+            "VERIFIED",
+        ):
+            self.assertIn(field, self.prompts)
+
+    def test_brownfield_mandatory_facts_are_not_nullable(self) -> None:
+        self.assertIn("every baseline fact is mandatory", self.prd)
+        self.assertIn("Only these fields\nare nullable", self.prd)
+        self.assertIn("known defects and accepted debt\n`NONE_OBSERVED`", self.prd)
+        self.assertIn("Only drift, dirty changes, known debt/defects", self.prompt_section("REQ-10"))
 
     def test_aws_mode_mapping_is_canonical(self) -> None:
         for document in (self.prompts, self.prd):
