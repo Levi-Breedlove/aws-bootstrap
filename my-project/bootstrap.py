@@ -24,9 +24,20 @@ SKIP_SUFFIXES = {".zip", ".pyc"}
 class CopyReport:
     """Summary of a template copy operation."""
 
+    planned: int = 0
     written: int = 0
     unchanged: int = 0
     collisions: int = 0
+
+
+@dataclass(frozen=True)
+class CopyOperation:
+    """One preflighted directory or file operation."""
+
+    source: Path
+    destination: Path
+    content: bytes | None
+    action: str
 
 
 def is_text_file(path: Path) -> bool:
@@ -48,6 +59,8 @@ def validate_non_overlapping_paths(source: Path, target: Path) -> None:
 
     source = source.resolve()
     target = target.resolve()
+    if not source.is_dir():
+        raise ValueError(f"Template source is not a directory: {source}")
     if source == target or source in target.parents or target in source.parents:
         raise ValueError(
             "Source and target directories must not overlap: "
@@ -113,10 +126,17 @@ def copy_template(
     # Snapshot the source before any target write. This is a second line of
     # defense against a changing traversal and makes the operation predictable.
     items = sorted(source.rglob("*"), key=lambda path: path.relative_to(source).parts)
-    report = CopyReport()
+    symlinks = [item for item in items if item.is_symlink()]
+    if symlinks:
+        raise ValueError(
+            "Template source contains unsupported symbolic link: "
+            f"{symlinks[0]}"
+        )
 
-    if not dry_run:
-        target.mkdir(parents=True, exist_ok=True)
+    report = CopyReport()
+    operations: list[CopyOperation] = []
+    unchanged_paths: list[Path] = []
+    collisions: list[Path] = []
 
     for item in items:
         relative = item.relative_to(source)
@@ -132,14 +152,16 @@ def copy_template(
             if destination.is_symlink() or (
                 destination.exists() and not destination.is_dir()
             ):
-                print(f"COLLISION {destination}")
+                collisions.append(destination)
                 report.collisions += 1
-            elif not dry_run:
-                destination.mkdir(parents=True, exist_ok=True)
+            elif not destination.exists():
+                operations.append(
+                    CopyOperation(item, destination, None, "CREATE DIRECTORY")
+                )
             continue
 
         if has_unsafe_parent(target, destination):
-            print(f"COLLISION {destination}")
+            collisions.append(destination)
             report.collisions += 1
             continue
 
@@ -147,28 +169,52 @@ def copy_template(
         if destination.is_symlink() or (
             destination.exists() and not destination.is_file()
         ):
-            print(f"COLLISION {destination}")
+            collisions.append(destination)
             report.collisions += 1
             continue
 
         if destination.exists():
             try:
-                unchanged = destination.read_bytes() == content
+                is_unchanged = destination.read_bytes() == content
             except OSError:
-                unchanged = False
-            if unchanged:
-                print(f"UNCHANGED {destination}")
+                is_unchanged = False
+            if is_unchanged:
+                unchanged_paths.append(destination)
                 report.unchanged += 1
                 continue
             if not force:
-                print(f"COLLISION {destination}")
+                collisions.append(destination)
                 report.collisions += 1
                 continue
 
         action = "OVERWRITE" if destination.exists() else "WRITE"
-        if not dry_run:
-            atomic_write_bytes(destination, content, item)
-        print(f"{action} {destination}")
+        operations.append(CopyOperation(item, destination, content, action))
+        report.planned += 1
+
+    for destination in unchanged_paths:
+        print(f"UNCHANGED {destination}")
+    for destination in collisions:
+        print(f"COLLISION {destination}")
+
+    # A collision-free preflight is required before creating or changing the
+    # target. This prevents a failed overlay from leaving a half-updated tree.
+    if report.collisions or dry_run:
+        for operation in operations:
+            if operation.content is not None:
+                print(f"PLAN {operation.action} {operation.destination}")
+        return report
+
+    target.mkdir(parents=True, exist_ok=True)
+    for operation in operations:
+        if operation.content is None:
+            operation.destination.mkdir(parents=True, exist_ok=True)
+            continue
+        atomic_write_bytes(
+            operation.destination,
+            operation.content,
+            operation.source,
+        )
+        print(f"{operation.action} {operation.destination}")
         report.written += 1
 
     return report
@@ -227,8 +273,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("Bootstrap complete.")
     print(f"Project root: {target}")
     print(
-        f"Summary: {report.written} write(s), {report.unchanged} unchanged, "
-        f"{report.collisions} collision(s)"
+        f"Summary: {report.planned} planned, {report.written} written, "
+        f"{report.unchanged} unchanged, {report.collisions} collision(s)"
     )
 
     if report.collisions:
