@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "bootstrap_version": "2.0.0",
+  "python_requires": ">=3.11",
+  "required_files": [
+    ".github/ISSUE_TEMPLATE/aws-vertical-slice.yml",
+    ".github/ISSUE_TEMPLATE/bugfix.yml",
+    ".github/ISSUE_TEMPLATE/waf-risk.yml",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".gitignore",
+    "AGENTS.md",
+    "BUGFIX.md",
+    "PRD.md",
+    "RUNBOOK.md",
+    "TASKS.md",
+    "VERIFY.md",
+    "app/AGENTS.md",
+    "bootstrap.manifest.json",
+    "bootstrap.py",
+    "docs/adr/0000-template.md",
+    "infrastructure/AGENTS.md",
+    "prompts/CODEX-PROMPTS.md",
+    "scripts/task_waves.py",
+    "tests/AGENTS.md"
+  ],
+  "canonical_prompt_ids": [
+    "BOOT-00",
+    "INTAKE-10",
+    "REQ-10",
+    "INTAKE-20",
+    "DESIGN-10",
+    "DESIGN-20",
+    "BUG-10",
+    "TASK-10",
+    "BUILD-10",
+    "BUILD-20",
+    "SYNC-10",
+    "RELEASE-10",
+    "AWS-10",
+    "AWS-20",
+    "AWS-30",
+    "AWS-40",
+    "AWS-50",
+    "LEARN-10"
+  ],
+  "template_placeholders": [
+    "My AWS Project",
+    "{{AWS_REGION}}",
+    "{{MONTHLY_BUDGET}}"
+  ]
+}
