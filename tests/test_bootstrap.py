@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import tempfile
 import unittest
@@ -63,8 +64,35 @@ class BootstrapSafetyTests(unittest.TestCase):
                 dry_run=True,
             )
 
-            self.assertEqual(report.written, 1)
+            self.assertEqual(report.planned, 1)
+            self.assertEqual(report.written, 0)
             self.assertFalse(target.exists())
+
+    def test_collision_free_copy_renders_and_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            (source / "nested").mkdir()
+            (source / "nested" / "PRD.md").write_text(
+                "My AWS Project",
+                encoding="utf-8",
+            )
+
+            report = bootstrap.copy_template(
+                source,
+                target,
+                {"My AWS Project": "Example"},
+                force=False,
+            )
+
+            self.assertEqual(report.planned, 1)
+            self.assertEqual(report.written, 1)
+            self.assertEqual(
+                (target / "nested" / "PRD.md").read_text(encoding="utf-8"),
+                "Example",
+            )
 
     def test_existing_user_file_is_preserved_as_collision(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -74,13 +102,16 @@ class BootstrapSafetyTests(unittest.TestCase):
             source.mkdir()
             target.mkdir()
             (source / "PRD.md").write_text("generated", encoding="utf-8")
+            (source / "new.txt").write_text("new", encoding="utf-8")
             destination = target / "PRD.md"
             destination.write_text("user content", encoding="utf-8")
 
             report = bootstrap.copy_template(source, target, {}, force=False)
 
             self.assertEqual(report.collisions, 1)
+            self.assertEqual(report.written, 0)
             self.assertEqual(destination.read_text(encoding="utf-8"), "user content")
+            self.assertFalse((target / "new.txt").exists())
 
     def test_identical_file_is_unchanged_even_with_force(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -99,6 +130,24 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertEqual(report.unchanged, 1)
             self.assertEqual(report.written, 0)
             self.assertEqual(destination.stat().st_mtime_ns, original_stat.st_mtime_ns)
+
+    def test_source_symlink_is_rejected_before_target_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            outside = root / "outside.txt"
+            source.mkdir()
+            outside.write_text("secret", encoding="utf-8")
+            try:
+                os.symlink(outside, source / "linked.txt")
+            except OSError as exc:
+                self.skipTest(f"Symbolic links are unavailable: {exc}")
+
+            with self.assertRaisesRegex(ValueError, "unsupported symbolic link"):
+                bootstrap.copy_template(source, target, {}, force=False)
+
+            self.assertFalse(target.exists())
 
 
 if __name__ == "__main__":
