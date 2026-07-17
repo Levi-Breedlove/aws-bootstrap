@@ -1,88 +1,212 @@
-# Verification and Release Evidence
+# My AWS Project — Verification and Release Evidence
 
-## Scope
+`VERIFY.md` records observed proof, not plans or authorization. Gate A and Gate B
+remain the only routine human gates. The checks below determine construction and
+release readiness inside the current approved envelope; they are not additional
+human gates.
+
+## Active evidence scope
 
 | Field | Value |
 |---|---|
 | Workload | My AWS Project |
 | Release | TODO |
+| Release state | `NOT_READY` |
+| Requirements revision | `REQ-0001` |
+| Design revision | `DES-0001` |
+| Construction authorization | `AUTH-0001` |
+| Run ID | `NONE` |
+| Checkpoint | `NONE` |
 | Commit, tag, or image digest | TODO |
+| Evidence cutoff | TODO (ISO 8601 with timezone) |
 | Environment | TODO |
-| AWS account alias or non-secret ID | TODO |
-| Region | {{AWS_REGION}} |
+| AWS account alias or non-secret ID | TODO / `NOT_APPLICABLE` |
+| Region | {{AWS_REGION}} / `NOT_APPLICABLE` |
 | Last reviewed | TODO |
 | Reviewer | TODO |
 
-## Status vocabulary
+These values identify the evidence set; they do not grant repository, GitHub,
+or AWS authority. All external actions remain conditional on the current AUTH.
+
+## Evidence status vocabulary
 
 | Status | Meaning |
 |---|---|
 | `NOT_STARTED` | No implementation or evidence exists |
 | `IMPLEMENTED` | Code exists; verification is incomplete |
-| `LOCAL_PASS` | Required local checks passed |
-| `PENDING_AWS` | Requires deployed AWS or external evidence |
-| `VERIFIED` | Required evidence passed in the correct environment |
+| `LOCAL_PASS` | Required local checks passed for the identified revision |
+| `PENDING_AWS` | Required live AWS or external evidence has not been observed |
+| `VERIFIED` | Required evidence passed for the identified artifact and environment |
 | `FAILED` | Verification ran and failed |
 | `BLOCKED` | A known dependency prevents verification |
-| `NOT_APPLICABLE` | Excluded with rationale |
+| `STALE` | Earlier evidence no longer matches the current revision, artifact, environment, or target state |
+| `NOT_APPLICABLE` | Excluded with an explicit rationale |
+
+`STALE` never satisfies a readiness check. A task may be `DONE` when its
+authorized task-level local criteria pass while a required live check remains
+`PENDING_AWS`; the release remains not ready until that evidence is observed.
 
 ## Evidence rules
 
-- Documentation is not implementation evidence.
-- Implementation is not test evidence.
-- Mocks do not prove live integrations.
-- Local success does not prove AWS behavior.
-- Evidence identifies version and environment.
-- Stale evidence cannot remain verified.
-- Manual evidence records who, when, where, and what was observed.
-- Property-based tests prove general invariants within their generated domain; they do not replace deployed AWS evidence.
+- Documentation is not implementation evidence, and implementation is not test
+  evidence.
+- Mocks do not prove live integrations. Local success does not prove AWS
+  behavior.
+- Every evidence item identifies its requirement/task, command or observation,
+  actor, timestamp, commit or digest, environment, result, and durable source.
+- Worker receipts are evidence candidates. The coordinator reconciles them
+  against changed paths and observed outputs before recording them here.
+- Manual evidence says who observed what, when, where, and by which identity,
+  without exposing secrets.
+- Mark evidence `STALE` when REQ/DES/AUTH, the tested code or artifact, relevant
+  configuration, environment, or target state changes.
+- Property-based tests prove invariants only within their generated domain and
+  do not replace deployed evidence, security review, or recovery rehearsal.
+- Preserve failing output, reproduction seeds, and partial external results.
+  Never rewrite a failure as not run.
+- GitHub and AWS evidence may be read or written only within current AUTH. Use
+  `PENDING_SYNC` or `PENDING_AWS` when authority or access is unavailable.
+
+Assign every recorded evidence item one monotonic `EV-nnnn` ID, beginning with
+`EV-0001`. Task Evidence fields cite these exact IDs. Requirement, property,
+baseline, authorization, and task IDs remain traceability fields, not alternate
+evidence-ID formats.
+
+## Task completion evidence
+
+This is the machine-checked local evidence ledger for `DONE` transitions. One
+unfenced row must exist for every local `EV-nnnn` reference. It names exactly
+one task, observed work rather than a plan, the observing actor and time, the
+tested commit/worktree/artifact, and a durable local source. Only `LOCAL_PASS`
+or `VERIFIED` satisfies task completion; a stock, duplicate, wrong-task,
+`NOT_STARTED`, URL-only, or placeholder row does not.
+
+| Evidence ID | Task | Command or observation | Result | Actor | Observed at | Commit / worktree / artifact | Durable source | Status |
+|---|---|---|---|---|---|---|---|---|
+| EV-0001 | TODO | TODO | TODO | TODO | TODO | TODO | TODO | `NOT_STARTED` |
+
+## Brownfield baseline and regression evidence
+
+Complete this section for brownfield work. For greenfield work, set rows to
+`NOT_APPLICABLE`.
+
+| Evidence ID | Baseline commit/environment | Command or observation | Pre-existing result | Post-change result | Attribution and protected behavior | Status |
+|---|---|---|---|---|---|---|
+| EV-0201 | TODO | TODO | TODO | TODO | TODO | `NOT_STARTED` |
+
+Do not treat a known baseline failure as a new regression, or a newly introduced
+failure as accepted debt. If attribution is uncertain, stop affected work and
+preserve both states.
 
 ## Verification matrix
 
-| ID | PRD / property IDs | Task IDs | GitHub Issues | Requirement or invariant | Automated evidence | AWS/manual evidence | Status |
+| Evidence ID | PRD / property IDs | Task IDs | Requirement or invariant | Automated evidence | AWS/manual evidence | Artifact/environment | Status |
 |---|---|---|---|---|---|---|---|
-| FUNC-001 | FR-001 | TASK-001 | TODO | Primary outcome succeeds | TODO | TODO | `NOT_STARTED` |
-| SEC-001 | SEC-001, SEC-002, PROP-001 | TODO | TODO | Protected operations enforce authentication and authorization | TODO | TODO | `NOT_STARTED` |
-| REL-001 | REL-001, REL-002, PROP-002, PROP-004 | TODO | TODO | Retry and duplicate behavior is safe | TODO | TODO | `NOT_STARTED` |
-| OPS-001 | TODO | TODO | TODO | Deployment is repeatable and observable | TODO | TODO | `NOT_STARTED` |
-| PERF-001 | TODO | TODO | TODO | Performance target is met | TODO | TODO | `NOT_STARTED` |
-| COST-001 | TODO | TODO | TODO | Budget and cleanup controls are effective | TODO | TODO | `NOT_STARTED` |
+| EV-0101 | FR-001 | TODO | Primary outcome succeeds | TODO | TODO | TODO | `NOT_STARTED` |
+| EV-0102 | SEC-001, SEC-002, PROP-001 | TODO | Protected operations enforce authentication and authorization | TODO | TODO | TODO | `NOT_STARTED` |
+| EV-0103 | REL-001, REL-002, PROP-002, PROP-004 | TODO | Retry and duplicate behavior is safe | TODO | TODO | TODO | `NOT_STARTED` |
+| EV-0104 | TODO | TODO | Deployment is repeatable and observable | TODO | TODO | TODO | `NOT_STARTED` |
+| EV-0105 | TODO | TODO | Performance target is met | TODO | TODO | TODO | `NOT_STARTED` |
+| EV-0106 | TODO | TODO | Budget and cleanup controls are effective | TODO | TODO | TODO | `NOT_STARTED` |
 
 Add rows for material workload risks, not every individual test.
 
 ## Property-based test evidence
 
-| Property ID | Framework or suite | Generated cases or runs | Seed or reproduction info | Result | Evidence |
+| Property ID | Framework or suite | Generated cases or runs | Seed or reproduction info | Result | Evidence source |
 |---|---|---|---|---|---|
 | PROP-001 | TODO | TODO | TODO | `NOT_STARTED` | TODO |
 
-Record failing seeds or minimal counterexamples in the relevant task, issue, or test output.
+## Construction and release readiness checks
 
-## Release gates
+Only Gate A and Gate B are owner approval gates. Everything below is an
+evidence-based readiness check performed within the active authorization.
 
-| Gate | Required condition | Status |
+| Check | Required condition | Status |
 |---|---|---|
-| Requirements | Analysis gate allows design and implementation | `NOT_STARTED` |
-| Design | Architecture and testing strategy are approved | `NOT_STARTED` |
-| Tasks | Task dependencies validate, waves are ordered, and required tasks are complete | `NOT_STARTED` |
+| Requirements identity | Gate A remains current for the active REQ revision | `NOT_STARTED` |
+| Construction identity | Gate B remains current for matching REQ/DES/AUTH IDs | `NOT_STARTED` |
+| Task graph | Dependencies validate, waivers are explicit, and required tasks are complete | `NOT_STARTED` |
 | Build | Formatting, linting, typing, tests, and packaging pass | `NOT_STARTED` |
-| Infrastructure | IaC and policy checks pass | `NOT_STARTED` |
-| Security | No unresolved release-blocking security findings | `NOT_STARTED` |
-| Reliability | Failure, recovery, and rollback paths pass | `NOT_STARTED` |
-| Performance | Required targets pass | `NOT_STARTED` |
-| Deployment | AWS deployment and smoke tests pass | `NOT_STARTED` |
-| Operations | Monitoring, restore, rollback, and teardown are usable | `NOT_STARTED` |
-| Cost | Budget controls and cost review pass | `NOT_STARTED` |
+| Infrastructure | IaC, policy, and brownfield drift checks pass | `NOT_STARTED` |
+| Security | No unresolved release-blocking security finding remains | `NOT_STARTED` |
+| Reliability | Failure, recovery, idempotency, and rollback evidence passes | `NOT_STARTED` |
+| Performance | Required targets pass for the identified artifact and environment | `NOT_STARTED` |
+| Deployment | Required live deployment and smoke evidence is `VERIFIED` or explicitly not applicable | `NOT_STARTED` |
+| Operations | Monitoring, restore, rollback, and authorized cleanup procedures are usable | `NOT_STARTED` |
+| Cost | Observed and forecast cost remains inside the approved ceiling | `NOT_STARTED` |
+
+## Autonomous run receipts
+
+The coordinator records one receipt after every safe wave and a final receipt
+when the run completes or stops.
+
+| Field | Receipt value |
+|---|---|
+| Run and checkpoint | TODO |
+| REQ / DES / AUTH | `REQ-0001` / `DES-0001` / `AUTH-0001` |
+| Tasks completed, blocked, or skipped | TODO |
+| Attempts used and remaining | TODO |
+| Changed paths and resulting commit/worktree | TODO |
+| Commands and observed results | TODO |
+| Evidence IDs | TODO |
+| GitHub actions | `NONE` / exact authorized actions |
+| AWS actions and identifiers | `NONE` / exact authorized actions without secrets |
+| Boundary or preservation deviations | `NONE` / TODO |
+| Completion or stop reason | TODO |
+| Next safe action | TODO |
+
+An AWS submission is not proof of completion. After a deployment, rollback, or
+teardown attempt, use read-only evidence to record succeeded, failed, partial,
+or unknown state before continuing.
+
+## Action authorization provenance
+
+This table proves which exact owner message was checked before an external
+mutation; it does not itself authorize an action or widen Gate B. The stable
+source must resolve to the complete verbatim receipt defined in RUNBOOK.md and
+the prompt pack.
+
+| Action | Authorization ID | Construction AUTH | Stable owner-message source | Observed at | Verbatim receipt SHA-256 | Preflight evidence | Identity and boundary match | Result |
+|---|---|---|---|---|---|---|---|---|
+| Deployment | TODO | `AUTH-0001` | TODO | TODO (ISO 8601 with timezone) | TODO | TODO / `NONE` | TODO | `NOT_STARTED` |
+| Teardown | TODO | `AUTH-0001` | TODO | TODO (ISO 8601 with timezone) | TODO | TODO / `NONE` | TODO | `NOT_STARTED` |
+
+For an AWS mutation, record the authorization source and receipt digest before
+execution, then link the AWS-10 or AWS-40 identity/boundary evidence. Record
+`FAILED` or `BLOCKED` on any mismatch. Deployment evidence is reconciled by
+AWS-30; residual and teardown evidence is reconciled read-only after AWS-50.
 
 ## Known gaps and accepted risks
 
-| ID | Risk or gap | Severity | Owner | Review date | Rationale |
+| ID | Risk or gap | Severity | Owner | Review date | Rationale and authority |
 |---|---|---|---|---|---|
 | TODO | TODO | TODO | TODO | TODO | TODO |
 
+An accepted risk cannot contradict a requirement or exceed AUTH. A material
+scope, security, data, cost, or preservation decision routes back to the
+applicable Gate A or Gate B owner decision.
+
 ## Current release decision
 
-- Decision: `NOT_READY`
-- Blocking IDs: TODO
-- Accepted risks: None
+- Release state: `NOT_READY`
+- Active evidence cutoff: TODO
+- Blocking or stale evidence IDs: TODO
+- Pending AWS evidence IDs: TODO / `NONE`
+- Accepted risks: `NONE`
+- Last safe checkpoint: `NONE`
 - Next evidence required: TODO
+
+Release state is exactly one of:
+
+- `NOT_READY`: a required task, check, risk disposition, rollback, or evidence
+  item is incomplete, failed, blocked, or stale;
+- `READY_TO_DEPLOY`: all required pre-deployment evidence is current for the
+  immutable artifact and AWS deployment is the remaining required step;
+- `RELEASE_VERIFIED`: every required local and deployed acceptance item is
+  VERIFIED for the identified artifact/environment, or deployed evidence is
+  explicitly not applicable.
+
+Only RELEASE-10 changes release state. AWS-10 requires `READY_TO_DEPLOY`.
+AWS-30 records observed deployment evidence and returns to RELEASE-10, which
+sets `RELEASE_VERIFIED` only when the complete release matrix supports it.

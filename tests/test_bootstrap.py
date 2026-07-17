@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +28,94 @@ bootstrap = load_module(
 )
 
 
+def adoption_decision(
+    relative: str,
+    action: str,
+    target_content: bytes,
+    template_content: bytes,
+) -> dict[str, str]:
+    return {
+        "path": relative,
+        "action": action,
+        "expected_target_sha256": bootstrap.sha256_bytes(target_content),
+        "expected_template_sha256": bootstrap.sha256_bytes(template_content),
+    }
+
+
+def write_adoption_map(
+    path: Path,
+    source: Path,
+    target: Path,
+    decisions: list[dict[str, str]],
+    *,
+    authorize_adoption: bool = True,
+    **extra_fields: object,
+) -> Path:
+    has_destructive_decision = any(
+        decision.get("action") == "ADOPT_TEMPLATE" for decision in decisions
+    )
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "source_root": str(source.resolve()),
+        "target_root": str(target.resolve()),
+        "decisions": decisions,
+        "authorization": (
+            {
+                "authorized_by": "Project Owner",
+                "authorized_at": "2026-07-17T12:00:00Z",
+                "authorization_source": "OWNER_CONFIRMATION",
+                "plan_sha256": bootstrap.canonical_adoption_plan_sha256(
+                    source,
+                    target,
+                    decisions,
+                ),
+            }
+            if authorize_adoption and has_destructive_decision
+            else None
+        ),
+    }
+    payload.update(extra_fields)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
 class BootstrapSafetyTests(unittest.TestCase):
+    def test_runtime_control_hashes_fail_closed_on_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source = Path(temporary_directory) / "source"
+            (source / "scripts").mkdir(parents=True)
+            controls = {
+                "bootstrap.py": b"bootstrap",
+                "scripts/bootstrap_doctor.py": b"doctor",
+                "scripts/task_waves.py": b"tasks",
+            }
+            for relative, content in controls.items():
+                (source / relative).write_bytes(content)
+            manifest = {
+                "control_sha256": {
+                    relative: bootstrap.sha256_bytes(content)
+                    for relative, content in controls.items()
+                }
+            }
+            manifest_path = source / "bootstrap.manifest.json"
+            manifest_path.write_text(
+                json.dumps(manifest),
+                encoding="utf-8",
+            )
+
+            bootstrap.validate_template_control_hashes(source)
+            (source / "scripts" / "task_waves.py").write_bytes(b"changed")
+            with self.assertRaisesRegex(ValueError, "Runtime control hash mismatch"):
+                bootstrap.validate_template_control_hashes(source)
+
+            (source / "scripts" / "task_waves.py").write_bytes(
+                controls["scripts/task_waves.py"]
+            )
+            manifest["control_sha256"]["bootstrap.py"] = "A" * 64
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid control_sha256"):
+                bootstrap.validate_template_control_hashes(source)
+
     def test_rejects_target_inside_source_before_creating_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             source = Path(temporary_directory) / "source"
@@ -113,7 +202,7 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertEqual(destination.read_text(encoding="utf-8"), "user content")
             self.assertFalse((target / "new.txt").exists())
 
-    def test_identical_file_is_unchanged_even_with_force(self) -> None:
+    def test_blanket_force_is_rejected_before_any_write(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             source = root / "source"
@@ -121,15 +210,17 @@ class BootstrapSafetyTests(unittest.TestCase):
             source.mkdir()
             target.mkdir()
             (source / "same.txt").write_text("same", encoding="utf-8")
+            (source / "new.txt").write_text("new", encoding="utf-8")
             destination = target / "same.txt"
             destination.write_text("same", encoding="utf-8")
             original_stat = destination.stat()
 
-            report = bootstrap.copy_template(source, target, {}, force=True)
+            with self.assertRaisesRegex(ValueError, "Blanket --force is disabled"):
+                bootstrap.copy_template(source, target, {}, force=True)
 
-            self.assertEqual(report.unchanged, 1)
-            self.assertEqual(report.written, 0)
+            self.assertEqual(destination.read_text(encoding="utf-8"), "same")
             self.assertEqual(destination.stat().st_mtime_ns, original_stat.st_mtime_ns)
+            self.assertFalse((target / "new.txt").exists())
 
     def test_source_symlink_is_rejected_before_target_creation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -148,6 +239,838 @@ class BootstrapSafetyTests(unittest.TestCase):
                 bootstrap.copy_template(source, target, {}, force=False)
 
             self.assertFalse(target.exists())
+
+    def test_git_metadata_and_generated_cache_names_are_skipped_case_insensitively(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            (source / ".GIT").mkdir(parents=True)
+            (source / "__PYCACHE__").mkdir()
+            (source / ".GIT" / "config").write_text("secret", encoding="utf-8")
+            (source / "__PYCACHE__" / "module.PYC").write_bytes(b"cache")
+            (source / "safe.txt").write_text("safe", encoding="utf-8")
+
+            report = bootstrap.copy_template(source, target, {})
+
+            self.assertEqual(report.written, 1)
+            self.assertEqual((target / "safe.txt").read_text(encoding="utf-8"), "safe")
+            self.assertFalse((target / ".GIT").exists())
+            self.assertFalse((target / "__PYCACHE__").exists())
+
+    def test_case_insensitive_source_collision_fails_before_target_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            (source / "Policy.md").write_text("first", encoding="utf-8")
+            (source / "policy.md").write_text("second", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "case-insensitive filesystem"):
+                bootstrap.copy_template(source, target, {})
+
+            self.assertFalse(target.exists())
+
+    def test_adoption_paths_are_strict_repository_relative_paths(self) -> None:
+        invalid_paths = [
+            "",
+            ".",
+            "../outside.txt",
+            "nested/../outside.txt",
+            "./file.txt",
+            "nested//file.txt",
+            "nested/file.txt/",
+            "/absolute.txt",
+            ".git/config",
+            ".GIT/config",
+            "windows\\path.txt",
+        ]
+
+        for raw in invalid_paths:
+            with self.subTest(path=raw):
+                with self.assertRaisesRegex(ValueError, "Invalid|not canonical"):
+                    bootstrap.validate_relative_path(raw)
+
+        self.assertEqual(
+            bootstrap.validate_relative_path("nested/file.txt"),
+            "nested/file.txt",
+        )
+
+    def test_filesystem_root_and_home_targets_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source = Path(temporary_directory) / "source"
+            source.mkdir()
+
+            for target in (Path(source.anchor), Path.home()):
+                with self.subTest(target=target):
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "filesystem root or home directory",
+                    ):
+                        bootstrap.validate_non_overlapping_paths(source, target)
+
+            target = Path(temporary_directory) / "target"
+            with self.assertRaisesRegex(
+                ValueError,
+                "Staging target must not be a filesystem root or home directory",
+            ):
+                bootstrap.copy_template(
+                    source,
+                    target,
+                    {},
+                    staging_target=Path.home(),
+                )
+
+    def test_git_metadata_target_is_rejected_case_insensitively(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            source.mkdir()
+
+            for target in (root / ".git", root / ".GIT" / "nested"):
+                with self.subTest(target=target):
+                    with self.assertRaisesRegex(ValueError, "inside Git metadata"):
+                        bootstrap.validate_non_overlapping_paths(source, target)
+
+    def test_adoption_map_schema_roots_actions_and_digests_are_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            map_path = root / "adoption.json"
+            digest = "0" * 64
+            valid_decision = {
+                "path": "file.txt",
+                "action": "PRESERVE",
+                "expected_target_sha256": digest,
+                "expected_template_sha256": digest,
+            }
+            base_payload = {
+                "schema_version": 1,
+                "source_root": str(source),
+                "target_root": str(target),
+                "decisions": [],
+                "authorization": None,
+            }
+
+            cases: list[tuple[str, dict[str, object], str]] = [
+                (
+                    "extra top-level field",
+                    {**base_payload, "unexpected": True},
+                    "fields must be exactly",
+                ),
+                (
+                    "wrong source root",
+                    {
+                        **base_payload,
+                        "source_root": str(root / "other-source"),
+                    },
+                    "does not match",
+                ),
+                (
+                    "decision extra field",
+                    {
+                        **base_payload,
+                        "decisions": [{**valid_decision, "unexpected": True}],
+                    },
+                    "exactly four fields",
+                ),
+                (
+                    "unknown action",
+                    {
+                        **base_payload,
+                        "decisions": [{**valid_decision, "action": "OVERWRITE"}],
+                    },
+                    "invalid adoption action",
+                ),
+                (
+                    "invalid digest",
+                    {
+                        **base_payload,
+                        "decisions": [
+                            {
+                                **valid_decision,
+                                "expected_target_sha256": "not-a-digest",
+                            }
+                        ],
+                    },
+                    "invalid expected_target_sha256",
+                ),
+            ]
+
+            for name, payload, error in cases:
+                with self.subTest(case=name):
+                    map_path.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, error):
+                        bootstrap.load_adoption_plan(map_path, source, target)
+
+    def test_template_adoption_requires_exact_owner_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            decision = adoption_decision(
+                "file.txt",
+                "ADOPT_TEMPLATE",
+                b"target",
+                b"template",
+            )
+
+            missing_receipt = write_adoption_map(
+                root / "missing.json",
+                source,
+                target,
+                [decision],
+                authorize_adoption=False,
+            )
+            with self.assertRaisesRegex(ValueError, "owner-confirmation receipt"):
+                bootstrap.load_adoption_plan(missing_receipt, source, target)
+
+            payload = json.loads(missing_receipt.read_text(encoding="utf-8"))
+            payload["authorization"] = {
+                "authorized_by": "Project Owner",
+                "authorized_at": "2026-07-17T12:00:00Z",
+                "authorization_source": "OWNER_CONFIRMATION",
+                "plan_sha256": "0" * 64,
+            }
+            missing_receipt.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "does not match the complete plan"):
+                bootstrap.load_adoption_plan(missing_receipt, source, target)
+
+            plan_digest = bootstrap.canonical_adoption_plan_sha256(
+                source,
+                target,
+                [decision],
+            )
+            invalid_authorizations = [
+                (
+                    "agent owner",
+                    {
+                        "authorized_by": "Codex",
+                        "authorized_at": "2026-07-17T12:00:00Z",
+                        "authorization_source": "OWNER_CONFIRMATION",
+                        "plan_sha256": plan_digest,
+                    },
+                    "named human owner",
+                ),
+                (
+                    "compound agent owner",
+                    {
+                        "authorized_by": "Codex Agent",
+                        "authorized_at": "2026-07-17T12:00:00Z",
+                        "authorization_source": "OWNER_CONFIRMATION",
+                        "plan_sha256": plan_digest,
+                    },
+                    "named human owner",
+                ),
+                (
+                    "automation bot owner",
+                    {
+                        "authorized_by": "automation bot",
+                        "authorized_at": "2026-07-17T12:00:00Z",
+                        "authorization_source": "OWNER_CONFIRMATION",
+                        "plan_sha256": plan_digest,
+                    },
+                    "named human owner",
+                ),
+                (
+                    "placeholder owner",
+                    {
+                        "authorized_by": "TBD",
+                        "authorized_at": "2026-07-17T12:00:00Z",
+                        "authorization_source": "OWNER_CONFIRMATION",
+                        "plan_sha256": plan_digest,
+                    },
+                    "named human owner",
+                ),
+                (
+                    "timestamp without timezone",
+                    {
+                        "authorized_by": "Project Owner",
+                        "authorized_at": "2026-07-17T12:00:00",
+                        "authorization_source": "OWNER_CONFIRMATION",
+                        "plan_sha256": plan_digest,
+                    },
+                    "requires an RFC3339 timestamp",
+                ),
+                (
+                    "timestamp with a non-RFC3339 separator",
+                    {
+                        "authorized_by": "Project Owner",
+                        "authorized_at": "2026-07-17 12:00:00+00:00",
+                        "authorization_source": "OWNER_CONFIRMATION",
+                        "plan_sha256": plan_digest,
+                    },
+                    "requires an RFC3339 timestamp",
+                ),
+                (
+                    "non-owner source",
+                    {
+                        "authorized_by": "Project Owner",
+                        "authorized_at": "2026-07-17T12:00:00Z",
+                        "authorization_source": "AGENT_INFERENCE",
+                        "plan_sha256": plan_digest,
+                    },
+                    "must be OWNER_CONFIRMATION",
+                ),
+            ]
+            for name, authorization, error in invalid_authorizations:
+                with self.subTest(case=name):
+                    payload["authorization"] = authorization
+                    missing_receipt.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, error):
+                        bootstrap.load_adoption_plan(missing_receipt, source, target)
+
+    def test_adoption_confirmation_cannot_be_replayed_for_another_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            first_target = root / "first-target"
+            second_target = root / "second-target"
+            source.mkdir()
+            first_target.mkdir()
+            second_target.mkdir()
+            decision = adoption_decision(
+                "file.txt",
+                "ADOPT_TEMPLATE",
+                b"target",
+                b"template",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                first_target,
+                [decision],
+            )
+            payload = json.loads(map_path.read_text(encoding="utf-8"))
+            payload["target_root"] = str(second_target.resolve())
+            map_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "complete plan"):
+                bootstrap.load_adoption_plan(map_path, source, second_target)
+
+    def test_programmatic_adoption_plan_cannot_bypass_owner_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "file.txt").write_text("template", encoding="utf-8")
+            (target / "file.txt").write_text("target", encoding="utf-8")
+            decision = bootstrap.AdoptionDecision(
+                path="file.txt",
+                action="ADOPT_TEMPLATE",
+                expected_target_sha256=bootstrap.sha256_bytes(b"target"),
+                expected_template_sha256=bootstrap.sha256_bytes(b"template"),
+            )
+            plan = bootstrap.AdoptionPlan(
+                source.resolve(),
+                target.resolve(),
+                {"file.txt": decision},
+            )
+
+            with self.assertRaisesRegex(ValueError, "named human owner"):
+                bootstrap.copy_template(source, target, {}, adoption_plan=plan)
+
+            authorized_payload = bootstrap.adoption_decision_payload(plan.decisions)
+            synthetic_owner_plan = bootstrap.AdoptionPlan(
+                source.resolve(),
+                target.resolve(),
+                plan.decisions,
+                "automation bot",
+                "2026-07-17T12:00:00Z",
+                "OWNER_CONFIRMATION",
+                bootstrap.canonical_adoption_plan_sha256(
+                    source,
+                    target,
+                    authorized_payload,
+                ),
+            )
+            with self.assertRaisesRegex(ValueError, "named human owner"):
+                bootstrap.copy_template(
+                    source,
+                    target,
+                    {},
+                    adoption_plan=synthetic_owner_plan,
+                )
+
+    def test_programmatic_plan_key_cannot_disagree_with_hashed_decision_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "file.txt").write_text("template", encoding="utf-8")
+            (target / "file.txt").write_text("target", encoding="utf-8")
+            decision = bootstrap.AdoptionDecision(
+                path="different.txt",
+                action="ADOPT_TEMPLATE",
+                expected_target_sha256=bootstrap.sha256_bytes(b"target"),
+                expected_template_sha256=bootstrap.sha256_bytes(b"template"),
+            )
+            decisions = {"file.txt": decision}
+            plan = bootstrap.AdoptionPlan(
+                source.resolve(),
+                target.resolve(),
+                decisions,
+                "Project Owner",
+                "2026-07-17T12:00:00Z",
+                "OWNER_CONFIRMATION",
+                bootstrap.canonical_adoption_plan_sha256(
+                    source,
+                    target,
+                    bootstrap.adoption_decision_payload(decisions),
+                ),
+            )
+
+            with self.assertRaisesRegex(ValueError, "does not match its lookup key"):
+                bootstrap.copy_template(source, target, {}, adoption_plan=plan)
+
+            self.assertEqual((target / "file.txt").read_bytes(), b"target")
+
+    def test_programmatic_plan_rejects_invalid_actions_and_digests(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            invalid_action = bootstrap.AdoptionPlan(
+                source.resolve(),
+                target.resolve(),
+                {
+                    "file.txt": bootstrap.AdoptionDecision(
+                        path="file.txt",
+                        action="REPLACE_ANYWAY",
+                        expected_target_sha256="0" * 64,
+                        expected_template_sha256="1" * 64,
+                    )
+                },
+            )
+            with self.assertRaisesRegex(ValueError, "invalid adoption action"):
+                bootstrap.copy_template(source, target, {}, adoption_plan=invalid_action)
+
+            invalid_digest = bootstrap.AdoptionPlan(
+                source.resolve(),
+                target.resolve(),
+                {
+                    "file.txt": bootstrap.AdoptionDecision(
+                        path="file.txt",
+                        action="PRESERVE",
+                        expected_target_sha256="A" * 64,
+                        expected_template_sha256="1" * 64,
+                    )
+                },
+            )
+            with self.assertRaisesRegex(ValueError, "invalid expected_target_sha256"):
+                bootstrap.copy_template(source, target, {}, adoption_plan=invalid_digest)
+
+    def test_incomplete_adoption_preflight_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "a.txt").write_text("template a", encoding="utf-8")
+            (source / "b.txt").write_text("template b", encoding="utf-8")
+            (source / "new.txt").write_text("new", encoding="utf-8")
+            (target / "a.txt").write_text("user a", encoding="utf-8")
+            (target / "b.txt").write_text("user b", encoding="utf-8")
+            decision = adoption_decision(
+                "a.txt",
+                "PRESERVE",
+                b"user a",
+                b"template a",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                [decision],
+            )
+            plan = bootstrap.load_adoption_plan(map_path, source, target)
+
+            report = bootstrap.copy_template(
+                source,
+                target,
+                {},
+                adoption_plan=plan,
+            )
+
+            self.assertEqual(report.unresolved, 1)
+            self.assertEqual(report.written, 0)
+            self.assertEqual((target / "a.txt").read_bytes(), b"user a")
+            self.assertEqual((target / "b.txt").read_bytes(), b"user b")
+            self.assertFalse((target / "new.txt").exists())
+
+    def test_complete_hash_bound_plan_can_preserve_and_adopt_selectively(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "keep.txt").write_text("template keep", encoding="utf-8")
+            (source / "replace.txt").write_text("template replacement", encoding="utf-8")
+            (target / "keep.txt").write_text("user keep", encoding="utf-8")
+            (target / "replace.txt").write_text("old replacement", encoding="utf-8")
+            decisions = [
+                adoption_decision(
+                    "keep.txt",
+                    "PRESERVE",
+                    b"user keep",
+                    b"template keep",
+                ),
+                adoption_decision(
+                    "replace.txt",
+                    "ADOPT_TEMPLATE",
+                    b"old replacement",
+                    b"template replacement",
+                ),
+            ]
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                decisions,
+            )
+            plan = bootstrap.load_adoption_plan(map_path, source, target)
+
+            report = bootstrap.copy_template(
+                source,
+                target,
+                {},
+                adoption_plan=plan,
+            )
+
+            self.assertEqual(report.unresolved, 0)
+            self.assertEqual(report.preserved, 1)
+            self.assertEqual(report.adopted, 1)
+            self.assertEqual(report.written, 1)
+            self.assertEqual((target / "keep.txt").read_bytes(), b"user keep")
+            self.assertEqual(
+                (target / "replace.txt").read_bytes(),
+                b"template replacement",
+            )
+
+    def test_target_drift_aborts_before_any_planned_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "00-new.txt").write_text("new", encoding="utf-8")
+            (source / "zz-collision.txt").write_text("template", encoding="utf-8")
+            collision = target / "zz-collision.txt"
+            collision.write_text("reviewed target", encoding="utf-8")
+            decision = adoption_decision(
+                "zz-collision.txt",
+                "ADOPT_TEMPLATE",
+                b"reviewed target",
+                b"template",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                [decision],
+            )
+            plan = bootstrap.load_adoption_plan(map_path, source, target)
+            collision.write_text("changed after review", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "target changed after adoption review"):
+                bootstrap.copy_template(source, target, {}, adoption_plan=plan)
+
+            self.assertEqual(collision.read_bytes(), b"changed after review")
+            self.assertFalse((target / "00-new.txt").exists())
+
+    def test_rendered_template_drift_aborts_before_any_planned_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "00-new.txt").write_text("new", encoding="utf-8")
+            template = source / "zz-collision.txt"
+            template.write_text("reviewed template", encoding="utf-8")
+            collision = target / "zz-collision.txt"
+            collision.write_text("target", encoding="utf-8")
+            decision = adoption_decision(
+                "zz-collision.txt",
+                "ADOPT_TEMPLATE",
+                b"target",
+                b"reviewed template",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                [decision],
+            )
+            plan = bootstrap.load_adoption_plan(map_path, source, target)
+            template.write_text("changed after review", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "rendered template changed after adoption review",
+            ):
+                bootstrap.copy_template(source, target, {}, adoption_plan=plan)
+
+            self.assertEqual(collision.read_bytes(), b"target")
+            self.assertFalse((target / "00-new.txt").exists())
+
+    def test_complete_recheck_happens_before_first_adoption_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "a-adopt.txt").write_text("template", encoding="utf-8")
+            (source / "z-new.txt").write_text("new", encoding="utf-8")
+            adopted = target / "a-adopt.txt"
+            adopted.write_text("owner bytes", encoding="utf-8")
+            decision = adoption_decision(
+                "a-adopt.txt",
+                "ADOPT_TEMPLATE",
+                b"owner bytes",
+                b"template",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                [decision],
+            )
+            plan = bootstrap.load_adoption_plan(map_path, source, target)
+            original_validate = bootstrap.validate_copy_operation
+
+            def introduce_late_collision(operation, operation_root):
+                if operation.relative == "z-new.txt":
+                    operation.destination.write_text("appeared", encoding="utf-8")
+                return original_validate(operation, operation_root)
+
+            with mock.patch.object(
+                bootstrap,
+                "validate_copy_operation",
+                side_effect=introduce_late_collision,
+            ):
+                with self.assertRaisesRegex(ValueError, "appeared after preflight"):
+                    bootstrap.copy_template(source, target, {}, adoption_plan=plan)
+
+            self.assertEqual(adopted.read_bytes(), b"owner bytes")
+
+    def test_duplicate_adoption_decisions_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            decision = adoption_decision(
+                "file.txt",
+                "PRESERVE",
+                b"target",
+                b"template",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                [decision, decision],
+            )
+
+            with self.assertRaisesRegex(ValueError, "Duplicate adoption decision"):
+                bootstrap.load_adoption_plan(map_path, source, target)
+
+    def test_unknown_adoption_decision_aborts_without_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "new.txt").write_text("new", encoding="utf-8")
+            decision = adoption_decision(
+                "not-a-collision.txt",
+                "PRESERVE",
+                b"target",
+                b"template",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                [decision],
+            )
+            plan = bootstrap.load_adoption_plan(map_path, source, target)
+
+            with self.assertRaisesRegex(ValueError, "not current collisions"):
+                bootstrap.copy_template(source, target, {}, adoption_plan=plan)
+
+            self.assertFalse((target / "new.txt").exists())
+
+    def test_staging_target_must_not_overlap_source_or_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "file.txt").write_text("template", encoding="utf-8")
+
+            for staging_target in (source / "stage", target / "stage"):
+                with self.subTest(staging_target=staging_target):
+                    with self.assertRaisesRegex(ValueError, "must be separate"):
+                        bootstrap.copy_template(
+                            source,
+                            target,
+                            {},
+                            staging_target=staging_target,
+                        )
+
+            git_staging = root / "other" / ".GIT" / "staged"
+            with self.assertRaisesRegex(ValueError, "inside Git metadata"):
+                bootstrap.copy_template(
+                    source,
+                    target,
+                    {},
+                    staging_target=git_staging,
+                )
+            self.assertFalse(git_staging.exists())
+
+    def test_preserving_core_control_file_marks_partial_adoption(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            target.mkdir()
+            (source / "AGENTS.md").write_text("fastlane contract", encoding="utf-8")
+            (target / "AGENTS.md").write_text("user contract", encoding="utf-8")
+            decision = adoption_decision(
+                "AGENTS.md",
+                "PRESERVE",
+                b"user contract",
+                b"fastlane contract",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                [decision],
+            )
+            plan = bootstrap.load_adoption_plan(map_path, source, target)
+
+            report = bootstrap.copy_template(source, target, {}, adoption_plan=plan)
+
+            self.assertEqual(report.unresolved, 0)
+            self.assertTrue(report.partial_adoption)
+            self.assertEqual(report.preserved, 1)
+            self.assertEqual((target / "AGENTS.md").read_bytes(), b"user contract")
+
+    def test_preserving_nested_agents_file_marks_partial_adoption(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            (source / "app").mkdir(parents=True)
+            (target / "app").mkdir(parents=True)
+            (source / "app" / "AGENTS.md").write_text(
+                "fastlane contract",
+                encoding="utf-8",
+            )
+            (target / "app" / "AGENTS.md").write_text(
+                "user contract",
+                encoding="utf-8",
+            )
+            decision = adoption_decision(
+                "app/AGENTS.md",
+                "PRESERVE",
+                b"user contract",
+                b"fastlane contract",
+            )
+            map_path = write_adoption_map(
+                root / "adoption.json",
+                source,
+                target,
+                [decision],
+            )
+            plan = bootstrap.load_adoption_plan(map_path, source, target)
+
+            report = bootstrap.copy_template(source, target, {}, adoption_plan=plan)
+
+            self.assertTrue(report.partial_adoption)
+
+    def test_target_only_nested_agents_file_marks_partial_adoption(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            (target / "custom").mkdir(parents=True)
+            (source / "safe.txt").write_text("safe", encoding="utf-8")
+            target_agents = target / "custom" / "AGENTS.md"
+            target_agents.write_text("owner instructions", encoding="utf-8")
+
+            report = bootstrap.copy_template(source, target, {})
+
+            self.assertTrue(report.partial_adoption)
+            self.assertEqual(report.written, 1)
+            self.assertEqual(target_agents.read_text(encoding="utf-8"), "owner instructions")
+
+    def test_runtime_control_files_are_not_placeholder_rendered(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source"
+            target = root / "target"
+            source.mkdir()
+            (source / "scripts").mkdir()
+            original = b"My AWS Project {{AWS_REGION}} {{MONTHLY_BUDGET}}"
+            (source / "bootstrap.py").write_bytes(original)
+            (source / "bootstrap.manifest.json").write_bytes(original)
+            (source / "scripts" / "bootstrap_doctor.py").write_bytes(original)
+            (source / "scripts" / "task_waves.py").write_bytes(original)
+            (source / "PRD.md").write_bytes(original)
+
+            report = bootstrap.copy_template(
+                source,
+                target,
+                {
+                    "My AWS Project": "Example",
+                    "{{AWS_REGION}}": "us-east-1",
+                    "{{MONTHLY_BUDGET}}": "$25/month",
+                },
+            )
+
+            self.assertEqual(report.written, 5)
+            self.assertEqual((target / "bootstrap.py").read_bytes(), original)
+            self.assertEqual(
+                (target / "bootstrap.manifest.json").read_bytes(),
+                original,
+            )
+            self.assertEqual(
+                (target / "scripts" / "bootstrap_doctor.py").read_bytes(),
+                original,
+            )
+            self.assertEqual(
+                (target / "scripts" / "task_waves.py").read_bytes(),
+                original,
+            )
+            self.assertEqual(
+                (target / "PRD.md").read_text(encoding="utf-8"),
+                "Example us-east-1 $25/month",
+            )
 
 
 if __name__ == "__main__":
