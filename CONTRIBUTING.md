@@ -13,7 +13,6 @@ user and mechanically safe for a long-running agent.
    ```bash
    python -m unittest discover -s tests -v
    python scripts/package_release.py --check
-   python scripts/run_demo.py
    ```
 
 5. Review the generated archive inventory and confirm no ZIP, checksum, secret,
@@ -26,6 +25,5 @@ run, and any remaining AWS-only verification. Keep one authoritative home for
 each fact rather than adding duplicate planning documents.
 
 Changes that alter Gate A, Gate B, task states, AWS authorization, evidence, or
-release behavior require matching runtime tests. Documentation examples must
-be clearly labeled as illustrative unless the corresponding command was
-actually executed.
+release behavior require matching runtime tests. User-facing instructions must
+route directly to the real bootstrap action.

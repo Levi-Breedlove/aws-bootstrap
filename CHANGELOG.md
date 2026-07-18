@@ -21,7 +21,8 @@ Initial public release.
 - A deterministic, manifest-driven release archive and SHA-256 sidecar.
 - Release-only packaging that keeps generated ZIP files out of `main`.
 - A ready-to-use repository-root layout for GitHub Template adoption.
-- Four repo-scoped Fastlane skills and a credential-free executable showcase.
+- Four repo-scoped Fastlane skills that route directly into launch, planning,
+  construction, and explicitly authorized AWS operations.
 - Additive, machine-stable doctor fields for setup, gates, evidence, and
   authorization state.
 

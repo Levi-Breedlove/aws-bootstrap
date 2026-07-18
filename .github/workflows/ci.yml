@@ -35,9 +35,6 @@ jobs:
       - name: Verify deterministic release package
         run: python scripts/package_release.py --check
 
-      - name: Run credential-free template showcase
-        run: python scripts/run_demo.py --json
-
   windows-smoke:
     runs-on: windows-latest
 
@@ -59,7 +56,3 @@ jobs:
         run: |
           python .\scripts\update_manifest.py --check
           python .\scripts\package_release.py --check
-
-      - name: Run PowerShell template showcase smoke test
-        shell: pwsh
-        run: python .\scripts\run_demo.py --json
