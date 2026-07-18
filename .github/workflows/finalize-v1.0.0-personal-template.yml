@@ -1,0 +1,470 @@
+name: Recut personal-template AWS Codex Fastlane v1.0.0 release
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+concurrency:
+  group: recut-personal-template-aws-codex-fastlane-v1.0.0
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_REPOSITORY: Levi-Breedlove/aws-bootstrap
+  EXPECTED_MAIN_SHA: b194c5192e4419e1a202c0e7e448ca71123e671d
+  EXPECTED_HEAD_BRANCH: release/v1.0.0-recut-personal-template
+  EXPECTED_SOURCE_BRANCH: agent/personal-template-cleanup
+  EXPECTED_SOURCE_SHA: 7b4c46a9ea668d00ef2d96edbd8f8321d710be44
+  WORKFLOW_PATH: .github/workflows/finalize-v1.0.0-personal-template.yml
+  RELEASE_TAG: v1.0.0
+  RELEASE_TITLE: AWS Codex Fastlane v1.0.0
+  ARCHIVE_NAME: aws-codex-fastlane-bootstrap.zip
+  SIDECAR_NAME: aws-codex-fastlane-bootstrap.zip.sha256
+  EXPECTED_SHA256: 4cb101b47535ba311484d7410a1005cb0eb038aa884f99a4313bc7f8e48ed7d9
+  EXPECTED_ARCHIVE_SIZE: "790954"
+  OLD_MAIN_SHA: 014273a58963ac0076f0d91691ebb7f9db026147
+  OLD_TAG_OBJECT_SHA: 89a46634b545276913aead8bf894bb633364e135
+  OLD_RELEASE_ID: "356026756"
+  OLD_PUBLISHED_AT: 2026-07-18T05:26:52Z
+  OLD_ARCHIVE_ASSET_ID: "481188990"
+  OLD_ARCHIVE_SIZE: "795325"
+  OLD_ARCHIVE_SHA256: 820c599da183051d359a35e17e327cce42dda48a7cd7b02131349ebf68349249
+  OLD_SIDECAR_ASSET_ID: "481188989"
+  OLD_SIDECAR_SIZE: "99"
+  OLD_SIDECAR_SHA256: d0a04aabdcfe25a7f2dd5ae9a421d74425196aa6d4f24305358bfaa784e2d811
+
+jobs:
+  validate:
+    if: >-
+      github.repository == 'Levi-Breedlove/aws-bootstrap' &&
+      github.event.pull_request.head.repo.full_name == 'Levi-Breedlove/aws-bootstrap' &&
+      github.event.pull_request.head.ref == 'release/v1.0.0-recut-personal-template'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Check out the exact cleaned main commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.EXPECTED_MAIN_SHA }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Verify immutable release inputs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REPOSITORY" = "$EXPECTED_REPOSITORY"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test "$(python -c 'import json; print(json.load(open("bootstrap.manifest.json", encoding="utf-8"))["bootstrap_version"])')" = "1.0.0"
+          test -z "$(git ls-files '*.zip' '*.sha256')"
+          test ! -e scripts/run_demo.py
+          test ! -d docs/demo
+          test ! -e VERSION
+          test ! -e CONTRIBUTING.md
+          test ! -e CHANGELOG.md
+
+      - name: Run complete safety suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Verify manifest and deterministic package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python scripts/update_manifest.py --check
+          test "$(python scripts/package_release.py --check | awk '/SHA-256:/ {print $2}')" = "$EXPECTED_SHA256"
+
+  finalize:
+    needs:
+      - validate
+    if: >-
+      github.repository == 'Levi-Breedlove/aws-bootstrap' &&
+      github.event.pull_request.head.repo.full_name == 'Levi-Breedlove/aws-bootstrap' &&
+      github.event.pull_request.head.ref == 'release/v1.0.0-recut-personal-template'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Check out the exact cleaned main commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.EXPECTED_MAIN_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revalidate repository and one-shot boundary
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REPOSITORY" = "$EXPECTED_REPOSITORY"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY" --jq '.default_branch')" = "main"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$EXPECTED_MAIN_SHA"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/$EXPECTED_HEAD_BRANCH" --jq '.object.sha')" = "$EVENT_HEAD_SHA"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/$EXPECTED_SOURCE_BRANCH" --jq '.object.sha')" = "$EXPECTED_SOURCE_SHA"
+
+          mapfile -t pr_files < <(
+            gh api --paginate \
+              "repos/$EXPECTED_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[].filename' | sort -u
+          )
+          test "${#pr_files[@]}" -eq 1
+          test "${pr_files[0]}" = "$WORKFLOW_PATH"
+
+          mapfile -t actual_branches < <(
+            gh api --paginate "repos/$EXPECTED_REPOSITORY/branches?per_page=100" \
+              --jq '.[].name' | sort -u
+          )
+          mapfile -t expected_branches < <(
+            printf '%s\n' \
+              "$EXPECTED_SOURCE_BRANCH" \
+              main \
+              "$EXPECTED_HEAD_BRANCH" | sort -u
+          )
+          test "$(printf '%s\n' "${actual_branches[@]}")" = "$(printf '%s\n' "${expected_branches[@]}")"
+
+          for branch in "$EXPECTED_SOURCE_BRANCH" "$EXPECTED_HEAD_BRANCH"; do
+            test "$(gh api "repos/$EXPECTED_REPOSITORY/branches/$branch" --jq '.protected')" = "false"
+          done
+
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/matching-refs/tags/v2.0.0" --jq 'length')" = "0"
+          mapfile -t release_tags < <(
+            gh api --paginate "repos/$EXPECTED_REPOSITORY/releases?per_page=100" \
+              --jq '.[].tag_name' | sort -u
+          )
+          test "$(printf '%s\n' "${release_tags[@]}")" = "$RELEASE_TAG"
+
+      - name: Verify the current v1 publication exactly and preserve recovery bytes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tag_ref="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+          test "$(jq -r '.object.type' <<<"$tag_ref")" = "tag"
+          test "$(jq -r '.object.sha' <<<"$tag_ref")" = "$OLD_TAG_OBJECT_SHA"
+          annotated="$(gh api "repos/$EXPECTED_REPOSITORY/git/tags/$OLD_TAG_OBJECT_SHA")"
+          test "$(jq -r '.tag' <<<"$annotated")" = "$RELEASE_TAG"
+          test "$(jq -r '.message' <<<"$annotated")" = "$RELEASE_TITLE"
+          test "$(jq -r '.object.type' <<<"$annotated")" = "commit"
+          test "$(jq -r '.object.sha' <<<"$annotated")" = "$OLD_MAIN_SHA"
+
+          gh api "repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/old-v1-release.json"
+          test "$(jq -r '.id' "$RUNNER_TEMP/old-v1-release.json")" = "$OLD_RELEASE_ID"
+          test "$(jq -r '.tag_name' "$RUNNER_TEMP/old-v1-release.json")" = "$RELEASE_TAG"
+          test "$(jq -r '.target_commitish' "$RUNNER_TEMP/old-v1-release.json")" = "main"
+          test "$(jq -r '.name' "$RUNNER_TEMP/old-v1-release.json")" = "$RELEASE_TITLE"
+          test "$(jq -r '.draft' "$RUNNER_TEMP/old-v1-release.json")" = "false"
+          test "$(jq -r '.prerelease' "$RUNNER_TEMP/old-v1-release.json")" = "false"
+          test "$(jq -r '.published_at' "$RUNNER_TEMP/old-v1-release.json")" = "$OLD_PUBLISHED_AT"
+          test "$(jq '.assets | length' "$RUNNER_TEMP/old-v1-release.json")" = "2"
+
+          jq -e --arg id "$OLD_ARCHIVE_ASSET_ID" \
+            --arg name "$ARCHIVE_NAME" \
+            --arg size "$OLD_ARCHIVE_SIZE" \
+            --arg digest "sha256:$OLD_ARCHIVE_SHA256" \
+            '.assets[] | select((.id | tostring) == $id and .name == $name and (.size | tostring) == $size and .digest == $digest)' \
+            "$RUNNER_TEMP/old-v1-release.json" >/dev/null
+          jq -e --arg id "$OLD_SIDECAR_ASSET_ID" \
+            --arg name "$SIDECAR_NAME" \
+            --arg size "$OLD_SIDECAR_SIZE" \
+            --arg digest "sha256:$OLD_SIDECAR_SHA256" \
+            '.assets[] | select((.id | tostring) == $id and .name == $name and (.size | tostring) == $size and .digest == $digest)' \
+            "$RUNNER_TEMP/old-v1-release.json" >/dev/null
+
+          mkdir -p "$RUNNER_TEMP/old-v1-assets"
+          gh api -H 'Accept: application/octet-stream' \
+            "repos/$EXPECTED_REPOSITORY/releases/assets/$OLD_ARCHIVE_ASSET_ID" \
+            > "$RUNNER_TEMP/old-v1-assets/$ARCHIVE_NAME"
+          gh api -H 'Accept: application/octet-stream' \
+            "repos/$EXPECTED_REPOSITORY/releases/assets/$OLD_SIDECAR_ASSET_ID" \
+            > "$RUNNER_TEMP/old-v1-assets/$SIDECAR_NAME"
+          test "$(sha256sum "$RUNNER_TEMP/old-v1-assets/$ARCHIVE_NAME" | awk '{print $1}')" = "$OLD_ARCHIVE_SHA256"
+          test "$(sha256sum "$RUNNER_TEMP/old-v1-assets/$SIDECAR_NAME" | awk '{print $1}')" = "$OLD_SIDECAR_SHA256"
+          printf '%s  %s\n' "$OLD_ARCHIVE_SHA256" "$ARCHIVE_NAME" > "$RUNNER_TEMP/expected-old-v1.sha256"
+          cmp --silent "$RUNNER_TEMP/expected-old-v1.sha256" "$RUNNER_TEMP/old-v1-assets/$SIDECAR_NAME"
+          (cd "$RUNNER_TEMP/old-v1-assets" && sha256sum --check "$SIDECAR_NAME")
+          jq -r '.body // ""' "$RUNNER_TEMP/old-v1-release.json" > "$RUNNER_TEMP/old-release-notes.md"
+
+      - name: Build and verify the clean v1 assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python scripts/update_manifest.py --check
+          python scripts/package_release.py
+          test "$(sha256sum "dist/$ARCHIVE_NAME" | awk '{print $1}')" = "$EXPECTED_SHA256"
+          test "$(stat -c '%s' "dist/$ARCHIVE_NAME")" = "$EXPECTED_ARCHIVE_SIZE"
+          printf '%s  %s\n' "$EXPECTED_SHA256" "$ARCHIVE_NAME" > "$RUNNER_TEMP/expected-clean-v1.sha256"
+          cmp --silent "$RUNNER_TEMP/expected-clean-v1.sha256" "dist/$SIDECAR_NAME"
+          (cd dist && sha256sum --check "$SIDECAR_NAME")
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+
+          archive_path = Path("dist/aws-codex-fastlane-bootstrap.zip")
+          with zipfile.ZipFile(archive_path) as archive:
+              names = archive.namelist()
+              forbidden = [
+                  name for name in names
+                  if "/docs/demo/" in name
+                  or name.endswith("/scripts/run_demo.py")
+                  or name.endswith("/VERSION")
+                  or name.endswith("/CONTRIBUTING.md")
+                  or name.endswith("/CHANGELOG.md")
+              ]
+              if forbidden:
+                  raise SystemExit(f"removed files remain in release: {forbidden}")
+              if len(names) != 41:
+                  raise SystemExit(f"unexpected release inventory: {len(names)} entries")
+              readme = archive.read("aws-codex-fastlane-bootstrap/README.md").decode("utf-8")
+              for phrase in (
+                  "docs/demo",
+                  "run_demo.py",
+                  "Internal Change Request API",
+                  "CONTRIBUTING.md",
+                  "CHANGELOG.md",
+              ):
+                  if phrase in readme:
+                      raise SystemExit(f"removed reference remains in README: {phrase}")
+          PY
+
+      - name: Build reviewed personal-template release notes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          notes = """# AWS Codex Fastlane v1.0.0
+
+Initial personal-template release.
+
+- Starts with BOOT-00 guided intake and two human approval gates.
+- Keeps normal construction autonomous inside the approved Gate B boundary.
+- Requires an exact, time-bounded AWS authorization record before AWS changes.
+- Supports greenfield and guarded brownfield adoption.
+- Includes deterministic doctor, task-runtime, manifest, and packaging checks.
+- Publishes the ZIP only as a GitHub Release asset; source remains authoritative.
+- Omits simulation content and public maintainer files that are unnecessary for this personal template.
+"""
+          (Path(os.environ["RUNNER_TEMP"]) / "release-notes.md").write_text(
+              notes.strip() + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Replace v1 with rollback protection, verify draft bytes, and publish
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rollback_armed=0
+
+          rollback_old_v1() {
+            status=$?
+            trap - ERR
+            if test "$rollback_armed" -eq 1; then
+              set +e
+              gh api "repos/$EXPECTED_REPOSITORY/releases?per_page=100" \
+                --jq '.[] | select(.tag_name == "v1.0.0") | .id' \
+                > "$RUNNER_TEMP/rollback-release-ids.txt"
+              while IFS= read -r release_id; do
+                if test -n "$release_id"; then
+                  gh api --method DELETE "repos/$EXPECTED_REPOSITORY/releases/$release_id"
+                fi
+              done < "$RUNNER_TEMP/rollback-release-ids.txt"
+              if test "$(gh api "repos/$EXPECTED_REPOSITORY/git/matching-refs/tags/v1.0.0" --jq 'length')" != "0"; then
+                gh api --method DELETE "repos/$EXPECTED_REPOSITORY/git/refs/tags/$RELEASE_TAG"
+              fi
+              gh api --method POST \
+                "repos/$EXPECTED_REPOSITORY/git/refs" \
+                -f ref="refs/tags/$RELEASE_TAG" \
+                -f sha="$OLD_TAG_OBJECT_SHA" >/dev/null
+              gh release create "$RELEASE_TAG" \
+                "$RUNNER_TEMP/old-v1-assets/$ARCHIVE_NAME" \
+                "$RUNNER_TEMP/old-v1-assets/$SIDECAR_NAME" \
+                --repo "$EXPECTED_REPOSITORY" \
+                --verify-tag \
+                --target main \
+                --title "$RELEASE_TITLE" \
+                --notes-file "$RUNNER_TEMP/old-release-notes.md"
+            fi
+            exit "$status"
+          }
+          trap rollback_old_v1 ERR
+
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$EXPECTED_MAIN_SHA"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')" = "$OLD_TAG_OBJECT_SHA"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.id')" = "$OLD_RELEASE_ID"
+
+          rollback_armed=1
+          gh api --method DELETE "repos/$EXPECTED_REPOSITORY/releases/$OLD_RELEASE_ID"
+          gh api --method DELETE "repos/$EXPECTED_REPOSITORY/git/refs/tags/$RELEASE_TAG"
+          test "$(gh api --paginate "repos/$EXPECTED_REPOSITORY/releases?per_page=100" \
+            --jq '[.[] | select(.tag_name == "v1.0.0")] | length')" = "0"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/matching-refs/tags/v1.0.0" --jq 'length')" = "0"
+
+          new_tag_object_sha="$(gh api --method POST \
+            "repos/$EXPECTED_REPOSITORY/git/tags" \
+            -f tag="$RELEASE_TAG" \
+            -f message="$RELEASE_TITLE" \
+            -f object="$EXPECTED_MAIN_SHA" \
+            -f type=commit \
+            --jq '.sha')"
+          gh api --method POST \
+            "repos/$EXPECTED_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$RELEASE_TAG" \
+            -f sha="$new_tag_object_sha" >/dev/null
+
+          gh release create "$RELEASE_TAG" \
+            "dist/$ARCHIVE_NAME" \
+            "dist/$SIDECAR_NAME" \
+            --repo "$EXPECTED_REPOSITORY" \
+            --verify-tag \
+            --target main \
+            --draft \
+            --title "$RELEASE_TITLE" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+
+          for attempt in {1..10}; do
+            gh api "repos/$EXPECTED_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+            jq '[.[] | select(.tag_name == "v1.0.0")]' \
+              "$RUNNER_TEMP/releases.json" > "$RUNNER_TEMP/new-v1-matches.json"
+            if test "$(jq 'length' "$RUNNER_TEMP/new-v1-matches.json")" -eq 1 && \
+               test "$(jq '.[0].assets | length' "$RUNNER_TEMP/new-v1-matches.json")" -eq 2; then
+              jq '.[0]' "$RUNNER_TEMP/new-v1-matches.json" > "$RUNNER_TEMP/new-v1-release.json"
+              break
+            fi
+            sleep 2
+          done
+          test -s "$RUNNER_TEMP/new-v1-release.json"
+          test "$(jq -r '.tag_name' "$RUNNER_TEMP/new-v1-release.json")" = "$RELEASE_TAG"
+          test "$(jq -r '.target_commitish' "$RUNNER_TEMP/new-v1-release.json")" = "main"
+          test "$(jq -r '.name' "$RUNNER_TEMP/new-v1-release.json")" = "$RELEASE_TITLE"
+          test "$(jq -r '.draft' "$RUNNER_TEMP/new-v1-release.json")" = "true"
+          test "$(jq -r '.prerelease' "$RUNNER_TEMP/new-v1-release.json")" = "false"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          release = json.loads((root / "new-v1-release.json").read_text(encoding="utf-8"))
+          expected = (root / "release-notes.md").read_text(encoding="utf-8")
+          actual = release.get("body") or ""
+          if actual.replace("\r\n", "\n").strip() != expected.replace("\r\n", "\n").strip():
+              raise SystemExit("new v1.0.0 release notes differ from the reviewed notes")
+          PY
+
+          mapfile -t asset_names < <(jq -r '.assets[].name' "$RUNNER_TEMP/new-v1-release.json" | sort -u)
+          mapfile -t expected_names < <(printf '%s\n' "$ARCHIVE_NAME" "$SIDECAR_NAME" | sort -u)
+          test "$(printf '%s\n' "${asset_names[@]}")" = "$(printf '%s\n' "${expected_names[@]}")"
+
+          mkdir -p "$RUNNER_TEMP/new-v1-draft"
+          for asset in "${expected_names[@]}"; do
+            asset_id="$(jq -r --arg name "$asset" '.assets[] | select(.name == $name) | .id' "$RUNNER_TEMP/new-v1-release.json")"
+            gh api -H 'Accept: application/octet-stream' \
+              "repos/$EXPECTED_REPOSITORY/releases/assets/$asset_id" \
+              > "$RUNNER_TEMP/new-v1-draft/$asset"
+            cmp --silent "$RUNNER_TEMP/new-v1-draft/$asset" "dist/$asset"
+          done
+          test "$(sha256sum "$RUNNER_TEMP/new-v1-draft/$ARCHIVE_NAME" | awk '{print $1}')" = "$EXPECTED_SHA256"
+          (cd "$RUNNER_TEMP/new-v1-draft" && sha256sum --check "$SIDECAR_NAME")
+
+          gh release edit "$RELEASE_TAG" --repo "$EXPECTED_REPOSITORY" --draft=false
+          mkdir -p "$RUNNER_TEMP/new-v1-published"
+          gh release download "$RELEASE_TAG" \
+            --repo "$EXPECTED_REPOSITORY" \
+            --pattern "$ARCHIVE_NAME" \
+            --pattern "$SIDECAR_NAME" \
+            --dir "$RUNNER_TEMP/new-v1-published"
+          cmp --silent "$RUNNER_TEMP/new-v1-published/$ARCHIVE_NAME" "dist/$ARCHIVE_NAME"
+          cmp --silent "$RUNNER_TEMP/new-v1-published/$SIDECAR_NAME" "dist/$SIDECAR_NAME"
+          test "$(sha256sum "$RUNNER_TEMP/new-v1-published/$ARCHIVE_NAME" | awk '{print $1}')" = "$EXPECTED_SHA256"
+          (cd "$RUNNER_TEMP/new-v1-published" && sha256sum --check "$SIDECAR_NAME")
+
+          final_tag_ref="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+          test "$(jq -r '.object.type' <<<"$final_tag_ref")" = "tag"
+          final_tag="$(gh api "repos/$EXPECTED_REPOSITORY/git/tags/$(jq -r '.object.sha' <<<"$final_tag_ref")")"
+          test "$(jq -r '.object.type' <<<"$final_tag")" = "commit"
+          test "$(jq -r '.object.sha' <<<"$final_tag")" = "$EXPECTED_MAIN_SHA"
+          gh api "repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/final-v1-release.json"
+          test "$(jq -r '.name' "$RUNNER_TEMP/final-v1-release.json")" = "$RELEASE_TITLE"
+          test "$(jq -r '.draft' "$RUNNER_TEMP/final-v1-release.json")" = "false"
+          test "$(jq -r '.prerelease' "$RUNNER_TEMP/final-v1-release.json")" = "false"
+          test "$(jq '.assets | length' "$RUNNER_TEMP/final-v1-release.json")" = "2"
+
+          rollback_armed=0
+          trap - ERR
+
+      - name: Reverify v1 and main, then remove only approved temporary branches
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" = "$EXPECTED_MAIN_SHA"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/$EXPECTED_SOURCE_BRANCH" --jq '.object.sha')" = "$EXPECTED_SOURCE_SHA"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/heads/$EXPECTED_HEAD_BRANCH" --jq '.object.sha')" = "$EVENT_HEAD_SHA"
+
+          final_tag_ref="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+          test "$(jq -r '.object.type' <<<"$final_tag_ref")" = "tag"
+          final_tag="$(gh api "repos/$EXPECTED_REPOSITORY/git/tags/$(jq -r '.object.sha' <<<"$final_tag_ref")")"
+          test "$(jq -r '.object.sha' <<<"$final_tag")" = "$EXPECTED_MAIN_SHA"
+          gh api "repos/$EXPECTED_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/reverified-v1.json"
+          test "$(jq -r '.name' "$RUNNER_TEMP/reverified-v1.json")" = "$RELEASE_TITLE"
+          test "$(jq -r '.draft' "$RUNNER_TEMP/reverified-v1.json")" = "false"
+          test "$(jq -r '.prerelease' "$RUNNER_TEMP/reverified-v1.json")" = "false"
+
+          gh api --method PATCH \
+            "repos/$EXPECTED_REPOSITORY/pulls/$PR_NUMBER" \
+            -f state=closed >/dev/null
+          gh api --method DELETE \
+            "repos/$EXPECTED_REPOSITORY/git/refs/heads/$EXPECTED_SOURCE_BRANCH"
+          gh api --method DELETE \
+            "repos/$EXPECTED_REPOSITORY/git/refs/heads/$EXPECTED_HEAD_BRANCH"
+
+          mapfile -t remaining < <(
+            gh api --paginate "repos/$EXPECTED_REPOSITORY/branches?per_page=100" \
+              --jq '.[].name' | sort -u
+          )
+          test "$(printf '%s\n' "${remaining[@]}")" = "main"
+          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/matching-refs/tags/v2.0.0" --jq 'length')" = "0"
+          mapfile -t release_tags < <(
+            gh api --paginate "repos/$EXPECTED_REPOSITORY/releases?per_page=100" \
+              --jq '.[].tag_name' | sort -u
+          )
+          test "$(printf '%s\n' "${release_tags[@]}")" = "$RELEASE_TAG"
+
+      - name: Record final receipt
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "# AWS Codex Fastlane v1.0.0 personal-template recut completed"
+            echo
+            echo "- Main and tag target: \`$EXPECTED_MAIN_SHA\`"
+            echo "- Release: \`$RELEASE_TAG\`"
+            echo "- ZIP SHA-256: \`$EXPECTED_SHA256\`"
+            echo "- Removed public-maintainer and simulation entries: \`0\`"
+            echo "- Remaining branches: \`main\`"
+          } >> "$GITHUB_STEP_SUMMARY"
