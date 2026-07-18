@@ -1,8 +1,8 @@
 # Security Policy
 
-## Supported version
+## Supported state
 
-Security corrections are applied to the latest release and `main`.
+Security corrections are applied to `main` and its current release artifact.
 
 ## Report a concern
 
@@ -16,7 +16,7 @@ reproduction using synthetic data, and the safeguard that should have held.
 
 ## Expected controls
 
-Contributions and generated projects should prove that:
+This template and generated projects should prove that:
 
 - approved access succeeds and unapproved access is denied;
 - secrets stay out of code and logs, including source, fixtures, and release

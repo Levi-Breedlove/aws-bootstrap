@@ -24,16 +24,21 @@ SPEC.loader.exec_module(package_release)
 
 
 class PackageReleaseTests(unittest.TestCase):
-    def test_version_matches_release_manifest(self) -> None:
-        version = (REPOSITORY_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    def test_manifest_is_the_only_internal_version_source(self) -> None:
         manifest = json.loads(
             (REPOSITORY_ROOT / "bootstrap.manifest.json").read_text(
                 encoding="utf-8"
             )
         )
-        self.assertEqual(version, "1.0.0")
-        self.assertEqual(manifest["bootstrap_version"], version)
+        self.assertEqual(manifest["bootstrap_version"], "1.0.0")
         self.assertIn("README.md", manifest["required_files"])
+        for removed in ("VERSION", "CONTRIBUTING.md", "CHANGELOG.md"):
+            self.assertFalse((REPOSITORY_ROOT / removed).exists())
+            self.assertNotIn(removed, manifest["required_files"])
+            self.assertNotIn(
+                removed,
+                (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8"),
+            )
 
     def test_manifest_is_the_exact_template_file_inventory(self) -> None:
         template = REPOSITORY_ROOT
@@ -219,7 +224,6 @@ class PackageReleaseTests(unittest.TestCase):
     def test_unsafe_manifest_path_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "VERSION").write_text("1.0.0\n", encoding="utf-8")
             (root / "bootstrap.manifest.json").write_text(
                 json.dumps(
                     {
@@ -237,7 +241,6 @@ class PackageReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             template = root
-            (root / "VERSION").write_text("1.0.0\n", encoding="utf-8")
             outside = root / "outside"
             outside.write_text("not release content", encoding="utf-8")
             try:
@@ -256,21 +259,20 @@ class PackageReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(package_release.PackagingError, "unsafe"):
                 package_release.load_release_files(root)
 
-    def test_version_drift_is_rejected(self) -> None:
+    def test_invalid_manifest_version_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             template = root
-            (root / "VERSION").write_text("1.0.1\n", encoding="utf-8")
             (template / "bootstrap.manifest.json").write_text(
                 json.dumps(
                     {
-                        "bootstrap_version": "1.0.0",
+                        "bootstrap_version": "personal",
                         "required_files": ["bootstrap.manifest.json"],
                     }
                 ),
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(package_release.PackagingError, "must match"):
+            with self.assertRaisesRegex(package_release.PackagingError, "semantic version"):
                 package_release.load_release_files(root)
 
     def test_current_release_text_has_no_previous_major_reference(self) -> None:
@@ -279,7 +281,7 @@ class PackageReleaseTests(unittest.TestCase):
         for path in REPOSITORY_ROOT.rglob("*"):
             if not path.is_file() or ".git" in path.parts:
                 continue
-            if path.name != "VERSION" and path.suffix not in text_suffixes:
+            if path.suffix not in text_suffixes:
                 continue
             content = path.read_text(encoding="utf-8")
             self.assertNotIn(forbidden, content, str(path.relative_to(REPOSITORY_ROOT)))

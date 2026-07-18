@@ -198,7 +198,7 @@ Get-FileHash .\aws-codex-fastlane-bootstrap.zip -Algorithm SHA256
 Get-Content .\aws-codex-fastlane-bootstrap.zip.sha256
 ```
 
-Maintainers run:
+Before changing or repackaging this template, run:
 
 ```bash
 python -m unittest discover -s tests -v
@@ -206,8 +206,8 @@ python scripts/package_release.py --check
 ```
 
 Release assets are generated under ignored `dist/`; binary archives are never
-committed to `main`. See [`CONTRIBUTING.md`](CONTRIBUTING.md),
-[`SECURITY.md`](SECURITY.md), and [`CHANGELOG.md`](CHANGELOG.md).
+committed to `main`. Security expectations remain in
+[`SECURITY.md`](SECURITY.md).
 
 ## Agent reference — exact contracts
 
