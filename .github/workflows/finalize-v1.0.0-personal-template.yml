@@ -258,16 +258,16 @@ jobs:
 
           notes = """# AWS Codex Fastlane v1.0.0
 
-Initial personal-template release.
+          Initial personal-template release.
 
-- Starts with BOOT-00 guided intake and two human approval gates.
-- Keeps normal construction autonomous inside the approved Gate B boundary.
-- Requires an exact, time-bounded AWS authorization record before AWS changes.
-- Supports greenfield and guarded brownfield adoption.
-- Includes deterministic doctor, task-runtime, manifest, and packaging checks.
-- Publishes the ZIP only as a GitHub Release asset; source remains authoritative.
-- Omits simulation content and public maintainer files that are unnecessary for this personal template.
-"""
+          - Starts with BOOT-00 guided intake and two human approval gates.
+          - Keeps normal construction autonomous inside the approved Gate B boundary.
+          - Requires an exact, time-bounded AWS authorization record before AWS changes.
+          - Supports greenfield and guarded brownfield adoption.
+          - Includes deterministic doctor, task-runtime, manifest, and packaging checks.
+          - Publishes the ZIP only as a GitHub Release asset; source remains authoritative.
+          - Omits simulation content and public maintainer files that are unnecessary for this personal template.
+          """
           (Path(os.environ["RUNNER_TEMP"]) / "release-notes.md").write_text(
               notes.strip() + "\n",
               encoding="utf-8",
