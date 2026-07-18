@@ -72,7 +72,6 @@ MANDATORY_REQUIRED_FILES = {
     ".agents/skills/plan-fastlane/SKILL.md",
     "AGENTS.md",
     "BUGFIX.md",
-    "CONTRIBUTING.md",
     "LICENSE",
     "PRD.md",
     "README.md",

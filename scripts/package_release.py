@@ -18,7 +18,6 @@ from typing import Sequence
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_DIRECTORY = "."
 MANIFEST_FILE = "bootstrap.manifest.json"
-VERSION_FILE = "VERSION"
 ARCHIVE_NAME = "aws-codex-fastlane-bootstrap.zip"
 ARCHIVE_ROOT = "aws-codex-fastlane-bootstrap"
 DEFAULT_OUTPUT_DIRECTORY = "dist"
@@ -74,31 +73,26 @@ def has_symlink_component(root: Path, relative: str) -> bool:
 
 
 def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tuple[str, bytes]]]:
-    """Load the version and exact manifest-ordered release file bytes."""
+    """Load the manifest version and exact release file bytes."""
 
     repo_root = repo_root.resolve()
     template_root = (repo_root / TEMPLATE_DIRECTORY).resolve()
     manifest_path = template_root / MANIFEST_FILE
-    version_path = repo_root / VERSION_FILE
     if template_root.is_symlink() or not template_root.is_dir():
         raise PackagingError(f"Template directory is missing or unsafe: {template_root}")
     if manifest_path.is_symlink() or not manifest_path.is_file():
         raise PackagingError(f"Manifest is missing or unsafe: {manifest_path}")
-    if version_path.is_symlink() or not version_path.is_file():
-        raise PackagingError(f"Version file is missing or unsafe: {version_path}")
 
-    version = version_path.read_text(encoding="utf-8").strip()
-    if SEMVER_PATTERN.fullmatch(version) is None:
-        raise PackagingError(f"VERSION must contain one semantic version: {version!r}")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise PackagingError(f"Unable to read release manifest: {exc}") from exc
     if not isinstance(manifest, dict):
         raise PackagingError("Release manifest must be a JSON object")
-    if manifest.get("bootstrap_version") != version:
+    version = manifest.get("bootstrap_version")
+    if not isinstance(version, str) or SEMVER_PATTERN.fullmatch(version) is None:
         raise PackagingError(
-            "VERSION and bootstrap.manifest.json bootstrap_version must match"
+            "bootstrap.manifest.json bootstrap_version must contain one semantic version"
         )
     raw_files = manifest.get("required_files")
     if not isinstance(raw_files, list) or not raw_files:
