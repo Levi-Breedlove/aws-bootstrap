@@ -142,9 +142,29 @@ jobs:
             fi
           done
 
-          test "$(gh api --paginate "repos/$EXPECTED_REPOSITORY/releases?per_page=100" \
-            --jq '[.[] | select(.tag_name == "v1.0.0")] | length')" = "0"
-          test "$(gh api "repos/$EXPECTED_REPOSITORY/git/matching-refs/tags/v1.0.0" --jq 'length')" = "0"
+          v1_ref_count="$(gh api \
+            "repos/$EXPECTED_REPOSITORY/git/matching-refs/tags/v1.0.0" \
+            --jq 'length')"
+          test "$v1_ref_count" -le 1
+          if test "$v1_ref_count" -eq 1; then
+            tag_payload="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+            test "$(jq -r '.object.type' <<<"$tag_payload")" = "tag"
+            annotated="$(gh api "repos/$EXPECTED_REPOSITORY/git/tags/$(jq -r '.object.sha' <<<"$tag_payload")")"
+            test "$(jq -r '.object.type' <<<"$annotated")" = "commit"
+            test "$(jq -r '.object.sha' <<<"$annotated")" = "$EXPECTED_MAIN_SHA"
+          fi
+
+          gh api "repos/$EXPECTED_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          v1_release_count="$(jq '[.[] | select(.tag_name == "v1.0.0")] | length' "$RUNNER_TEMP/releases.json")"
+          test "$v1_release_count" -le 1
+          if test "$v1_release_count" -eq 1; then
+            test "$v1_ref_count" -eq 1
+            jq '[.[] | select(.tag_name == "v1.0.0")][0]' \
+              "$RUNNER_TEMP/releases.json" > "$RUNNER_TEMP/existing-v1.json"
+            test "$(jq -r '.name' "$RUNNER_TEMP/existing-v1.json")" = "$RELEASE_TITLE"
+            test "$(jq -r '.draft' "$RUNNER_TEMP/existing-v1.json")" = "true"
+            test "$(jq -r '.prerelease' "$RUNNER_TEMP/existing-v1.json")" = "false"
+          fi
 
       - name: Build and verify exact v1 assets
         shell: bash
@@ -182,17 +202,24 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          tag_object_sha="$(gh api --method POST \
-            "repos/$EXPECTED_REPOSITORY/git/tags" \
-            -f tag="$RELEASE_TAG" \
-            -f message="$RELEASE_TITLE" \
-            -f object="$EXPECTED_MAIN_SHA" \
-            -f type=commit \
-            --jq '.sha')"
-          gh api --method POST \
-            "repos/$EXPECTED_REPOSITORY/git/refs" \
-            -f ref="refs/tags/$RELEASE_TAG" \
-            -f sha="$tag_object_sha" >/dev/null
+          v1_ref_count="$(gh api \
+            "repos/$EXPECTED_REPOSITORY/git/matching-refs/tags/v1.0.0" \
+            --jq 'length')"
+          if test "$v1_ref_count" -eq 0; then
+            tag_object_sha="$(gh api --method POST \
+              "repos/$EXPECTED_REPOSITORY/git/tags" \
+              -f tag="$RELEASE_TAG" \
+              -f message="$RELEASE_TITLE" \
+              -f object="$EXPECTED_MAIN_SHA" \
+              -f type=commit \
+              --jq '.sha')"
+            gh api --method POST \
+              "repos/$EXPECTED_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$RELEASE_TAG" \
+              -f sha="$tag_object_sha" >/dev/null
+          else
+            test "$v1_ref_count" -eq 1
+          fi
 
           tag_payload="$(gh api "repos/$EXPECTED_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
           test "$(jq -r '.object.type' <<<"$tag_payload")" = "tag"
@@ -200,25 +227,53 @@ jobs:
           test "$(jq -r '.object.type' <<<"$annotated")" = "commit"
           test "$(jq -r '.object.sha' <<<"$annotated")" = "$EXPECTED_MAIN_SHA"
 
-          gh release create "$RELEASE_TAG" \
-            "dist/$ARCHIVE_NAME" \
-            "dist/$SIDECAR_NAME" \
-            --repo "$EXPECTED_REPOSITORY" \
-            --verify-tag \
-            --draft \
-            --title "$RELEASE_TITLE" \
-            --notes-file "$RUNNER_TEMP/release-notes.md"
+          gh api "repos/$EXPECTED_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          v1_release_count="$(jq '[.[] | select(.tag_name == "v1.0.0")] | length' "$RUNNER_TEMP/releases.json")"
+          if test "$v1_release_count" -eq 0; then
+            gh release create "$RELEASE_TAG" \
+              "dist/$ARCHIVE_NAME" \
+              "dist/$SIDECAR_NAME" \
+              --repo "$EXPECTED_REPOSITORY" \
+              --verify-tag \
+              --draft \
+              --title "$RELEASE_TITLE" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            test "$v1_release_count" -eq 1
+          fi
 
       - name: Verify draft bytes, then publish and independently download v1
         shell: bash
         run: |
           set -Eeuo pipefail
-          gh api --paginate "repos/$EXPECTED_REPOSITORY/releases?per_page=100" \
-            --jq '.[] | select(.tag_name == "v1.0.0")' > "$RUNNER_TEMP/v1-release.json"
+          for attempt in {1..10}; do
+            gh api "repos/$EXPECTED_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+            jq '[.[] | select(.tag_name == "v1.0.0")]' \
+              "$RUNNER_TEMP/releases.json" > "$RUNNER_TEMP/v1-matches.json"
+            if test "$(jq 'length' "$RUNNER_TEMP/v1-matches.json")" -eq 1 && \
+               test "$(jq '.[0].assets | length' "$RUNNER_TEMP/v1-matches.json")" -eq 2; then
+              jq '.[0]' "$RUNNER_TEMP/v1-matches.json" > "$RUNNER_TEMP/v1-release.json"
+              break
+            fi
+            sleep 2
+          done
+          test -s "$RUNNER_TEMP/v1-release.json"
           test "$(jq -r '.tag_name' "$RUNNER_TEMP/v1-release.json")" = "$RELEASE_TAG"
           test "$(jq -r '.name' "$RUNNER_TEMP/v1-release.json")" = "$RELEASE_TITLE"
           test "$(jq -r '.draft' "$RUNNER_TEMP/v1-release.json")" = "true"
           test "$(jq -r '.prerelease' "$RUNNER_TEMP/v1-release.json")" = "false"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          release = json.loads((root / "v1-release.json").read_text(encoding="utf-8"))
+          expected = (root / "release-notes.md").read_text(encoding="utf-8")
+          actual = release.get("body") or ""
+          if actual.replace("\r\n", "\n").strip() != expected.replace("\r\n", "\n").strip():
+              raise SystemExit("v1.0.0 release notes differ from the reviewed changelog section")
+          PY
 
           mapfile -t assets < <(jq -r '.assets[].name' "$RUNNER_TEMP/v1-release.json" | sort -u)
           mapfile -t expected < <(printf '%s\n' "$ARCHIVE_NAME" "$SIDECAR_NAME" | sort -u)
