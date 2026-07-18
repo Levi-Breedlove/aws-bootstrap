@@ -85,7 +85,6 @@ MANDATORY_REQUIRED_FILES = {
     "bootstrap.py",
     "bootstrap.yaml",
     "docs/adr/0000-template.md",
-    "docs/demo/internal-change-request-api.md",
     "infrastructure/AGENTS.md",
     "prompts/CODEX-PROMPTS.md",
     "scripts/bootstrap_doctor.py",

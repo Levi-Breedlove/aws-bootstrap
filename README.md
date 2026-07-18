@@ -116,8 +116,7 @@ or AWS action may continue until it is reconciled.
 ├── infrastructure/AGENTS.md  # Infrastructure-specific rules
 ├── tests/AGENTS.md           # Verification rules
 ├── prompts/CODEX-PROMPTS.md  # Exact prompt and receipt contracts
-├── scripts/                  # Doctor, task runtime, demo, and packaging
-├── docs/demo/                # Tested quick-MVP walkthrough
+├── scripts/                  # Doctor, task runtime, and packaging
 └── .github/                  # CI, issue forms, and PR template
 ```
 
@@ -182,20 +181,6 @@ python scripts/task_waves.py TASKS.md --ready
 
 The doctor is read-only. Treat an error as a stop condition; never edit
 `bootstrap.yaml` to bypass an authoritative PRD, task, or evidence record.
-
-## Tested example
-
-Run the no-credential Internal Change Request API demonstration:
-
-```bash
-python scripts/run_demo.py
-python scripts/run_demo.py --json
-```
-
-The demonstration creates a temporary project, verifies setup and routing,
-shows the two approvals and three-task construction plan, runs local tests, and
-proves that AWS mutation remains blocked without an exact authorization. See
-[`docs/demo/internal-change-request-api.md`](docs/demo/internal-change-request-api.md).
 
 ## Release verification
 

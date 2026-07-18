@@ -342,7 +342,6 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("Next prompt: INTAKE-10", self.root_readme)
         self.assertIn("AWS access: NOT USED", self.root_readme)
         self.assertIn("## What is deterministic and what uses agent judgment", self.root_readme)
-        self.assertIn("docs/demo/internal-change-request-api.md", self.root_readme)
         for path in (
             "AGENTS.md",
             "PRD.md",
@@ -351,7 +350,7 @@ class PromptPackContractTests(unittest.TestCase):
             "RUNBOOK.md",
             "bootstrap.manifest.json",
             ".agents/skills/",
-            "docs/demo/",
+            "scripts/",
         ):
             self.assertIn(path, self.root_readme)
         self.assertFalse((REPOSITORY_ROOT / "my-project" / "README.md").exists())

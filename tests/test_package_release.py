@@ -122,7 +122,7 @@ class PackageReleaseTests(unittest.TestCase):
             self.assertEqual(report["status"], "READY")
             self.assertEqual(report["next_prompt"], "INTAKE-10")
 
-    def test_manifest_hashes_and_credential_free_demo_pass(self) -> None:
+    def test_manifest_hashes_are_current(self) -> None:
         manifest_check = subprocess.run(
             [sys.executable, "scripts/update_manifest.py", "--check"],
             cwd=REPOSITORY_ROOT,
@@ -135,28 +135,20 @@ class PackageReleaseTests(unittest.TestCase):
             0,
             manifest_check.stdout + manifest_check.stderr,
         )
-        demo = subprocess.run(
-            [sys.executable, "scripts/run_demo.py", "--json"],
-            cwd=REPOSITORY_ROOT,
-            check=False,
-            capture_output=True,
-            text=True,
+
+    def test_public_template_has_no_demo_or_simulation_entrypoint(self) -> None:
+        self.assertFalse((REPOSITORY_ROOT / "scripts" / "run_demo.py").exists())
+        manifest = json.loads(
+            (REPOSITORY_ROOT / "bootstrap.manifest.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(demo.returncode, 0, demo.stdout + demo.stderr)
-        report = json.loads(demo.stdout)
-        self.assertEqual(report["result"], "PASS")
-        self.assertEqual(
-            report["executed_evidence"]["task_runtime"]["ready_tasks"],
-            ["TASK-0001"],
+        self.assertNotIn("scripts/run_demo.py", manifest["required_files"])
+        self.assertNotIn(
+            "docs/demo/internal-change-request-api.md",
+            manifest["required_files"],
         )
-        self.assertEqual(
-            report["executed_evidence"]["aws_preflight"]["aws_api_calls"],
-            0,
-        )
-        self.assertIn(
-            "NOT EXECUTED OUTPUT",
-            report["illustrative_dialogue"]["label"],
-        )
+        readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertNotIn("run_demo.py", readme)
+        self.assertNotIn("docs/demo/", readme)
 
     def test_written_checksum_is_exact(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

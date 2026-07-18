@@ -100,7 +100,7 @@ class BootstrapSafetyTests(unittest.TestCase):
             values = dict(bootstrap.PLACEHOLDERS)
             values.update(
                 {
-                    "My AWS Project": "Internal Change Request API",
+                    "My AWS Project": "Direct Action Project",
                     "{{AWS_REGION}}": "us-west-2",
                     "{{MONTHLY_BUDGET}}": "$20/month",
                 }
@@ -120,7 +120,7 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertGreater(report.written, 0)
             state = json.loads((project / "bootstrap.yaml").read_text(encoding="utf-8"))
             self.assertEqual(state["setup"], {"status": "CONFIGURED", "method": "IN_PLACE"})
-            self.assertEqual(state["project"]["name"], "Internal Change Request API")
+            self.assertEqual(state["project"]["name"], "Direct Action Project")
             self.assertEqual(state["project"]["region"], "us-west-2")
             self.assertEqual(state["project"]["development_budget"], "$20/month")
             doctor_ok, doctor_output = bootstrap.run_generated_doctor(project)
@@ -176,7 +176,7 @@ class BootstrapSafetyTests(unittest.TestCase):
             with mock.patch.object(
                 bootstrap,
                 "run_generated_doctor",
-                return_value=(False, "simulated doctor failure"),
+                return_value=(False, "forced doctor failure"),
             ):
                 with self.assertRaisesRegex(ValueError, "doctor failed"):
                     bootstrap.initialize_template_in_place(project, values)
