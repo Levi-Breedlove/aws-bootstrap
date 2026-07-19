@@ -19,8 +19,13 @@ description: Welcome, initialize, configure, inspect, or resume an AWS Codex Fas
    `DECLARED_AND_PINNED`. This check validates repository files only; it cannot
    prove that AWS Core is installed or callable. Preserve its exact expected
    hook contract and repository-hook inventory for the later `/hooks` review.
-5. For `THIS_REPOSITORY`, ask at most one round containing project name,
-   preferred Region, and development budget when they are not supplied. Run
+5. For `THIS_REPOSITORY`, ask at most one round containing project name and
+   preferred Region when they are not supplied. Preserve a real hard cost cap's
+   exact ISO currency and amount as
+   `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>` (for example,
+   `MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00`); otherwise initialize the canonical
+   `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED` posture without asking for a
+   dollar amount. Run
    `bootstrap.py --in-place-template-instance` first with `--dry-run`, then
    without it only when the template preconditions pass.
 6. For `ADOPT_EXISTING_REPOSITORY`, perform the exact BOOT-00 collision preview.
@@ -32,24 +37,31 @@ description: Welcome, initialize, configure, inspect, or resume an AWS Codex Fas
    from conversation history. Do not probe for `pytest`, install Python
    packages, or run the maintainer test suite during launch.
 9. Determine the current Codex surface from observed client context. AWS Core
-   plugins are supported in the ChatGPT desktop app's Codex experience and
-   Codex CLI, not the Codex IDE extension. When running in the IDE extension,
-   print the BOOT-00 `SUPPORTED CODEX SURFACE REQUIRED` receipt and stop before
-   AWS Core verification or intake. Do not download or invoke another Codex
-   client as a workaround, including through `npx`. Do not register a
-   marketplace, install a plugin, or install `uv`, `uvx`, `pipx`, or another
-   package from the unsupported IDE surface.
-10. On a supported surface, run `uvx --version` as a read-only prerequisite
-    check. If `uvx` is missing, return the BOOT-00 `AWS CORE RUNTIME REQUIRED`
-    receipt and stop. Point to the official AWS Agent Toolkit prerequisite and
-    Astral `uv` installation guide. Do not install a runtime automatically;
-    that requires a separate, explicit user action or approval.
+   plugins are supported in ChatGPT desktop Codex and Codex CLI, not the
+   Codex IDE extension. Provide instructions only. Tell the owner to open this
+   repository in ChatGPT desktop Codex or an interactive Codex CLI, open their
+   own terminal at the repository root, run `codex plugin marketplace add .`,
+   then launch or reopen the repository and use `/plugins`. Never install a
+   Codex client, run the marketplace command, modify plugin state, or launch a
+   session for the owner.
+10. On a supported surface, ask the owner to run `uvx --version` visibly in the
+    terminal they opened. Do not execute a PATH-discovered `uvx` binary as a
+    setup probe. If the owner reports that it is missing, run
+    `python scripts/uv_setup_assistant.py plan --root <root> --json`.
+    Explain its one owner-run package-manager command and official Astral link.
+    Never execute the command, a package manager, an installer, or a runtime
+    probe. The helper cannot install `uv` or Codex, register a marketplace,
+    launch a session, trust hooks, or access AWS. Tell the owner to run the
+    command themselves, restart the shell, and run `uvx --version` visibly.
 11. On a supported surface, if the pinned plugin is not installed, enabled, and
     current, or if it cannot be distinguished from a generic AWS documentation
     connector, return the BOOT-00 AWS Core setup receipt and walkthrough.
     Direct the owner to `/plugins`, the `AWS Codex Fastlane Dependencies`
-    marketplace, and the `AWS Core` install or update action; then tell them to
-    restart Codex and reopen this repository.
+    marketplace, and the explicitly `AVAILABLE` `AWS Core` install or update
+    action; then tell them to restart Codex and reopen this repository. Do not
+    substitute the user-global `aws configure agent-toolkit` wizard for the
+    reviewed Fastlane pin. A newer upstream revision produces
+    `AWS_CORE_UPDATE_REVIEW_REQUIRED`, not an automatic update.
 12. Before the live plugin handshake, run `python3 --version` because the pinned
     AWS Core hook invokes that exact command. If unavailable, return the
     BOOT-00 `AWS CORE HOOK RUNTIME REQUIRED` receipt and stop. Open the Hooks

@@ -8,70 +8,53 @@ Build and operate **My AWS Project** according to the approved requirements and 
 
 When the owner says `init template`, `initialize template`, or `start Fastlane`,
 route immediately through the repo-scoped `launch-fastlane` skill and `BOOT-00`.
-Welcome the owner first:
-
-> Welcome to AWS Codex Fastlane. This template turns a rough AWS idea into
-> owner-approved requirements and a technical PRD, then lets Codex build inside
-> the exact boundary approved at Gate B. Setup checks tools and repository state
-> only; it does not access or change AWS.
-
-The short form means `THIS_REPOSITORY`. Reuse its Git repository or follow
-BOOT-00's safe baseline procedure; brownfield adoption requires an explicit
-target path.
-
-Before project questions or file changes, run:
+Welcome the owner and explain that Fastlane turns an idea into owner-approved
+requirements and a technical PRD, then builds only inside Gate B. Setup does not
+access AWS. The short form means `THIS_REPOSITORY`; brownfield adoption requires
+an explicit target. Before project questions or writes, run:
 
 ```
 python scripts/bootstrap_dependencies.py --root . --json
 ```
 
-This static check verifies the repo-scoped skills, read-only project agents,
-immutable AWS Core marketplace pin, expected hook contract, and local hook
-sources. `DECLARED_AND_PINNED` does not prove that AWS Core is installed,
-updated, loaded, callable, trusted, or working. Discover repo skills and agents
-in place; never copy them into a user's personal Codex directory.
+It validates repo skills, read-only advisors, the immutable AWS Core pin, and
+hook contract. `DECLARED_AND_PINNED` is not live plugin proof. Discover repo
+assets in place; never copy them into a personal Codex directory.
 
-Continue only in ChatGPT desktop Codex or Codex CLI. The IDE extension cannot
-manage this plugin. On an unsupported surface, print BOOT-00's `SUPPORTED CODEX
-SURFACE REQUIRED` receipt and stop. Never download or launch another Codex
-client, register a marketplace, install a plugin, or install `uv`/`uvx`/`pipx`
-as a workaround.
+The IDE extension cannot manage plugins. Give instructions only: never install
+a Codex client, register a marketplace, change plugin state, or launch another
+session for the owner. Tell the owner to open ChatGPT desktop Codex or an
+interactive Codex CLI, open a terminal at this repository root, and run
+`codex plugin marketplace add .` themselves. Then tell them to launch or reopen
+this repository, enter `/plugins`, select **AWS Codex Fastlane Dependencies →
+AWS Core**, and restart Codex. Do not run those Codex commands.
 
-On a supported surface, check `uvx --version` without changing the environment.
-If missing, print `AWS CORE RUNTIME REQUIRED` and stop. Runtime installation requires a separate,
-explicit user action or approval.
+Ask the owner to run `uvx --version` visibly; do not execute a PATH-discovered
+`uvx` as a setup probe. If missing, `scripts/uv_setup_assistant.py` may print one
+precise official owner-run package-manager command. Never execute that command,
+a package manager, an installer, or a runtime probe for the owner. Never read
+Codex credentials or persist local client, plugin, trust, identity, or setup
+state in the repository. After owner-managed runtime and plugin setup and
+restart, check `python3`, inventory all
+matching hooks, compare the exact pin, and stop on unknown or conflicting code.
+Only the owner may trust the current definition; never bypass hook trust. Run
+BOOT-00's inert deny and harmless allow probes before confirmation.
 
-After AWS Core is installed or updated and Codex restarts:
-
-1. Check `python3 --version` because the pinned hook uses `python3`.
-2. In Codex Settings Hooks or CLI `/hooks`, compare the active AWS Core hook
-   with the exact pin and list every other hook matching `Bash` or AWS MCP tools.
-3. Stop on an unknown or conflicting hook.
-4. Only the owner may trust the current definition. Never use
-   `--dangerously-bypass-hook-trust`; a changed hash requires review again.
-5. Run BOOT-00's inert deny probe and harmless allow probe. The deny probe's
-   unreachable `get_secret_value` performs no AWS operation. Require deny to be
-   blocked and allow to print its fixed marker before showing confirmation.
-
-The approved `PreToolUse` hook only blocks direct Secrets Manager value
-retrieval; it cannot approve gates, widen scope, or authorize tools. The
-template ships no local hook. After a passing doctor, use `/plugins` to install
-or update `AWS Core` from `AWS Codex Fastlane Dependencies`, restart, complete
-the hook review and owner confirmation, reopen the repo, and send:
+The hook only blocks direct Secrets Manager value retrieval; it grants no
+authority. AWS Core is `AVAILABLE`, not automatic. After doctor and marketplace
+checks, instruct the owner to select it through `/plugins`, restart, review and
+trust the hook, and send:
 
 ```text
 @AWS Core
 VERIFY AWS CORE AND CONTINUE FASTLANE
 ```
 
-Callability requires that exact invocation to exercise `retrieve_skill` and
-`search_documentation`. A generic connector, files, cache, prior conversation,
-command output, or memory is not proof. Setup never calls `call_aws` or
-`run_script`, configures credentials, or accesses AWS. It authorizes only those
-two unauthenticated checks.
-
-BOOT-00 uses Python 3.11+ standard-library scripts. Do not probe for `pytest`,
-install packages, or run maintainer tests during initialization.
+Require live `retrieve_skill` and `search_documentation`; generic tools or
+memory are not proof. Setup never calls `call_aws`/`run_script`, configures
+credentials, or accesses AWS. Do not substitute the user-global AWS CLI wizard
+for the reviewed pin. BOOT-00 uses Python 3.11+ standard-library scripts; do not
+probe for `pytest` or run maintainer tests during initialization.
 
 ## How to use this guide
 
@@ -120,6 +103,16 @@ Record these independent choices in `docs/project/PRD.md` before requirements ap
 
 Default a new small project to `quick-mvp` and `explicit-gate`.
 
+Default planning to `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED` unless the owner
+supplies a real limit. Preserve the exact owner-supplied ISO currency and amount
+as `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; `USD 20.00`
+is only an example and never a default or substituted value.
+A budget is a ceiling, never a spending target. Gate A needs a cost posture,
+not an invented number. AWS mutation still requires a finite positive ceiling
+such as `USD: 20.00`, billing dimensions, alerts, rollback or teardown, and
+expiry. The mutation ceiling covers the authorization-validity period and may
+not exceed or change the currency of an owner hard cap.
+
 A Quick MVP is one small, reversible development release. Use `high-risk` when
 work involves production, sensitive or regulated data, payments, customer
 isolation, shared infrastructure, irreversible data changes, or a potentially
@@ -137,6 +130,16 @@ development outcome and minimal tasks; `standard` covers the intended
 environment; `high-risk` uses smaller change batches and stronger review and
 evidence for identity, data access, isolation, migration, recovery, shared
 resources, and audit. All retain the same controls and authority model.
+
+For a new application, evaluate a secure managed serverless baseline first.
+Prefer the smallest pay-per-use design that meets the outcome and keeps idle
+cost low. Require least-privilege access, encryption, protected secrets,
+validated inputs, safe failures, and useful telemetry. Never weaken required
+security, recovery, or evidence controls to save money.
+
+Serverless-first is a starting hypothesis, not a forced architecture. Record a
+different choice when verified workload fit is better. Keep boundaries and IaC
+clear, record measurable expansion triggers, and do not provision early.
 
 Gate A and Gate B each use one compact readiness card in docs/project/PRD.md. Fill every
 listed field with explicit current facts and stable IDs. Use `NOT_APPLICABLE —
@@ -160,7 +163,9 @@ For a ready recommendation, set Gate A to `PENDING_OWNER_APPROVAL` and mirror
 the same current REQ and gate states into `bootstrap.yaml` and
 docs/project/TASKS.md. Do not leave an agent-ready gate marked `BLOCKED`.
 Only the named human owner may accept assumptions and approve the exact current
-revision. Never infer approval from silence, continued work, status, or tools.
+revision. The Gate A receipt must also repeat the exact current cost posture;
+the receipt, owner record, readiness card, and `bootstrap.yaml` must match.
+Never infer approval from silence, continued work, status, or tools.
 Design requires `APPROVED_FOR_DESIGN` with no blocking finding.
 
 At either gate, reject `Codex`, `agent`, `automation`, `system`, `AI`, or any
@@ -209,8 +214,13 @@ Do not silently design around an unresolved contradiction.
 1. Read applicable `AGENTS.md` files and run/resume `BOOT-00`.
 2. Run the dependency checker, configure/resume the template, and run the
    doctor. Static pins do not prove a live plugin or hook.
-3. On a supported surface, finish the owner-approved hook review and explicit
-   `@AWS Core` `retrieve_skill`/`search_documentation` handshake.
+3. When the current surface cannot manage plugins, give the owner the exact
+   supported-surface, marketplace, plugin-selection, restart, and hook-review
+   instructions. Never install or launch Codex, register the marketplace, or
+   change plugin state. The uv helper prints instructions only and may not
+   execute a command. On the supported surface, finish the owner-approved hook
+   review and explicit `@AWS Core`
+   `retrieve_skill`/`search_documentation` handshake.
 4. Use INTAKE-10 and REQ-10; stop for Gate A.
 5. Use DESIGN-10; stop for Gate B.
 6. Use TASK-10 and `task_waves.py` to create a current dependency graph.

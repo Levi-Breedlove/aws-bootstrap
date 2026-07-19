@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -37,6 +38,20 @@ PLAN_ID = re.compile(r"PLAN-\d{4,}")
 TASK_ID = re.compile(r"TASK-\d+")
 RUN_ID = re.compile(r"RUN-\d{4,}")
 CHECKPOINT_ID = re.compile(r"CP-\d{4,}")
+COST_AMOUNT = r"[1-9]\d*(?:\.\d{1,2})?"
+AWS_COST_CEILING = re.compile(
+    rf"(?P<currency>[A-Z]{{3}}): (?P<amount>{COST_AMOUNT})"
+)
+COST_POSTURE_WITH_CAP = re.compile(
+    rf"MINIMIZE_TOTAL_COST; HARD_CAP: (?P<currency>[A-Z]{{3}}) (?P<amount>{COST_AMOUNT})"
+)
+DEFAULT_COST_POSTURE = "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED"
+# Current ISO 4217 List One currency and fund codes, excluding the testing
+# code XTS and no-currency code XXX. Keep this equal to bootstrap.py so setup
+# and machine-derived authorization enforce the same dependency-free grammar.
+ISO_4217_CURRENCY_CODES = frozenset(
+    """AED AFN ALL AMD AOA ARS AUD AWG AZN BAM BBD BDT BHD BIF BMD BND BOB BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW CLF CLP CNY COP COU CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MXV MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD SHP SLE SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD USN UYI UYU UYW UZS VED VES VND VUV WST XAD XAF XAG XAU XBA XBB XBC XBD XCD XCG XDR XOF XPD XPF XPT XSU XUA YER ZAR ZMW ZWG""".split()
+)
 
 PROJECT_MODES = {"greenfield", "brownfield"}
 DELIVERY_PROFILES = {"quick-mvp", "standard", "high-risk"}
@@ -60,7 +75,7 @@ BROWNFIELD_STATES = {"UNASSESSED", "NOT_APPLICABLE", "RECORDED", "STALE"}
 CANONICAL_PLACEHOLDERS = {
     "My AWS Project",
     "{{AWS_REGION}}",
-    "{{MONTHLY_BUDGET}}",
+    "{{COST_POSTURE}}",
     "{{SETUP_METHOD}}",
     "{{SETUP_STATUS}}",
 }
@@ -96,6 +111,7 @@ MANDATORY_REQUIRED_FILES = {
     "prompts/CODEX-PROMPTS.md",
     "scripts/bootstrap_doctor.py",
     "scripts/bootstrap_dependencies.py",
+    "scripts/uv_setup_assistant.py",
     "scripts/task_waves.py",
     "tests/AGENTS.md",
 }
@@ -259,6 +275,7 @@ CONTROL_HASH_FILES = {
     "bootstrap.py",
     "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
+    "scripts/uv_setup_assistant.py",
     "scripts/task_waves.py",
 }
 COORDINATOR_LEDGER_PATHS = {TASKS_FILE, VERIFY_FILE, STATE_FILE}
@@ -333,7 +350,7 @@ GATE_A_READINESS_FIELDS = {
     "Identity/security boundary",
     "Environment/Region",
     "Failure/recovery",
-    "Cost ceiling",
+    "Cost posture",
     "Intake provenance",
 }
 GATE_B_READINESS_FIELDS = {
@@ -926,6 +943,73 @@ def explicit_value(value: str, *, allow_none: bool = False) -> bool:
     if unresolved(cleaned):
         return False
     return allow_none or cleaned not in {"NONE", "NOT_RECORDED", "UNASSIGNED"}
+
+
+def parse_positive_cost(
+    value: str,
+    pattern: re.Pattern[str],
+    field_name: str,
+) -> tuple[str, Decimal]:
+    """Parse one finite positive ISO-currency amount in canonical form."""
+
+    cleaned = clean_cell(value)
+    match = pattern.fullmatch(cleaned)
+    if match is None:
+        raise ValueError(
+            f"{field_name} must use a finite positive currency amount such as "
+            "USD: 20.00"
+        )
+    try:
+        amount = Decimal(match.group("amount"))
+    except InvalidOperation as exc:
+        raise ValueError(f"{field_name} amount is invalid") from exc
+    if not amount.is_finite() or amount <= 0:
+        raise ValueError(f"{field_name} amount must be finite and positive")
+    currency = match.group("currency")
+    if currency not in ISO_4217_CURRENCY_CODES:
+        raise ValueError(
+            f"{field_name} currency must be a current ISO 4217 List One code"
+        )
+    return currency, amount
+
+
+def parse_cost_posture(value: str) -> tuple[str, Decimal] | None:
+    """Return an optional owner hard cap from the canonical Gate A posture."""
+
+    cleaned = clean_cell(value)
+    if cleaned == DEFAULT_COST_POSTURE:
+        return None
+    match = COST_POSTURE_WITH_CAP.fullmatch(cleaned)
+    if match is None:
+        raise ValueError(
+            "Cost posture must be MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED or "
+            "MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00"
+        )
+    return parse_positive_cost(
+        f"{match.group('currency')}: {match.group('amount')}",
+        AWS_COST_CEILING,
+        "Cost posture hard cap",
+    )
+
+
+def validate_aws_cost_ceiling(value: str, cost_posture: str) -> None:
+    """Require a finite mutation ceiling and honor any Gate A owner cap."""
+
+    currency, amount = parse_positive_cost(
+        value,
+        AWS_COST_CEILING,
+        "AWS cost ceiling",
+    )
+    owner_cap = parse_cost_posture(cost_posture)
+    if owner_cap is None:
+        return
+    cap_currency, cap_amount = owner_cap
+    if currency != cap_currency:
+        raise ValueError(
+            "AWS cost ceiling currency must match the Gate A owner hard cap"
+        )
+    if amount > cap_amount:
+        raise ValueError("AWS cost ceiling exceeds the Gate A owner hard cap")
 
 
 def explicit_timestamp(value: str) -> bool:
@@ -1524,7 +1608,7 @@ def validate_state_schema(ctx: Context, state: dict[str, Any]) -> bool:
     project_expected = {
         "name",
         "region",
-        "development_budget",
+        "cost_posture",
         "mode",
         "delivery_profile",
         "effective_risk",
@@ -1571,10 +1655,18 @@ def validate_state_schema(ctx: Context, state: dict[str, Any]) -> bool:
         allowed_methods.add("{{SETUP_METHOD}}")
     if setup_method not in allowed_methods:
         ctx.error("STATE_SETUP", "Invalid setup.method", STATE_FILE)
-    for key in ("name", "region", "development_budget"):
+    for key in ("name", "region", "cost_posture"):
         value = project.get(key)
         if not isinstance(value, str) or not value.strip():
             ctx.error("PROJECT_IDENTITY", f"project.{key} must be non-empty text", STATE_FILE)
+    cost_posture = project.get("cost_posture")
+    if isinstance(cost_posture, str) and not (
+        ctx.template_source and cost_posture == "{{COST_POSTURE}}"
+    ):
+        try:
+            parse_cost_posture(cost_posture)
+        except ValueError as exc:
+            ctx.error("PROJECT_COST_POSTURE", str(exc), STATE_FILE)
 
     for key, allowed in (
         ("mode", PROJECT_MODES),
@@ -1744,6 +1836,7 @@ def validate_construction_envelope(
     envelope: dict[str, str],
     fields: dict[str, str],
     selections: dict[str, str | None],
+    cost_posture: str,
 ) -> None:
     missing = sorted(ENVELOPE_EXPLICIT_FIELDS - set(envelope))
     if missing:
@@ -1909,6 +2002,10 @@ def validate_construction_envelope(
                 envelope.get("AWS artifact authorization and provenance", ""),
                 envelope.get("Authorized baseline commit", ""),
             )
+            validate_aws_cost_ceiling(
+                envelope.get("AWS cost ceiling", ""),
+                cost_posture,
+            )
             parse_future_expiry(envelope.get("AWS authorization validity", ""))
         except ValueError as exc:
             ctx.error("GATE_B_ENVELOPE", str(exc), PRD_FILE)
@@ -2036,8 +2133,19 @@ def validate_prd(
         "READY_FOR_OWNER_APPROVAL",
     }
     gate_b_agent_ready = gate_b_agent.get("Agent recommendation") == "READY_FOR_CONSTRUCTION_APPROVAL"
+    card_cost_posture = clean_cell(gate_a_card.get("Cost posture", ""))
     if gate_a_agent_ready or gate_a_ready_or_current:
         validate_readiness_card(ctx, gate_a_card, GATE_A_READINESS_FIELDS, "GATE_A")
+        try:
+            parse_cost_posture(card_cost_posture)
+        except ValueError as exc:
+            ctx.error("GATE_A_COST_POSTURE", str(exc), PRD_FILE)
+        if card_cost_posture != project.get("cost_posture"):
+            ctx.error(
+                "STATE_PRD_DRIFT",
+                "Gate A Cost posture does not match bootstrap state",
+                STATE_FILE,
+            )
     if gate_b_agent_ready or gate_b_ready_or_current:
         validate_readiness_card(ctx, gate_b_card, GATE_B_READINESS_FIELDS, "GATE_B")
         if gate_b_card.get("Outstanding gaps") != "NONE":
@@ -2100,6 +2208,7 @@ def validate_prd(
             [
                 "APPROVE REQUIREMENTS GATE A",
                 f"Requirements revision: {fields['requirements_revision']}",
+                f"Cost posture: {card_cost_posture}",
                 f"Accepted assumptions: {gate_a_owner.get('Explicitly accepted assumption IDs', '')}",
                 f"Approver: {gate_a_owner.get('Approver', '')}",
             ]
@@ -2108,6 +2217,12 @@ def validate_prd(
             "Authorized requirements revision"
         ) != fields["requirements_revision"]:
             ctx.error("GATE_A_OWNER_RECORD", "Gate A owner record is not current and approved", PRD_FILE)
+        if gate_a_owner.get("Authorized cost posture") != card_cost_posture:
+            ctx.error(
+                "GATE_A_COST_AUTHORIZATION",
+                "Gate A owner record does not authorize the exact readiness-card cost posture",
+                PRD_FILE,
+            )
         if gate_a_owner.get("Derived Gate A state") != fields["gate_a"]:
             ctx.error("GATE_A_OWNER_RECORD", "Detailed Gate A state does not match Document status", PRD_FILE)
         if not explicit_human_approver(gate_a_owner.get("Approver", "")):
@@ -2176,7 +2291,13 @@ def validate_prd(
         ):
             if gate_b_agent.get(key) != "NONE":
                 ctx.error("GATE_B_GAP", f"{key} must be NONE before owner approval", PRD_FILE)
-        validate_construction_envelope(ctx, envelope, fields, selections)
+        validate_construction_envelope(
+            ctx,
+            envelope,
+            fields,
+            selections,
+            str(project.get("cost_posture", "")),
+        )
 
     if fields["gate_b"] == "APPROVED_FOR_CONSTRUCTION":
         if fields["gate_a"] != "APPROVED_FOR_DESIGN":
@@ -3324,12 +3445,15 @@ def build_report(
         or lifecycle.get("construction_authorization")
     )
     construction_authorization = (
-        authorization_id if gate_b == "APPROVED_FOR_CONSTRUCTION" else "NONE"
+        authorization_id
+        if not ctx.has_errors and gate_b == "APPROVED_FOR_CONSTRUCTION"
+        else "NONE"
     )
     aws_boundary = envelope.get("AWS boundary", "NONE")
     aws_authorization = (
         authorization_id
-        if gate_b == "APPROVED_FOR_CONSTRUCTION"
+        if not ctx.has_errors
+        and gate_b == "APPROVED_FOR_CONSTRUCTION"
         and aws_boundary in {"READ_ONLY", "MUTATE_LISTED_RESOURCES"}
         else "NONE"
     )
@@ -3347,7 +3471,7 @@ def build_report(
         "project": {
             "name": project.get("name"),
             "region": project.get("region"),
-            "development_budget": project.get("development_budget"),
+            "cost_posture": project.get("cost_posture"),
             "mode": project.get("mode"),
             "delivery_profile": project.get("delivery_profile"),
         },

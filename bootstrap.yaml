@@ -8,7 +8,7 @@
   "project": {
     "name": "My AWS Project",
     "region": "{{AWS_REGION}}",
-    "development_budget": "{{MONTHLY_BUDGET}}",
+    "cost_posture": "{{COST_POSTURE}}",
     "mode": null,
     "delivery_profile": null,
     "effective_risk": null,

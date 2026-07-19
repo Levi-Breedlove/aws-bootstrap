@@ -4,6 +4,7 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Review the current PRD requirements against the owner facts and repository facts.
 Identify contradictions, missing boundaries, unmeasurable acceptance criteria, and assumptions that still need an owner decision.
+Treat `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED` as an explicit cost posture; do not block Gate A merely because the owner has not invented a monthly number.
 Use current AWS Core documentation when an AWS fact materially affects feasibility, Region support, identity, data protection, recovery, or cost.
 Return findings and evidence to the coordinator. Never edit project ledgers, accept an assumption, approve Gate A or Gate B, or perform an AWS or GitHub mutation.
 """

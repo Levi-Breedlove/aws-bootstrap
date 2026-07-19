@@ -124,7 +124,7 @@ class BootstrapSafetyTests(unittest.TestCase):
                 {
                     "My AWS Project": "Direct Action Project",
                     "{{AWS_REGION}}": "us-west-2",
-                    "{{MONTHLY_BUDGET}}": "$20/month",
+                    "{{COST_POSTURE}}": "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
                 }
             )
 
@@ -148,7 +148,10 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertEqual(state["setup"], {"status": "CONFIGURED", "method": "IN_PLACE"})
             self.assertEqual(state["project"]["name"], "Direct Action Project")
             self.assertEqual(state["project"]["region"], "us-west-2")
-            self.assertEqual(state["project"]["development_budget"], "$20/month")
+            self.assertEqual(
+                state["project"]["cost_posture"],
+                "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
+            )
             self.assertEqual(
                 {
                     path.relative_to(project): path.read_bytes()
@@ -252,6 +255,7 @@ class BootstrapSafetyTests(unittest.TestCase):
                 "bootstrap.py": b"bootstrap",
                 "scripts/bootstrap_dependencies.py": b"dependencies",
                 "scripts/bootstrap_doctor.py": b"doctor",
+                "scripts/uv_setup_assistant.py": b"uv-setup",
                 "scripts/task_waves.py": b"tasks",
             }
             for relative, content in controls.items():
@@ -281,6 +285,20 @@ class BootstrapSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid control_sha256"):
                 bootstrap.validate_template_control_hashes(source)
 
+            manifest["control_sha256"]["bootstrap.py"] = bootstrap.sha256_bytes(
+                controls["bootstrap.py"]
+            )
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            (source / "scripts" / "bootstrap_dependencies.py").write_bytes(
+                b"tampered dependency validator"
+            )
+            with mock.patch.object(bootstrap.subprocess, "run") as run:
+                with self.assertRaisesRegex(
+                    ValueError, "Runtime control hash mismatch"
+                ):
+                    bootstrap.validate_repository_dependencies(source)
+            run.assert_not_called()
+
     def test_main_stops_before_setup_when_dependency_validation_fails(self) -> None:
         with mock.patch.object(
             bootstrap,
@@ -300,6 +318,48 @@ class BootstrapSafetyTests(unittest.TestCase):
             )
         self.assertEqual(result, 2)
         dependency_check.assert_called_once_with(REPOSITORY_ROOT)
+        initialize.assert_not_called()
+
+    def test_main_rejects_noncanonical_cost_posture_before_any_setup(self) -> None:
+        with mock.patch.object(
+            bootstrap, "validate_repository_dependencies"
+        ) as dependency_check, mock.patch.object(
+            bootstrap, "initialize_template_in_place"
+        ) as initialize:
+            result = bootstrap.main(
+                [
+                    "--target",
+                    str(REPOSITORY_ROOT),
+                    "--project-name",
+                    "Cost Boundary Stop",
+                    "--cost-posture",
+                    "unlimited",
+                    "--in-place-template-instance",
+                ]
+            )
+        self.assertEqual(result, 2)
+        dependency_check.assert_not_called()
+        initialize.assert_not_called()
+
+    def test_main_rejects_non_iso_currency_before_any_setup(self) -> None:
+        with mock.patch.object(
+            bootstrap, "validate_repository_dependencies"
+        ) as dependency_check, mock.patch.object(
+            bootstrap, "initialize_template_in_place"
+        ) as initialize:
+            result = bootstrap.main(
+                [
+                    "--target",
+                    str(REPOSITORY_ROOT),
+                    "--project-name",
+                    "Currency Boundary Stop",
+                    "--cost-posture",
+                    "MINIMIZE_TOTAL_COST; HARD_CAP: ZZZ 20.00",
+                    "--in-place-template-instance",
+                ]
+            )
+        self.assertEqual(result, 2)
+        dependency_check.assert_not_called()
         initialize.assert_not_called()
 
     def test_rejects_target_inside_source_before_creating_it(self) -> None:
@@ -1226,7 +1286,7 @@ class BootstrapSafetyTests(unittest.TestCase):
             target = root / "target"
             source.mkdir()
             (source / "scripts").mkdir()
-            original = b"My AWS Project {{AWS_REGION}} {{MONTHLY_BUDGET}}"
+            original = b"My AWS Project {{AWS_REGION}} {{COST_POSTURE}}"
             (source / "bootstrap.py").write_bytes(original)
             (source / "bootstrap.manifest.json").write_bytes(original)
             (source / "scripts" / "bootstrap_doctor.py").write_bytes(original)
@@ -1239,7 +1299,7 @@ class BootstrapSafetyTests(unittest.TestCase):
                 {
                     "My AWS Project": "Example",
                     "{{AWS_REGION}}": "us-east-1",
-                    "{{MONTHLY_BUDGET}}": "$25/month",
+                    "{{COST_POSTURE}}": "MINIMIZE_TOTAL_COST; HARD_CAP: USD 25.00",
                 },
             )
 
@@ -1259,7 +1319,7 @@ class BootstrapSafetyTests(unittest.TestCase):
             )
             self.assertEqual(
                 (target / "PRD.md").read_text(encoding="utf-8"),
-                "Example us-east-1 $25/month",
+                "Example us-east-1 MINIMIZE_TOTAL_COST; HARD_CAP: USD 25.00",
             )
 
 

@@ -37,6 +37,12 @@ AWS_CORE_HOOKS_SHA256 = (
 AWS_CORE_HOOK_SCRIPT_SHA256 = (
     "01d517c5d45f09c010328114f970147848ac264179d96ed5a84aa51981e1341b"
 )
+UV_SETUP_SCRIPT = "scripts/uv_setup_assistant.py"
+UV_SETUP_STATES = (
+    "UV_DETECTED_OWNER_VERIFICATION_REQUIRED",
+    "UV_INSTALL_INSTRUCTIONS_REQUIRED",
+    "AWS_CORE_UPDATE_REVIEW_REQUIRED",
+)
 
 REQUIRED_SKILLS = (
     "build-fastlane",
@@ -146,6 +152,15 @@ def inspect_repository_hook_sources(
 def inspect_repository(root: Path) -> dict[str, Any]:
     root = root.resolve()
     diagnostics: list[dict[str, str]] = []
+    uv_setup_path = root / UV_SETUP_SCRIPT
+    if not uv_setup_path.is_file() or uv_setup_path.is_symlink():
+        diagnostics.append(
+            diagnostic(
+                "FASTLANE_UV_SETUP_ASSISTANT_MISSING",
+                "The instruction-only uv setup assistant is missing or unsafe.",
+                UV_SETUP_SCRIPT,
+            )
+        )
     repository_hook_sources, hooks_feature_state = inspect_repository_hook_sources(
         root, diagnostics
     )
@@ -177,7 +192,7 @@ def inspect_repository(root: Path) -> dict[str, Any]:
                 "sha": AWS_TOOLKIT_COMMIT,
             }
             expected_policy = {
-                "installation": "INSTALLED_BY_DEFAULT",
+                "installation": "AVAILABLE",
                 "authentication": "ON_INSTALL",
             }
             if (
@@ -301,7 +316,18 @@ def inspect_repository(root: Path) -> dict[str, Any]:
             "commit": AWS_TOOLKIT_COMMIT,
             "aws_core_version": AWS_CORE_VERSION,
             "marketplace": marketplace_status,
-            "installation_policy": "INSTALLED_BY_DEFAULT",
+            "installation_policy": "AVAILABLE",
+            "setup_mode": "INSTRUCTIONS_ONLY",
+            "uv_setup": {
+                "status": "UV_SETUP_ASSISTANCE_AVAILABLE",
+                "mode": "INSTRUCTIONS_ONLY",
+                "script": UV_SETUP_SCRIPT,
+                "states": list(UV_SETUP_STATES),
+                "automatic_runtime_installation": False,
+                "package_manager_execution": False,
+                "runtime_probe_execution": False,
+                "user_state_persisted_in_repository": False,
+            },
             "runtime_verification": {
                 "status": "NOT_CHECKED",
                 "management_command": AWS_CORE_MANAGEMENT_COMMAND,
@@ -310,9 +336,13 @@ def inspect_repository(root: Path) -> dict[str, Any]:
                 "supported_surfaces": list(AWS_CORE_SUPPORTED_SURFACES),
                 "unsupported_surfaces": list(AWS_CORE_UNSUPPORTED_SURFACES),
                 "automatic_client_installation": False,
+                "approval_bound_client_installation": False,
+                "automatic_marketplace_registration": False,
+                "automatic_session_launch": False,
                 "required_runtime_command": AWS_CORE_RUNTIME_COMMAND,
                 "runtime_package": AWS_CORE_RUNTIME_PACKAGE,
                 "automatic_runtime_installation": False,
+                "approval_bound_runtime_installation": False,
             },
             "hook_review": {
                 "status": "NOT_CHECKED",

@@ -33,7 +33,8 @@ boundary; it does not create one.
 | Region and environment | {{AWS_REGION}} / TODO |
 | Stack, application, and exact resources | TODO / `NONE` |
 | Approved operation and artifact/change set | TODO / `NONE` |
-| Billable impact or cost ceiling | {{MONTHLY_BUDGET}} / `NONE` |
+| Planning cost posture | {{COST_POSTURE}} |
+| Expected billing dimensions and exact mutation cost ceiling | TODO / `NONE` |
 | Rollback boundary | TODO / `NONE` |
 | Teardown authorization ID | TODO / `NONE` |
 | Teardown authorization source, observed at, and receipt SHA-256 | TODO / `NONE` |
@@ -91,7 +92,7 @@ Environment: <non-production or production>
 Artifact digest: <immutable digest>
 Stack, application, and resources: <exact boundary>
 Allowed operations: <exact create/update/delete operations>
-Cost ceiling: <currency and amount>
+Cost ceiling: <finite positive ISO-currency amount, for example USD: 20.00>
 Rollback boundary: <exact allowed rollback or NONE>
 Valid until: <ISO 8601 time or exact one-operation condition>
 Approver: <name/handle>
@@ -206,12 +207,21 @@ Do not continue when required local readiness checks fail.
 
 Confirm:
 
-- monthly ceiling: `{{MONTHLY_BUDGET}}`;
-- budget and alert recipients;
+- planning posture: `{{COST_POSTURE}}`;
+- exact finite positive mutation or billable-test ceiling when applicable;
+- confirmation that the ceiling covers the authorization-validity period and
+  does not exceed or change the currency of an owner-stated Gate A hard cap;
+- expected low-usage cost, scaling breakpoints, budget alerts, and recipients;
 - expensive resources;
 - NAT Gateway, public IPv4, EKS, RDS, ALB, OpenSearch, provisioned capacity, and log-retention implications where applicable;
 - teardown command or procedure;
 - intended retention of data, logs, images, backups, and source repositories.
+
+The objective is to minimize total expected cost and idle spend, not to consume
+an available budget. Do not reduce required identity, encryption, secrets,
+validation, isolation, recovery, logging, or evidence controls for savings.
+Treat the ceiling as an authorization boundary, not a guaranteed AWS billing
+stop; retain alerts, teardown, and observed billing checks.
 
 ## Brownfield deployment readiness
 
