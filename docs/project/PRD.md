@@ -1,5 +1,7 @@
 # My AWS Project — Product Requirements and Technical Design
 
+Canonical path: `docs/project/PRD.md`.
+
 ## How to use this document
 
 The owner does not need to complete this template alone. Codex asks short,
@@ -262,7 +264,7 @@ Describe the flow in numbered steps.
 
 Remove rows that genuinely do not apply and add any workload-specific
 safeguards needed for the approved users, data, and integrations. Record an
-actual discovered defect in `BUGFIX.md` or an authorized issue rather than in
+actual discovered defect in `docs/project/BUGFIX.md` or an authorized issue rather than in
 generic template prose.
 
 ## 10. Reliability requirements
@@ -395,7 +397,7 @@ allowed only when the concern genuinely cannot apply; blank values, `TODO`,
 When the recommendation becomes `READY_WITH_PROPOSED_ASSUMPTIONS` or
 `READY_FOR_OWNER_APPROVAL`, set the detailed owner state and Document status to
 `PENDING_OWNER_APPROVAL` in the same checkpoint. Mirror the exact lifecycle
-state in `bootstrap.yaml` and the identity/Gate B state in TASKS.md's Active
+state in `bootstrap.yaml` and the identity/Gate B state in docs/project/TASKS.md's Active
 execution snapshot. Gate B remains `BLOCKED` on a new project or becomes
 `STALE` when an earlier design was invalidated. Do not leave a ready Gate A in
 `BLOCKED` state. Reset the owner decision to `PENDING`, clear prior approval
@@ -645,7 +647,7 @@ primary documentation when completing this section.
 - Rollback boundary: TODO
 - Explicitly deferred work: TODO
 
-`TASKS.md` will translate this design into discrete executable tasks.
+`docs/project/TASKS.md` will translate this design into discrete executable tasks.
 
 # Part IV — Testing Strategy
 
@@ -714,7 +716,7 @@ Release is acceptable when:
 - required example and property-based tests pass;
 - security and reliability evidence passes;
 - deployment, monitoring, rollback, recovery, and cleanup are verified;
-- `VERIFY.md` records the exact release decision and remaining gaps.
+- `docs/project/VERIFY.md` records the exact release decision and remaining gaps.
 
 The release lifecycle is `NOT_READY` -> `READY_TO_DEPLOY` ->
 `RELEASE_VERIFIED`. RELEASE-10 is the only prompt that changes this state.
@@ -862,7 +864,7 @@ The task boundary may authorize later task generation without another human
 gate only when every generated task traces exclusively to the approved IDs,
 stays inside the allowed write and execution boundaries, and introduces no new
 AWS, GitHub, security, data, cost, or preservation risk. Record the resulting
-`TASKS.md` revision at the first checkpoint. Any task outside those conditions
+`docs/project/TASKS.md` revision at the first checkpoint. Any task outside those conditions
 requires a revised construction authorization and a new Gate B approval.
 
 ## 29. Gate B owner authorization record
@@ -902,7 +904,7 @@ When the Gate B agent recommendation becomes
 `READY_FOR_CONSTRUCTION_APPROVAL`, set both the detailed owner state and
 Document status to `PENDING_OWNER_APPROVAL`. In the same coordinator checkpoint,
 mirror the exact REQ/DES/AUTH IDs, Gate B state, maximum workers, baseline, and
-protected dirty paths into TASKS.md's Active execution snapshot and mirror the
+protected dirty paths into docs/project/TASKS.md's Active execution snapshot and mirror the
 lifecycle in `bootstrap.yaml`. On exact receipt acceptance, change all three
 records to `APPROVED_FOR_CONSTRUCTION` together. Record the observed ISO 8601
 time and exact source as structured provenance; neither is an extra receipt

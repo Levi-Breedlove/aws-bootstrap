@@ -340,6 +340,34 @@ def initialize_git(root: Path) -> str:
 
 
 class TaskWaveSafetyTests(unittest.TestCase):
+    def test_canonical_project_ledger_resolves_root_state_and_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tasks_path = root / "docs" / "project" / "TASKS.md"
+            tasks_path.parent.mkdir(parents=True)
+            state_path = root / "bootstrap.yaml"
+            state_path.write_text(
+                json.dumps({"lifecycle": {}, "execution": {}}),
+                encoding="utf-8",
+            )
+
+            observed_state_path, _state = task_waves.read_bootstrap_state(tasks_path)
+
+            self.assertEqual(observed_state_path, state_path.resolve())
+            self.assertEqual(task_waves.project_root_for_tasks(tasks_path), root.resolve())
+            self.assertEqual(
+                task_waves.coordinator_ledger_paths(tasks_path),
+                {
+                    "bootstrap.yaml",
+                    "docs/project/TASKS.md",
+                    "docs/project/VERIFY.md",
+                },
+            )
+            self.assertEqual(
+                task_waves.canonical_verify_reference(tasks_path, "cp-0001"),
+                "docs/project/VERIFY.md#cp-0001",
+            )
+
     def test_ready_selects_only_explicit_ready_tasks(self) -> None:
         text = document(
             [

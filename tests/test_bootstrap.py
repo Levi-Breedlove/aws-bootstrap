@@ -12,6 +12,13 @@ from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE_SOURCE_MODE = "{{SETUP_STATUS}}" in (
+    REPOSITORY_ROOT / "bootstrap.yaml"
+).read_text(encoding="utf-8")
+source_template_only = unittest.skipUnless(
+    TEMPLATE_SOURCE_MODE,
+    "maintainer source-integrity test is not applicable after project configuration",
+)
 
 
 def load_module(name: str, path: Path):
@@ -92,6 +99,21 @@ def write_adoption_map(
 
 
 class BootstrapSafetyTests(unittest.TestCase):
+    def test_maintainer_test_sources_are_never_rendered(self) -> None:
+        manifest = json.loads(
+            (REPOSITORY_ROOT / "bootstrap.manifest.json").read_text(encoding="utf-8")
+        )
+        test_paths = [
+            relative
+            for relative in manifest["required_files"]
+            if relative.startswith("tests/")
+        ]
+        self.assertTrue(test_paths)
+        self.assertTrue(
+            all(not bootstrap.should_render_path(relative) for relative in test_paths)
+        )
+
+    @source_template_only
     def test_in_place_template_setup_is_atomic_and_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project = Path(temporary_directory) / "project"
@@ -107,6 +129,10 @@ class BootstrapSafetyTests(unittest.TestCase):
             )
 
             original_state = (project / "bootstrap.yaml").read_bytes()
+            original_tests = {
+                path.relative_to(project): path.read_bytes()
+                for path in (project / "tests").glob("test_*.py")
+            }
             preview = bootstrap.initialize_template_in_place(
                 project,
                 values,
@@ -123,6 +149,13 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertEqual(state["project"]["name"], "Direct Action Project")
             self.assertEqual(state["project"]["region"], "us-west-2")
             self.assertEqual(state["project"]["development_budget"], "$20/month")
+            self.assertEqual(
+                {
+                    path.relative_to(project): path.read_bytes()
+                    for path in (project / "tests").glob("test_*.py")
+                },
+                original_tests,
+            )
             doctor_ok, doctor_output = bootstrap.run_generated_doctor(project)
             self.assertTrue(doctor_ok, doctor_output)
 
@@ -133,12 +166,15 @@ class BootstrapSafetyTests(unittest.TestCase):
             self.assertGreater(resumed.unchanged, 0)
             self.assertEqual(user_file.read_text(encoding="utf-8"), "VALUE = 1\n")
 
+    @source_template_only
     def test_in_place_setup_rejects_modified_template_source(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project = Path(temporary_directory) / "project"
             project.mkdir()
             copy_manifest_template(project)
-            (project / "PRD.md").write_text("owner-modified", encoding="utf-8")
+            (project / "docs/project/PRD.md").write_text(
+                "owner-modified", encoding="utf-8"
+            )
 
             with self.assertRaisesRegex(ValueError, "source hash mismatch"):
                 bootstrap.initialize_template_in_place(
@@ -146,6 +182,7 @@ class BootstrapSafetyTests(unittest.TestCase):
                     dict(bootstrap.PLACEHOLDERS),
                 )
 
+    @source_template_only
     def test_in_place_setup_rejects_unmanifested_user_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project = Path(temporary_directory) / "project"
@@ -199,7 +236,10 @@ class BootstrapSafetyTests(unittest.TestCase):
             with mock.patch.object(
                 bootstrap,
                 "git_text",
-                side_effect=["https://github.com/example/project.git", " M PRD.md"],
+                side_effect=[
+                    "https://github.com/example/project.git",
+                    " M docs/project/PRD.md",
+                ],
             ):
                 with self.assertRaisesRegex(ValueError, "untouched, clean"):
                     bootstrap.validate_in_place_repository(project)

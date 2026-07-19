@@ -1,6 +1,6 @@
 # My AWS Project — Deployment and Operations Runbook
 
-> `RUNBOOK.md` owns repeatable operational procedures. Project work and live status belong in `TASKS.md` and mirrored GitHub Issues.
+> `docs/project/RUNBOOK.md` owns repeatable operational procedures. Project work and live status belong in `docs/project/TASKS.md` and mirrored GitHub Issues.
 
 This document is procedural, not authorization. Gate A and Gate B are the only
 routine human gates. Local validation, AWS preflight, deployment checks, smoke
@@ -13,7 +13,7 @@ credential availability never grants authority.
 
 Construction starts from the Gate B-authorized local Git baseline. Every
 validated wave is committed locally before pause, its commit becomes the
-TASKS.md Last known-green/checkpoint commit, and doctor runs against that
+docs/project/TASKS.md Last known-green/checkpoint commit, and doctor runs against that
 checkpoint. Never commit protected dirty paths or infer remote/push authority
 from local Git authorization.
 
@@ -118,7 +118,7 @@ Approver: <name/handle>
 The owner's exact message remains the authorization source. Before mutation,
 copy it verbatim into the protected external-operation journal named by the
 construction envelope and record its stable source, observed ISO 8601 time, and
-SHA-256 in VERIFY.md's action-authorization evidence table. The copy and mirror
+SHA-256 in docs/project/VERIFY.md's action-authorization evidence table. The copy and mirror
 do not create or widen authority. A missing durable source blocks mutation.
 
 ## 1. Environments
@@ -144,7 +144,7 @@ Never place secret values in this document.
 
 ## 3. Read-only AWS preflight
 
-AWS-10 runs only when VERIFY.md release state is `READY_TO_DEPLOY`. Before any
+AWS-10 runs only when docs/project/VERIFY.md release state is `READY_TO_DEPLOY`. Before any
 mutation:
 
 ```bash
@@ -283,7 +283,7 @@ data impact, cost increase, alarm, or rollback trigger. Do not improvise broader
 permissions or resources.
 
 Checkpoint before the first mutation and after each bounded external action.
-Record actual identifiers and results in `VERIFY.md`; a submitted request is not
+Record actual identifiers and results in `docs/project/VERIFY.md`; a submitted request is not
 evidence of completion.
 
 ## 7. Smoke tests
@@ -314,7 +314,7 @@ Verify:
 - alarms are configured;
 - health and readiness checks reflect actual dependency health.
 
-Record evidence in `VERIFY.md`.
+Record evidence in `docs/project/VERIFY.md`.
 
 ## 8. Monitoring and alarms
 
@@ -365,7 +365,7 @@ After rollback:
 - rerun smoke tests;
 - confirm health and alarms;
 - verify data consistency;
-- record evidence in `VERIFY.md`;
+- record evidence in `docs/project/VERIFY.md`;
 - create an issue for root-cause remediation.
 
 Rollback is performed only when the active authorization names it. If rollback

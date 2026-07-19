@@ -1,6 +1,6 @@
 # My AWS Project — Executable Tasks
 
-`TASKS.md` is the live construction ledger after Gate B. Task blocks are the
+`docs/project/TASKS.md` is the live construction ledger after Gate B. Task blocks are the
 only authoritative task records. GitHub Issues are conditional mirrors when the
 current construction authorization (`AUTH`) permits the named GitHub writes.
 
@@ -26,7 +26,7 @@ investigating a stop.
 ## Active execution snapshot
 
 This is a resumable snapshot, not a new authorization. It must match the
-authoritative values in `PRD.md`. A mismatch or stale Gate B stops construction.
+authoritative values in `docs/project/PRD.md`. A mismatch or stale Gate B stops construction.
 
 | Field | Value |
 |---|---|
@@ -57,7 +57,7 @@ new requirements identity and makes construction non-runnable; an agent-ready
 Gate A is `PENDING_OWNER_APPROVAL`. DESIGN-10 copies the current REQ/DES/AUTH,
 authorized worker limit, baseline, and protected dirty paths and sets an
 agent-ready Gate B to `PENDING_OWNER_APPROVAL`. DESIGN-20 acceptance changes the
-snapshot to `APPROVED_FOR_CONSTRUCTION` in the same checkpoint as PRD.md and
+snapshot to `APPROVED_FOR_CONSTRUCTION` in the same checkpoint as docs/project/PRD.md and
 bootstrap.yaml. A stale gate or identity mismatch sets the run to `BLOCKED` and
 never silently retargets existing tasks. Before marking a plan `STALE`,
 reconcile every `IN_PROGRESS` task to `DONE` with evidence or `BLOCKED` with the
@@ -68,7 +68,7 @@ its graph with tasks for the current IDs, and sets the new plan `CURRENT`.
 ## Coordinator and worker contract
 
 - One coordinator owns task selection, worker assignment, checkpoints, and all
-  writes to `TASKS.md`, `VERIFY.md`, `RUNBOOK.md`, shared manifests, lockfiles,
+  writes to `docs/project/TASKS.md`, `docs/project/VERIFY.md`, `docs/project/RUNBOOK.md`, shared manifests, lockfiles,
   schemas, generated output, and GitHub metadata.
 - A worker edits only the exact disjoint code, test, or infrastructure paths
   assigned from one `READY` task. A worker never changes a shared control file
@@ -115,8 +115,8 @@ its graph with tasks for the current IDs, and sets the new plan `CURRENT`.
 Use the coordinator-owned tool for validation and atomic task updates:
 
 ```bash
-python scripts/task_waves.py TASKS.md
-python scripts/task_waves.py TASKS.md --ready --json
+python scripts/task_waves.py docs/project/TASKS.md
+python scripts/task_waves.py docs/project/TASKS.md --ready --json
 ```
 
 The ready result is a candidate list, not a parallel-safe batch.
@@ -126,21 +126,21 @@ claim or run fields:
 
 ```bash
 # Start exactly one task or an autonomous run.
-python scripts/task_waves.py TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode SINGLE_TASK
-python scripts/task_waves.py TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS
+python scripts/task_waves.py docs/project/TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode SINGLE_TASK
+python scripts/task_waves.py docs/project/TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS
 
 # Claim one serialized task only after the run is RUNNING.
-python scripts/task_waves.py TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
+python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
 
 # For a proven-disjoint concurrent group, every claim includes this flag.
-python scripts/task_waves.py TASKS.md --claim TASK-0002 --owner codex-worker-2 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000 --isolated-worktrees
+python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0002 --owner codex-worker-2 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000 --isolated-worktrees
 
 # Reconcile every IN_PROGRESS task, then pause or complete.
-python scripts/task_waves.py TASKS.md --set-status TASK-0001 DONE --evidence EV-0001 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001
-python scripts/task_waves.py TASKS.md --pause-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002
+python scripts/task_waves.py docs/project/TASKS.md --set-status TASK-0001 DONE --evidence EV-0001 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001
+python scripts/task_waves.py docs/project/TASKS.md --pause-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002
 
 # Resume only the same safely checkpointed run and coordinator.
-python scripts/task_waves.py TASKS.md --resume-run RUN-0001 --coordinator codex-coordinator
+python scripts/task_waves.py docs/project/TASKS.md --resume-run RUN-0001 --coordinator codex-coordinator
 ```
 
 Use `--complete-run RUN-0001 --coordinator codex-coordinator --checkpoint
@@ -148,7 +148,7 @@ CP-0002` only when all tasks are terminal. Every mutation names the exact active
 coordinator. Claims cite the current base checkpoint and concurrent claims may
 share it. Each `IN_PROGRESS` reconciliation advances to the next unique
 checkpoint. Pause or completion then consumes a later unique checkpoint and
-requires its newest complete row and VERIFY.md reference; do not reuse CP-0001.
+requires its newest complete row and docs/project/VERIFY.md reference; do not reuse CP-0001.
 Run start and issue synchronization do not create fictional checkpoints. A
 persisted `RUNNING` state is recovery-required, not automatically resumable.
 
@@ -241,7 +241,7 @@ A READY task cannot contain `TODO` in its outcome, acceptance, validation,
 boundaries, or traceability. A DONE task has every acceptance checkbox checked,
 non-`NONE` Evidence using `EV-nnnn` IDs (for example `EV-0001`), and an observed
 execution-log entry. Each cited local ID must have exactly one explicit,
-passing row under VERIFY.md `Task completion evidence`; the task tool rejects
+passing row under docs/project/VERIFY.md `Task completion evidence`; the task tool rejects
 placeholder, duplicate, wrong-task, unfenced URL-only, and non-passing rows.
 
 ## Dependencies, waivers, and waves

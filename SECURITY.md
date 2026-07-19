@@ -31,5 +31,5 @@ This template and generated projects should prove that:
   environment, resource, operation, cost, rollback, and expiration boundary.
 
 Do not hide a discovered defect to keep a review green. Record product defects
-in `BUGFIX.md` or an authorized private issue and preserve evidence without
+in `docs/project/BUGFIX.md` or an authorized private issue and preserve evidence without
 publishing sensitive details.

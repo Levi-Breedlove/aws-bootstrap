@@ -91,17 +91,26 @@ ALLOWED_PLAN_STATES = {"UNINITIALIZED", "CURRENT", "STALE"}
 UNRESOLVED = {"", "TODO", "TBD", "UNKNOWN", "UNASSIGNED"}
 CONTROL_PATHS = {
     "AGENTS.md",
-    "PRD.md",
-    "TASKS.md",
-    "VERIFY.md",
-    "RUNBOOK.md",
+    "docs/project/BUGFIX.md",
+    "docs/project/PRD.md",
+    "docs/project/TASKS.md",
+    "docs/project/VERIFY.md",
+    "docs/project/RUNBOOK.md",
     "bootstrap.manifest.json",
     "bootstrap.yaml",
     "bootstrap.py",
     "scripts/bootstrap_doctor.py",
     "scripts/task_waves.py",
 }
-COORDINATOR_LEDGER_PATHS = {"TASKS.md", "VERIFY.md", "bootstrap.yaml"}
+CONTROL_FILENAMES = {
+    "agents.md",
+    "bugfix.md",
+    "prd.md",
+    "runbook.md",
+    "tasks.md",
+    "verify.md",
+}
+CANONICAL_TASKS_PATH = PurePosixPath("docs/project/TASKS.md")
 RUN_ID_PATTERN = re.compile(r"RUN-\d{4,}")
 CHECKPOINT_PATTERN = re.compile(r"CP-\d{4,}")
 OWNER_DECISION_PATTERN = re.compile(r"OWNER-DECISION-\d+")
@@ -1027,7 +1036,7 @@ def is_control_boundary(value: str) -> bool:
     base, _broad = boundary_base(value)
     return (
         base in {path.casefold() for path in CONTROL_PATHS}
-        or PurePosixPath(base).name.casefold() == "agents.md"
+        or PurePosixPath(base).name.casefold() in CONTROL_FILENAMES
     )
 
 
@@ -1259,7 +1268,7 @@ def reconcile_git_state(
         checkpoint_commit, checkpoint_dirty = parse_checkpoint_git_receipt(
             checkpoint_row, checkpoint_row.checkpoint_id
         )
-    root = tasks_path.parent
+    root = project_root_for_tasks(tasks_path)
     try:
         inside_result = git_read(root, "rev-parse", "--is-inside-work-tree")
         bare_result = git_read(root, "rev-parse", "--is-bare-repository")
@@ -1340,7 +1349,8 @@ def reconcile_git_state(
         for item in committed.stdout.split(b"\0")
         if item
     }
-    unauthorized_committed = sorted(committed_paths - COORDINATOR_LEDGER_PATHS)
+    coordinator_ledgers = coordinator_ledger_paths(tasks_path)
+    unauthorized_committed = sorted(committed_paths - coordinator_ledgers)
     if unauthorized_committed:
         raise ValueError(
             f"{action} Git reconciliation: commits after Last known-green contain "
@@ -1352,7 +1362,7 @@ def reconcile_git_state(
         for item in payload.split(b"\0")
         if item
     }
-    observed_nonledger = observed - COORDINATOR_LEDGER_PATHS
+    observed_nonledger = observed - coordinator_ledgers
     protected = validate_write_boundary(
         snapshot.get("Protected dirty paths"), "Execution snapshot Protected dirty paths"
     )
@@ -1498,8 +1508,44 @@ def atomic_write_text(path: Path, text: str) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
+def project_root_for_tasks(tasks_path: Path) -> Path:
+    """Return the project root for the canonical or a standalone task ledger."""
+
+    resolved = tasks_path.resolve()
+    folded_tail = tuple(part.casefold() for part in resolved.parts[-3:])
+    canonical_tail = tuple(part.casefold() for part in CANONICAL_TASKS_PATH.parts)
+    if folded_tail == canonical_tail:
+        return resolved.parents[2]
+    return resolved.parent
+
+
+def coordinator_ledger_paths(tasks_path: Path) -> set[str]:
+    """Return the exact project-relative files a coordinator may reconcile."""
+
+    root = project_root_for_tasks(tasks_path)
+    verify_path = tasks_path.with_name("VERIFY.md").resolve()
+    try:
+        tasks_relative = tasks_path.resolve().relative_to(root).as_posix()
+        verify_relative = verify_path.relative_to(root).as_posix()
+    except ValueError as exc:
+        raise ValueError("Task ledger is outside its derived project root") from exc
+    return {tasks_relative, verify_relative, "bootstrap.yaml"}
+
+
+def canonical_verify_reference(tasks_path: Path, fragment: str) -> str:
+    """Return a project-relative evidence reference for the paired ledger."""
+
+    root = project_root_for_tasks(tasks_path)
+    verify_path = tasks_path.with_name("VERIFY.md").resolve()
+    try:
+        relative = verify_path.relative_to(root).as_posix()
+    except ValueError as exc:
+        raise ValueError("Verification ledger is outside its derived project root") from exc
+    return f"{relative}#{fragment}"
+
+
 def read_bootstrap_state(tasks_path: Path) -> tuple[Path, dict[str, object]]:
-    state_path = tasks_path.with_name("bootstrap.yaml")
+    state_path = project_root_for_tasks(tasks_path) / "bootstrap.yaml"
     if not state_path.exists():
         raise ValueError("bootstrap.yaml is required for every ledger mutation")
     if not state_path.is_file() or state_path.is_symlink():
@@ -1679,7 +1725,9 @@ def mirror_state_text(
             execution["last_checkpoint"] = {
                 "id": checkpoint,
                 "at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-                "evidence_ref": f"VERIFY.md#{checkpoint.lower()}",
+                "evidence_ref": canonical_verify_reference(
+                    tasks_path, checkpoint.lower()
+                ),
             }
     execution["attempts"] = {
         task.task_id: task.attempts_used for task in tasks

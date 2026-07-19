@@ -54,7 +54,7 @@ TODO
 
 ## Task status
 
-- [ ] `TASKS.md` status and execution log updated
+- [ ] `docs/project/TASKS.md` status and execution log updated
 - [ ] Acceptance criteria satisfied
 - [ ] GitHub Issue synchronized
 - [ ] Blockers accurately recorded
@@ -68,10 +68,10 @@ TODO
 
 ## Documentation ownership
 
-- [ ] `PRD.md` changed only because requirements or design changed
-- [ ] `BUGFIX.md` changed only for the active defect
-- [ ] `TASKS.md` changed for task execution or synchronization
-- [ ] `VERIFY.md` includes only evidence actually produced
-- [ ] `RUNBOOK.md` changed only because repeatable procedures changed
+- [ ] `docs/project/PRD.md` changed only because requirements or design changed
+- [ ] `docs/project/BUGFIX.md` changed only for the active defect
+- [ ] `docs/project/TASKS.md` changed for task execution or synchronization
+- [ ] `docs/project/VERIFY.md` includes only evidence actually produced
+- [ ] `docs/project/RUNBOOK.md` changed only because repeatable procedures changed
 - [ ] ADR added only for a consequential, difficult-to-reverse decision
 - [ ] No unnecessary planning or status documents were created

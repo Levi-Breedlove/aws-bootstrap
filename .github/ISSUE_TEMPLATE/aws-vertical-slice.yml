@@ -1,5 +1,5 @@
 name: AWS task
-description: Mirror one non-trivial TASKS.md item as a trackable GitHub Issue
+description: Mirror one non-trivial docs/project/TASKS.md item as a trackable GitHub Issue
 title: "[TASK-XXX] "
 labels:
   - type:feature
@@ -8,7 +8,7 @@ body:
     id: task_id
     attributes:
       label: Task ID
-      description: Stable ID from TASKS.md.
+      description: Stable ID from docs/project/TASKS.md.
       placeholder: TASK-001
     validations:
       required: true
@@ -24,7 +24,7 @@ body:
     id: wave
     attributes:
       label: Wave
-      description: Computed wave from TASKS.md.
+      description: Computed wave from docs/project/TASKS.md.
       placeholder: "1"
 
   - type: textarea

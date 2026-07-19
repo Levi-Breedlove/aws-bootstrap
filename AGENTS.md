@@ -2,89 +2,100 @@
 
 ## Mission
 
-Build and operate **My AWS Project** according to the approved requirements and design in `PRD.md`.
+Build and operate **My AWS Project** according to the approved requirements and design in `docs/project/PRD.md`.
 
 ## Immediate template entrypoint
 
 When the owner says `init template`, `initialize template`, or `start Fastlane`,
 route immediately through the repo-scoped `launch-fastlane` skill and `BOOT-00`.
-Welcome the owner before asking questions:
+Welcome the owner first:
 
 > Welcome to AWS Codex Fastlane. This template turns a rough AWS idea into
 > owner-approved requirements and a technical PRD, then lets Codex build inside
 > the exact boundary approved at Gate B. Setup checks tools and repository state
 > only; it does not access or change AWS.
 
-The short `init template` form means `THIS_REPOSITORY`. Use the existing local
-Git repository when present. When Git is absent, follow BOOT-00's safe local
-baseline behavior and stop if author identity or another precondition is
-missing. Brownfield adoption still requires the explicit target-path form.
+The short form means `THIS_REPOSITORY`. Reuse its Git repository or follow
+BOOT-00's safe baseline procedure; brownfield adoption requires an explicit
+target path.
 
 Before project questions or file changes, run:
 
-```text
+```
 python scripts/bootstrap_dependencies.py --root . --json
 ```
 
-The repository marketplace requests the official `aws-core` plugin from Agent
-Toolkit for AWS with `INSTALLED_BY_DEFAULT`, pinned to the immutable revision
-recorded in `.agents/plugins/marketplace.json`. Repo skills under
-`.agents/skills/` and project agents under `.codex/agents/` are discovered from
-this repository; do not copy them into a user's personal Codex directory.
+This static check verifies the repo-scoped skills, read-only project agents,
+immutable AWS Core marketplace pin, expected hook contract, and local hook
+sources. `DECLARED_AND_PINNED` does not prove that AWS Core is installed,
+updated, loaded, callable, trusted, or working. Discover repo skills and agents
+in place; never copy them into a user's personal Codex directory.
 
-Plugin installation may require repository trust or platform approval, and a
-new Codex session is required before newly installed plugin capabilities are
-available. Treat `aws-core` as loaded only when the current session actually
-surfaces an AWS Core skill or AWS MCP tool. If it does not, return the exact
-BOOT-00 toolkit setup receipt and stop before intake. Never claim the plugin is
-ready merely because its marketplace entry exists.
+Continue only in ChatGPT desktop Codex or Codex CLI. The IDE extension cannot
+manage this plugin. On an unsupported surface, print BOOT-00's `SUPPORTED CODEX
+SURFACE REQUIRED` receipt and stop. Never download or launch another Codex
+client, register a marketplace, install a plugin, or install `uv`/`uvx`/`pipx`
+as a workaround.
 
-BOOT-00 does not configure AWS credentials or call AWS tools. Later planning
-uses AWS Core's unauthenticated documentation capability. Account access, when
-later required, is configured and validated only in the explicitly invoked AWS
-operating flow.
+On a supported surface, check `uvx --version` without changing the environment.
+If missing, print `AWS CORE RUNTIME REQUIRED` and stop. Runtime installation requires a separate,
+explicit user action or approval.
+
+After AWS Core is installed or updated and Codex restarts:
+
+1. Check `python3 --version` because the pinned hook uses `python3`.
+2. In Codex Settings Hooks or CLI `/hooks`, compare the active AWS Core hook
+   with the exact pin and list every other hook matching `Bash` or AWS MCP tools.
+3. Stop on an unknown or conflicting hook.
+4. Only the owner may trust the current definition. Never use
+   `--dangerously-bypass-hook-trust`; a changed hash requires review again.
+5. Run BOOT-00's inert deny probe and harmless allow probe. The deny probe's
+   unreachable `get_secret_value` performs no AWS operation. Require deny to be
+   blocked and allow to print its fixed marker before showing confirmation.
+
+The approved `PreToolUse` hook only blocks direct Secrets Manager value
+retrieval; it cannot approve gates, widen scope, or authorize tools. The
+template ships no local hook. After a passing doctor, use `/plugins` to install
+or update `AWS Core` from `AWS Codex Fastlane Dependencies`, restart, complete
+the hook review and owner confirmation, reopen the repo, and send:
+
+```text
+@AWS Core
+VERIFY AWS CORE AND CONTINUE FASTLANE
+```
+
+Callability requires that exact invocation to exercise `retrieve_skill` and
+`search_documentation`. A generic connector, files, cache, prior conversation,
+command output, or memory is not proof. Setup never calls `call_aws` or
+`run_script`, configures credentials, or accesses AWS. It authorizes only those
+two unauthenticated checks.
+
+BOOT-00 uses Python 3.11+ standard-library scripts. Do not probe for `pytest`,
+install packages, or run maintainer tests during initialization.
 
 ## How to use this guide
 
-The owner should be able to answer three questions without reading the agent
-reference below:
+Ask the owner for project mode (`greenfield`/`brownfield`), delivery profile
+(`quick-mvp`/`standard`/`high-risk`), and planned AWS lane
+(`documentation-only`/`read-only`/`fast-dev`/`explicit-gate`). Record them in
+docs/project/PRD.md, complete Gate A and Gate B, then continue inside the
+approved boundary unless scope, risk, cost, authority, or observed state changes.
 
-1. Is this a new project (`greenfield`) or a change to an existing system
-   (`brownfield`)?
-2. Is this one small development release (`quick-mvp`), a broader release
-   (`standard`), or work that needs deeper review (`high-risk`)?
-3. Is AWS access limited to documentation, read-only inspection, an approved
-   non-production fast-development boundary, or a separate deployment approval?
-
-Codex records the answers in `PRD.md`, asks for requirements approval at Gate
-A, completes the technical PRD, and asks for construction approval at Gate B.
-After Gate B it may continue through normal tasks without asking for approval
-again unless scope, risk, cost, authority, or observed state materially changes.
-
-Codex loads this `AGENTS.md` automatically. The repo-scoped skills under
-`.agents/skills/` provide the canonical launch, planning, construction, and AWS
-operating procedures. Use `operate-fastlane-aws` only when the owner explicitly
-invokes it; the other three skills may route matching Fastlane work.
-
-The project-scoped agents are bounded advisors:
-
-- `fastlane-requirements-reviewer` checks requirements and Gate A readiness;
-- `fastlane-aws-advisor` verifies current AWS design facts through AWS Core;
-- `fastlane-evidence-reviewer` checks task boundaries and evidence claims.
-
-All three are read-only. The coordinator remains the sole writer of PRD.md,
-TASKS.md, VERIFY.md, RUNBOOK.md, lifecycle state, and GitHub state. Advisors
-never approve a human gate or authorize an AWS change.
+Codex loads this file automatically. The four repo skills hold task-specific
+procedures; `operate-fastlane-aws` requires explicit invocation. The read-only
+requirements, AWS, and evidence advisors may review facts but never approve a
+gate or authorize AWS. The coordinator alone writes project ledgers, lifecycle
+state, and GitHub state.
 
 ## Sources of truth
 
 | Subject | Authoritative source |
 |---|---|
-| Feature requirements, user stories, acceptance criteria, architecture, and implementation approach | `PRD.md` |
-| Active defect analysis and regression expectations | `BUGFIX.md` |
-| Executable task checklist, dependencies, waves, and live work status | `TASKS.md` |
-| Verification and release evidence | `VERIFY.md` |
-| Build, deployment, rollback, recovery, and operations | `RUNBOOK.md` |
+| Feature requirements, user stories, acceptance criteria, architecture, and implementation approach | `docs/project/PRD.md` |
+| Active defect analysis and regression expectations | `docs/project/BUGFIX.md` |
+| Executable task checklist, dependencies, waves, and live work status | `docs/project/TASKS.md` |
+| Verification and release evidence | `docs/project/VERIFY.md` |
+| Build, deployment, rollback, recovery, and operations | `docs/project/RUNBOOK.md` |
 | Machine-readable lifecycle and resume mirror | `bootstrap.yaml` (derived only; never authorization) |
 | Consequential architectural decisions | `docs/adr/` |
 | Durable project tracking and collaboration | GitHub Issues, Projects, and pull requests |
@@ -96,15 +107,12 @@ is a stop condition; never use the mirror to infer or widen approval.
 
 ## Specification mode
 
-Determine the work type before planning implementation:
-
-- **Feature or planned change:** use `PRD.md`.
-- **Defect or regression:** use `BUGFIX.md`, while referencing unchanged requirements in `PRD.md`.
-- **Mixed work:** separate the defect correction from new behavior unless one cannot be completed safely without the other.
+Use docs/project/PRD.md for planned change and docs/project/BUGFIX.md for a
+defect or regression. Separate mixed work unless safe correction requires both.
 
 ## Project choices — plain-language guide
 
-Record these independent choices in `PRD.md` before requirements approval:
+Record these independent choices in `docs/project/PRD.md` before requirements approval:
 
 - Project mode: `greenfield` or `brownfield`.
 - Delivery profile: `quick-mvp`, `standard`, or `high-risk`.
@@ -117,28 +125,20 @@ work involves production, sensitive or regulated data, payments, customer
 isolation, shared infrastructure, irreversible data changes, or a potentially
 large outage or cost increase. Also use it for consequential identity changes,
 public exposure, multi-account or multi-Region coordination, or strict recovery
-targets. Record the reason in `PRD.md`.
+targets. Record the reason in `docs/project/PRD.md`.
 
 The profile changes scope and review depth; it never reduces required testing
 or approval. An AWS lane describes planned access; it does not authorize a
 change. AWS changes require an approved record naming the account, Region,
 environment, resources, operations, cost limit, rollback plan, and expiration.
 
-Apply these overlays without adding lifecycle gates:
+Apply profiles without adding lifecycle gates. `quick-mvp` favors one observable
+development outcome and minimal tasks; `standard` covers the intended
+environment; `high-risk` uses smaller change batches and stronger review and
+evidence for identity, data access, isolation, migration, recovery, shared
+resources, and audit. All retain the same controls and authority model.
 
-- `quick-mvp`: one thin observable outcome, minimal independently verifiable
-  tasks, one development environment and Region where feasible, and one worker
-  by default;
-- `standard`: full intended-environment operational coverage and only proven,
-  bounded task parallelism;
-- `high-risk`: deeper review of identity, data access, customer separation,
-  migration, recovery, rollback, shared-resource impact, and audit needs;
-  smaller mutation batches; and stronger evidence.
-
-Every overlay retains the same security baseline, objective acceptance rules,
-AWS identity checks, and Gate A/Gate B authority model.
-
-Gate A and Gate B each use one compact readiness card in PRD.md. Fill every
+Gate A and Gate B each use one compact readiness card in docs/project/PRD.md. Fill every
 listed field with explicit current facts and stable IDs. Use `NOT_APPLICABLE —
 <reason>` only when genuinely inapplicable; never use it to avoid discovery.
 
@@ -150,75 +150,40 @@ This bootstrap has exactly two routine human decision points.
 
 ### Gate A — Requirements approval
 
-Before technical design, Codex interviews the owner, drafts Part I of `PRD.md`,
-and analyzes the complete requirement set together.
+Before design, interview the owner, draft PRD Part I, and record contradictions,
+ambiguity, assumptions, missing boundary/failure/security/recovery behavior,
+unmeasurable outcomes, and incompatible cost or operational constraints. The
+recommendation is `BLOCKED`, `READY_WITH_PROPOSED_ASSUMPTIONS`, or
+`READY_FOR_OWNER_APPROVAL`.
 
-Check for:
+For a ready recommendation, set Gate A to `PENDING_OWNER_APPROVAL` and mirror
+the same current REQ and gate states into `bootstrap.yaml` and
+docs/project/TASKS.md. Do not leave an agent-ready gate marked `BLOCKED`.
+Only the named human owner may accept assumptions and approve the exact current
+revision. Never infer approval from silence, continued work, status, or tools.
+Design requires `APPROVED_FOR_DESIGN` with no blocking finding.
 
-- logical inconsistencies;
-- ambiguous terms or unmeasurable outcomes;
-- conflicting functional and non-functional constraints;
-- undefined concepts and unstated assumptions;
-- missing boundary, failure, security, concurrency, and recovery cases;
-- requirements that cannot be verified objectively;
-- incompatible cost, availability, performance, privacy, or regional constraints.
-
-Record findings in the `PRD.md` requirements-analysis section.
-
-The agent recommendation must be one of:
-
-- `BLOCKED`
-- `READY_WITH_PROPOSED_ASSUMPTIONS`
-- `READY_FOR_OWNER_APPROVAL`
-
-When a ready recommendation is recorded, update the detailed Gate A owner
-state and Document status to `PENDING_OWNER_APPROVAL` in the same checkpoint,
-then mirror both gate states in `bootstrap.yaml` and copy the current REQ plus
-Gate B state into TASKS.md's Active execution snapshot. Keep Gate B `BLOCKED`
-for a new design or `STALE` after a material requirements revision. Do not leave
-an agent-ready gate marked `BLOCKED`.
-
-Only the owner can accept named assumptions and approve the current
-requirements revision. Codex must not infer approval from silence, continued
-conversation, a task status, or tool access. Design may start only when Gate A
-is `APPROVED_FOR_DESIGN`, the approved revision matches the current revision,
-and no blocking finding remains open.
-
-The recorded approver must be the named human decision owner. Reject `Codex`,
-`agent`, `automation`, `system`, `AI`, and other model or service identities,
-case-insensitively, at both gates.
+At either gate, reject `Codex`, `agent`, `automation`, `system`, `AI`, or any
+other model or service as the recorded approver.
 
 ### Gate B — PRD and construction authorization
 
-After technical design, Codex proposes one bounded construction envelope in
-`PRD.md`. It names the approved outcome and scope, exact write boundaries,
-prohibited work, task and concurrency limits, investigation or attempt budget,
-checkpoint policy, GitHub permission, and AWS lane and boundaries.
+After design, propose one construction envelope naming outcome, scope, write
+boundaries, prohibited work, task/concurrency/attempt limits, checkpoints,
+GitHub permission, and AWS lane/boundaries. Before Gate B is pending, require a
+local Git baseline, protected dirty-path record, and the PRD's canonical digest
+of the complete envelope.
 
-Only the owner can approve the current design revision and proposed envelope.
-Task generation and implementation may start only when Gate B is
-`APPROVED_FOR_CONSTRUCTION` and its approved requirements and design revisions
-match the current revisions.
+Only the owner may approve the exact design and envelope.
+`READY_FOR_CONSTRUCTION_APPROVAL` becomes `PENDING_OWNER_APPROVAL` and mirrors
+the exact REQ/DES/AUTH IDs, Gate B state, worker limit, baseline, and protected
+paths into docs/project/TASKS.md and `bootstrap.yaml`. A valid owner receipt
+changes all mirrors to `APPROVED_FOR_CONSTRUCTION` in one coordinator
+checkpoint; record its observed time and source.
 
-Before Gate B can become pending, the project must be a local Git repository
-with a resolvable authorized baseline commit, protected dirty paths recorded,
-and the complete construction-envelope table hashed under PRD.md's canonical
-SHA-256 rule. The agent review, owner record, and exact receipt all bind that
-same digest.
-
-Once Gate B is current, Codex should generate tasks and continue through safe
-implementation waves without routine task-by-task approval. It pauses only for
-a declared stop condition, stale approval, exhausted boundary, unavailable
-authority, or an action that the approved envelope does not cover.
-
-When the complete PRD and envelope earn
-`READY_FOR_CONSTRUCTION_APPROVAL`, update the detailed Gate B owner state and
-Document status to `PENDING_OWNER_APPROVAL`, and atomically mirror the exact
-REQ/DES/AUTH IDs, Gate B state, authorized worker limit, baseline, and protected
-dirty paths into TASKS.md and `bootstrap.yaml`. A valid Gate B owner receipt
-then changes all of those mirrors to `APPROVED_FOR_CONSTRUCTION` in one
-coordinator checkpoint. Record the observed authorization time and exact source
-for both gate receipts; provenance is metadata and does not add receipt lines.
+Then Codex may generate tasks and run safe waves without task-by-task approval.
+Pause on a stop condition, stale state, exhausted boundary, missing authority,
+or uncovered action.
 
 Business approval does not widen the Codex sandbox or bypass platform approval
 controls. Conversely, filesystem, network, GitHub, or AWS capability never
@@ -226,17 +191,11 @@ grants business authorization.
 
 ### Approval invalidation
 
-- Any change to requirements-revision-controlled content makes Gate A and Gate
-  B `STALE`. This includes workflow/profile/risk/AWS-lane fields, workload and
-  intake facts, the brownfield preservation contract, Part I, findings,
-  proposed assumptions, and open decisions, as defined precisely in `PRD.md`.
-- Any change to the approved technical design or construction envelope makes
-  Gate B `STALE`.
-- A material implementation discovery that changes requirements, architecture,
-  scope, risk, budget, or authorization boundaries must stop affected work and
-  route back to the applicable gate.
-- Revision IDs are monotonic. Never reuse an approved revision ID for changed
-  content.
+- Requirements-controlled changes make both gates `STALE`.
+- Design or construction-envelope changes make Gate B `STALE`.
+- Material discoveries that change requirements, architecture, scope, risk,
+  budget, or authority stop affected work and return to the applicable gate.
+- Revision IDs are monotonic and never reused for changed content.
 
 A stale Gate A routes to `INTAKE-10` when owner facts are missing and otherwise
 to `REQ-10`. A stale Gate B with a current Gate A routes to `DESIGN-10`.
@@ -247,142 +206,60 @@ Do not silently design around an unresolved contradiction.
 
 ## Required Codex workflow
 
-1. Read this file and every applicable nested `AGENTS.md`.
-2. Run or resume `BOOT-00` and determine greenfield or brownfield mode.
-3. Run `python scripts/bootstrap_dependencies.py --root . --json`, require the
-   current session to expose AWS Core, and stop on a missing or altered
-   dependency.
-4. Run `python scripts/bootstrap_doctor.py --root .` and stop on an unsafe or
-   inconsistent result.
-5. Determine feature-spec, bugfix-spec, or mixed mode.
-6. Use `INTAKE-10` and `REQ-10` to draft and analyze requirements.
-7. Stop for explicit owner approval at Gate A.
-8. Use `DESIGN-10` to complete architecture, data flow, error handling, and testing design.
-9. Stop for explicit owner approval at Gate B.
-10. Generate discrete tasks with `TASK-10` inside the approved envelope.
-11. Validate dependencies and structural waves with `scripts/task_waves.py`.
-12. Acquire one durable run coordinator before `BUILD-20`; treat an
-    interrupted `RUNNING` state as recovery-required, not automatically resumable.
-13. Execute one task with `BUILD-10` or long-run safe groups with `BUILD-20`.
-14. Claim a task atomically before implementation; the claim increments its
-    persistent attempt count. Mark it `DONE` only after acceptance evidence.
-15. Record meaningful progress, blockers, deviations, and validation in the task log.
-16. Record produced evidence in `VERIFY.md` and update `RUNBOOK.md` only when repeatable procedures change.
-17. Synchronize GitHub only when the current Gate B envelope permits it; otherwise preserve `PENDING_SYNC`.
-18. Use read-only AWS preflight before any deployment and require a fully matching AWS authorization envelope for mutation.
-19. Create an ADR only for a consequential, difficult-to-reverse decision.
+1. Read applicable `AGENTS.md` files and run/resume `BOOT-00`.
+2. Run the dependency checker, configure/resume the template, and run the
+   doctor. Static pins do not prove a live plugin or hook.
+3. On a supported surface, finish the owner-approved hook review and explicit
+   `@AWS Core` `retrieve_skill`/`search_documentation` handshake.
+4. Use INTAKE-10 and REQ-10; stop for Gate A.
+5. Use DESIGN-10; stop for Gate B.
+6. Use TASK-10 and `task_waves.py` to create a current dependency graph.
+7. Acquire one coordinator; use BUILD-10 or BUILD-20, atomic claims, bounded
+   attempts, and evidence-backed completion.
+8. Reconcile docs/project/TASKS.md, docs/project/VERIFY.md,
+   docs/project/RUNBOOK.md, and `bootstrap.yaml` at checkpoints.
+9. Sync GitHub only if Gate B permits; otherwise keep `PENDING_SYNC`.
+10. Run AWS-10 read-only preflight before any AWS mutation; require an exact
+    current authorization for AWS-20 or AWS-50.
+11. Use ADRs only for consequential, hard-to-reverse decisions.
 
 Release state is exactly `NOT_READY`, `READY_TO_DEPLOY`, or
 `RELEASE_VERIFIED`. RELEASE-10 alone changes it. AWS-10 accepts only
 READY_TO_DEPLOY; AWS-30 records deployed evidence and returns to RELEASE-10 for
 the RELEASE_VERIFIED decision.
 
-Task-plan state is `UNINITIALIZED`, `CURRENT`, or `STALE`. Only CURRENT is
-runnable. On REQ/DES/AUTH change, reconcile every IN_PROGRESS task, commit the
-non-runnable stale ledger, and stop claims. After a new Gate B, TASK-10 records
-the old plan's archive commit and replaces the graph with a new monotonic plan
-and never-reused task IDs.
+Task-plan state is `UNINITIALIZED`, `CURRENT`, or `STALE`; only `CURRENT` is
+runnable. Use `scripts/task_waves.py` for all run, claim, status, checkpoint,
+pause, completion, and resume transitions. Never hand-edit coordinator state.
+Use monotonic run, task, checkpoint, and evidence IDs. Reconcile every
+`IN_PROGRESS` task before pausing, and inspect a persisted `RUNNING` state before
+resuming.
 
-Start, claim, checkpoint, pause, and resume runs through
-`scripts/task_waves.py`; do not hand-edit coordinator state. The canonical
-command shapes are:
+After each validated task or wave, inspect the integrated diff and record the
+observed command/result, actor/time, tested commit/worktree/artifact, durable
+source, and `LOCAL_PASS` or `VERIFIED` status in docs/project/VERIFY.md's
+`Task completion evidence` table. Run the doctor before the next wave. The exact
+commands and transition rules live in the `build-fastlane` skill, TASK-10,
+BUILD-10, BUILD-20, and docs/project/TASKS.md.
 
-```bash
-python scripts/task_waves.py TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode SINGLE_TASK
-python scripts/task_waves.py TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS
-python scripts/task_waves.py TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
-python scripts/task_waves.py TASKS.md --claim TASK-0002 --owner codex-worker-2 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000 --isolated-worktrees
-python scripts/task_waves.py TASKS.md --set-status TASK-0001 DONE --evidence EV-0001 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001
-python scripts/task_waves.py TASKS.md --pause-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002
-python scripts/task_waves.py TASKS.md --complete-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002
-python scripts/task_waves.py TASKS.md --resume-run RUN-0001 --coordinator codex-coordinator
-```
+## Task execution boundary
 
-Every mutation names the exact active coordinator. Use the next unused monotonic
-IDs. Reconcile every `IN_PROGRESS` task before
-pausing. Resume only the same safely checkpointed run and coordinator; a
-persisted `RUNNING` run requires recovery inspection.
+docs/project/TASKS.md is the live checklist. Generate and run tasks only while
+Gate B is `APPROVED_FOR_CONSTRUCTION` and current. Each task must trace to the
+approved REQ/DES/AUTH IDs, stay inside its write and external-state boundaries,
+and use one legal status: `BACKLOG`, `READY`, `IN_PROGRESS`, `BLOCKED`, `DONE`,
+or `SKIPPED`. Never renumber an existing task.
 
-Claims cite the current base checkpoint; proven-disjoint concurrent claims may
-share it. Reconciling an `IN_PROGRESS` task to `DONE` or `BLOCKED` consumes the
-next unique checkpoint and advances the snapshot. A later pause or completion
-consumes another unique checkpoint and requires the newest complete checkpoint
-row plus VERIFY.md reference. Starting a run or synchronizing issue metadata
-does not invent a checkpoint. Never reuse a reconciliation checkpoint for the
-following pause or completion.
-
-After each validated task or wave, inspect the integrated diff, record EV-nnnn
-evidence in the exact VERIFY.md `Task completion evidence` table, including the
-task, observed command/result, actor/time, tested commit/worktree/artifact,
-durable source, and `LOCAL_PASS` or `VERIFIED` status. Commit only authorized
-changes, update Last known-green and the checkpoint row to that commit, and run
-doctor. Do this before pausing or starting another wave. Never commit protected
-dirty paths or use a Git remote without separate authorization.
-
-## Task checklist and execution contract
-
-`TASKS.md` is the live execution checklist.
-
-Do not generate or execute tasks unless the current Gate B is
-`APPROVED_FOR_CONSTRUCTION`. Every task must trace to the approved requirements
-and design revisions and remain inside the approved construction envelope.
-
-Every task must have:
-
-- stable task ID;
-- clear outcome;
-- status;
-- dependencies;
-- affected components or write set;
-- acceptance criteria;
-- validation commands or evidence;
-- GitHub Issue link or `PENDING_SYNC`;
-- execution log.
-
-Allowed statuses:
-
-- `BACKLOG`
-- `READY`
-- `IN_PROGRESS`
-- `BLOCKED`
-- `DONE`
-- `SKIPPED`
-
-Never renumber an existing task ID.
-
-### Individual execution
-
-When asked to execute one task, do not implement unrelated tasks. You may perform prerequisite inspection and validation, but scope changes must be recorded.
-
-### Wave execution
-
-Structural dependency waves are not automatically concurrency-safe. Use the
-validator's conservative execution groups. Tasks may execute concurrently only
-when they have disjoint write and external-state sets and run in isolated
-worktrees. Otherwise serialize them.
-
-Serialize tasks that:
-
-- edit overlapping files;
-- modify the same infrastructure stack or resource;
-- run migrations against the same data store;
-- depend on shared generated output;
-- require irreversible or billable actions;
-- have unresolved assumptions.
-
-AWS mutations require explicit authorization regardless of wave eligibility.
-Every AWS mutation is serialized. A `SKIPPED` prerequisite unlocks a dependent
-only through an explicit current waiver naming both tasks, its authority,
-rationale, and replacement evidence.
-
-The coordinator is the sole writer of `TASKS.md`, `VERIFY.md`, `RUNBOOK.md`,
-`bootstrap.yaml`, shared manifests, lockfiles, schemas, generated outputs, and
-GitHub metadata. Workers edit only assigned task paths and return receipts. The
-coordinator verifies the actual diff before accepting a worker result.
+Run only `READY` tasks with satisfied dependencies. Parallelize only proven
+disjoint work in isolated worktrees; serialize shared files, resources,
+migrations, generated output, irreversible work, billable work, and all AWS
+mutations. The coordinator is the sole writer of project ledgers, lifecycle
+state, shared manifests, lockfiles, schemas, generated output, and GitHub state.
+Workers edit only their assigned paths and return receipts.
 
 ## Brownfield preservation contract
 
-Before changing an existing repository, record in `PRD.md`:
+Before changing an existing repository, record in `docs/project/PRD.md`:
 
 - the baseline commit or working-tree state and pre-existing test results;
 - current architecture, infrastructure ownership, and known failures;
@@ -415,134 +292,52 @@ require a decision.
 Nested `AGENTS.md` files may narrow a task but may never widen the current AUTH,
 write set, command boundary, GitHub mode, AWS boundary, or stop conditions.
 
-## GitHub synchronization contract
+## GitHub synchronization
 
-`.github/ISSUE_TEMPLATE/` contains issue forms, not task records.
+Credentials and connector availability are not authorization. Sync GitHub only
+when the current Gate B envelope permits it. Keep stable task IDs, dependencies,
+status, blockers, pull-request links, and concise evidence aligned with
+docs/project/TASKS.md. Otherwise leave `PENDING_SYNC` and make no GitHub changes.
+Report drift instead of silently reconciling it.
 
-Actual task tracking lives in GitHub Issues.
+## Testing and teaching
 
-When the current Gate B construction envelope authorizes GitHub mutation, for
-each non-trivial task:
-
-- include the stable task ID in the issue;
-- attach the issue as a native sub-issue of the release parent where supported;
-- preserve dependencies and wave information;
-- link the implementation pull request;
-- mirror status and blockers at the next authorized checkpoint;
-- summarize validation and evidence without copying entire logs.
-
-`TASKS.md` remains the live execution source during a session. GitHub is the durable mirror for project visibility and collaboration.
-
-When GitHub mutation is not authorized, leave links as `PENDING_SYNC` and
-report the pending synchronization without creating or changing Issues,
-branches, pull requests, labels, Projects, or comments.
-Credentials and connector availability are not authorization.
-
-If the two drift, reconcile using the stable task ID and report the conflict.
-
-## Property-based testing contract
-
-`PRD.md` defines system properties and invariants. Test code implements them using the language-appropriate property-based testing framework where valuable.
-
-For each material property, define:
-
-- property ID;
-- invariant;
-- generated input or state space;
-- preconditions;
-- expected oracle;
-- boundary and shrinking considerations;
-- applicable test layer.
-
-Property-based testing supplements rather than replaces:
-
-- example-based unit tests;
-- integration tests;
-- end-to-end tests;
-- deployed AWS verification;
-- security and recovery exercises.
-
-Prioritize properties for:
-
-- authorization isolation;
-- serialization and round trips;
-- idempotency;
-- ordering and concurrency;
-- state machines;
-- parsers and validators;
-- retry bounds;
-- resource naming;
-- encryption or redaction invariants;
-- financial or compliance-sensitive calculations.
-
-
-## Educational mode
-
-When the user invokes educational, mentor, teaching, or learning mode:
-
-- provide concise milestone updates rather than narrating every operation;
-- explain relevant AWS and software-engineering concepts;
-- summarize decision rationale and tradeoffs;
-- distinguish repository facts from recommendations;
-- distinguish local evidence from AWS environment evidence;
-- conclude with a practical learning recap;
-- do not create extra tutorial documents unless requested.
-
-Educational mode does not weaken task scope, validation, evidence, security,
-or AWS authorization requirements.
+Use example, integration, end-to-end, property-based, security, recovery, and
+deployed checks when the approved requirements make them relevant. Teaching
+mode may explain decisions and evidence, but never weakens scope, testing,
+security, gate, or AWS authorization rules and does not create extra documents.
 
 ## AWS evidence and research
 
-- A Fastlane session is setup-ready only when the current session exposes the
-  pinned official `aws-core` plugin. The marketplace entry alone is not proof
-  that the plugin loaded.
-- Use AWS Core whenever a current AWS fact affects requirements feasibility,
-  either gate recommendation, technical design, or AWS operations. Verify
-  service behavior, Region availability, IAM, quotas, networking, encryption,
-  recovery, observability, and cost with current primary AWS documentation.
-- Requirements intake may collect owner facts before every AWS question is
-  answered, but Gate A must not receive a ready recommendation while a material
-  AWS feasibility fact remains unverified. Gate B always requires the current
-  AWS design checks applicable to its proposed boundary.
-- If AWS Core disappears or a required capability fails after setup, stop the
-  affected gate or AWS operation, record the missing check, and route through
-  BOOT-00 dependency recovery. Do not substitute model memory.
-- Do not rely on memory for IAM, quotas, networking, service behavior,
-  encryption, recovery, cost, or deployment guidance.
-- Distinguish recommendations from verified repository facts.
-- Distinguish local evidence from deployed AWS evidence.
-- AWS Core and the read-only project agents advise the coordinator. Only the
-  human owner can approve Gate A or Gate B, and only an exact current AWS record
-  can authorize a later mutation.
+- Setup-ready requires explicit `@AWS Core` invocation and successful
+  `retrieve_skill` and `search_documentation` checks from the pinned plugin.
+- Use current primary AWS documentation through AWS Core for material service,
+  Region, IAM, quota, networking, encryption, recovery, observability, and cost
+  facts. Never substitute memory.
+- Gate A cannot be ready with a material feasibility fact unverified; Gate B
+  requires checks for its design boundary.
+- If AWS Core or a required capability fails, stop the affected gate/operation,
+  record the gap, and route through BOOT-00 recovery.
+- Separate recommendations from repository facts and local from deployed
+  evidence. Advisors advise; only the owner approves gates and only an exact
+  current AWS record authorizes mutation.
 
 ## AWS mutation safety
 
-Before any AWS-changing command, verify:
-
-- profile or role;
-- account identity;
-- Region `{{AWS_REGION}}`;
-- environment and stack;
-- exact resources in scope;
-- billable impact;
-- reversibility;
-- rollback and teardown;
-- explicit authorization.
+Before an AWS-changing command, verify profile/role, account, Region
+`{{AWS_REGION}}`, environment, stack/resources, billable impact, reversibility,
+rollback/teardown, and explicit authorization.
 
 Run read-only discovery through `AWS-10` first. BUILD-10, BUILD-20, and
 RELEASE-10 never execute AWS mutations directly; every deployment or corrective
 mutation routes through `AWS-20`, and deployed evidence routes through `AWS-30`.
 
-A current Gate B `fast-dev` envelope is prospective AWS authorization only when
-it names the exact development account or alias, profile or role, Region,
-environment, stack, allowed operations and resources, cost ceiling, rollback,
-prohibited actions, immutable artifact digest or deterministic derivation rule,
-and finite future validity. Its environment classification must be
-`NON_PRODUCTION`. A derivation rule names SHA-256 and the full authorized
-baseline commit. Immediately before mutation, re-identify the caller and
-prove the final IaC diff is fully contained in that envelope. Any mismatch,
-production target, destructive or replacement action, IAM broadening, public
-sensitive-data exposure, shared or unowned resource, or scope or cost drift
+A `fast-dev` envelope is prospective authorization only when it names the exact
+non-production identity, Region, environment, resources/operations, cost,
+rollback, prohibitions, artifact digest or SHA-256 derivation from the approved
+commit, and expiration. Re-identify the caller and prove the final IaC diff is
+contained. Mismatch, production, destructive/replacement work, IAM broadening,
+public sensitive-data exposure, shared/unowned resources, or scope/cost drift
 routes to `explicit-gate` and stops.
 
 For `explicit-gate`, accept deployment authorization only as the exact complete
@@ -555,24 +350,18 @@ are conditional action authorizations, not routine lifecycle gates.
 Never:
 
 - use AWS root credentials;
-- commit credentials, secrets, tokens, keys, kubeconfig, or secret-bearing parameters;
-- weaken IAM, networking, encryption, validation, or logging to bypass failures;
-- expose private data stores without an approved requirement;
-- deploy, destroy, rotate secrets, or mutate data without explicit approval;
-- claim AWS evidence without observing it.
+- store secrets in source, logs, receipts, or command history;
+- weaken IAM, networking, encryption, validation, or logging;
+- expose private data without an approved requirement;
+- mutate without exact approval; or
+- claim unobserved AWS evidence.
 
-## Well-Architected impact rule
+## Well-Architected impact
 
-For each meaningful requirement, design decision, and task, identify relevant effects on:
-
-- Operational Excellence;
-- Security;
-- Reliability;
-- Performance Efficiency;
-- Cost Optimization;
-- Sustainability.
-
-Record requirements and design in `PRD.md`, executable work in `TASKS.md`, proof in `VERIFY.md`, and procedures in `RUNBOOK.md`.
+For meaningful requirements, designs, and tasks, record applicable Operational
+Excellence, Security, Reliability, Performance Efficiency, Cost Optimization,
+and Sustainability effects in the existing PRD, task, evidence, or runbook
+record.
 
 ## Documentation policy
 
@@ -580,11 +369,11 @@ Do not create new planning, status, design, security, traceability, audit, lifec
 
 Before creating a document, determine whether the content belongs in:
 
-- `PRD.md`;
-- `BUGFIX.md`;
-- `TASKS.md`;
-- `VERIFY.md`;
-- `RUNBOOK.md`;
+- `docs/project/PRD.md`;
+- `docs/project/BUGFIX.md`;
+- `docs/project/TASKS.md`;
+- `docs/project/VERIFY.md`;
+- `docs/project/RUNBOOK.md`;
 - a GitHub Issue or pull request;
 - code, tests, schemas, or IaC;
 - a narrowly scoped ADR.
@@ -600,7 +389,7 @@ Work is complete only when:
 - relevant example and property-based tests pass;
 - security and failure paths are handled;
 - affected IaC validates;
-- `VERIFY.md` reflects actual evidence;
-- operational changes are reflected in `RUNBOOK.md`;
+- `docs/project/VERIFY.md` reflects actual evidence;
+- operational changes are reflected in `docs/project/RUNBOOK.md`;
 - task and GitHub status are synchronized when authorized, or clearly `PENDING_SYNC`;
 - remaining AWS-only checks are clearly pending rather than passed.
