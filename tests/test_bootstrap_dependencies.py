@@ -23,7 +23,8 @@ class BootstrapDependencyTests(unittest.TestCase):
         self.assertEqual(report["status"], "READY", report["diagnostics"])
         toolkit = report["aws_agent_toolkit"]
         self.assertEqual(toolkit["marketplace"], "DECLARED_AND_PINNED")
-        self.assertEqual(toolkit["installation_policy"], "INSTALLED_BY_DEFAULT")
+        self.assertEqual(toolkit["installation_policy"], "AVAILABLE")
+        self.assertEqual(toolkit["setup_mode"], "INSTRUCTIONS_ONLY")
         self.assertEqual(toolkit["aws_core_version"], "1.1.0")
         self.assertEqual(
             toolkit["commit"],
@@ -39,9 +40,30 @@ class BootstrapDependencyTests(unittest.TestCase):
                 "supported_surfaces": ["CHATGPT_DESKTOP_CODEX", "CODEX_CLI"],
                 "unsupported_surfaces": ["CODEX_IDE_EXTENSION"],
                 "automatic_client_installation": False,
+                "approval_bound_client_installation": False,
+                "automatic_marketplace_registration": False,
+                "automatic_session_launch": False,
                 "required_runtime_command": "uvx",
                 "runtime_package": "uv",
                 "automatic_runtime_installation": False,
+                "approval_bound_runtime_installation": False,
+            },
+        )
+        self.assertEqual(
+            toolkit["uv_setup"],
+            {
+                "status": "UV_SETUP_ASSISTANCE_AVAILABLE",
+                "mode": "INSTRUCTIONS_ONLY",
+                "script": "scripts/uv_setup_assistant.py",
+                "states": [
+                    "UV_DETECTED_OWNER_VERIFICATION_REQUIRED",
+                    "UV_INSTALL_INSTRUCTIONS_REQUIRED",
+                    "AWS_CORE_UPDATE_REVIEW_REQUIRED",
+                ],
+                "automatic_runtime_installation": False,
+                "package_manager_execution": False,
+                "runtime_probe_execution": False,
+                "user_state_persisted_in_repository": False,
             },
         )
         self.assertEqual(
@@ -94,7 +116,15 @@ class BootstrapDependencyTests(unittest.TestCase):
         )
         self.assertEqual(plugin["source"]["path"], "./plugins/aws-core")
         self.assertEqual(plugin["source"]["sha"], dependencies.AWS_TOOLKIT_COMMIT)
-        self.assertEqual(plugin["policy"]["installation"], "INSTALLED_BY_DEFAULT")
+        self.assertEqual(plugin["policy"]["installation"], "AVAILABLE")
+        self.assertEqual(
+            dependencies.UV_SETUP_STATES,
+            (
+                "UV_DETECTED_OWNER_VERIFICATION_REQUIRED",
+                "UV_INSTALL_INSTRUCTIONS_REQUIRED",
+                "AWS_CORE_UPDATE_REVIEW_REQUIRED",
+            ),
+        )
 
     def test_project_agents_are_read_only_and_do_not_override_model_or_mcp(self) -> None:
         for name in dependencies.REQUIRED_AGENTS:

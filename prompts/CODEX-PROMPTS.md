@@ -136,6 +136,7 @@ current proposed requirements card:
 ~~~text
 APPROVE REQUIREMENTS GATE A
 Requirements revision: REQ-0001
+Cost posture: MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED
 Accepted assumptions: ASM-... or NONE
 Approver: <name/handle>
 ~~~
@@ -203,7 +204,7 @@ Environment: <non-production or production>
 Artifact digest: <immutable digest>
 Stack, application, and resources: <exact boundary>
 Allowed operations: <exact create/update/delete operations>
-Cost ceiling: <currency and amount>
+Cost ceiling: <finite positive ISO-currency amount, for example USD: 20.00>
 Rollback boundary: <exact allowed rollback or NONE>
 Valid until: <ISO 8601 time or exact one-operation condition>
 Approver: <name/handle>
@@ -314,14 +315,14 @@ discovery must precede mutation. Prefer a read-only profile by default and the
 least-privileged write profile only for an authorized operation.
 
 Fastlane ships `.agents/plugins/marketplace.json` with an
-`INSTALLED_BY_DEFAULT` request for that exact official revision. Repository
+`AVAILABLE` request for that exact official revision. Repository
 trust and managed platform policy still apply. A newly installed plugin is not
 available to an already-running conversation. BOOT-00 first completes local
 setup, then checks the client surface. On the ChatGPT desktop app's Codex
 experience or Codex CLI, it directs the owner to manage AWS Core with
 `/plugins`, restart Codex when prompted, and send `@AWS Core` plus `VERIFY AWS
 CORE AND CONTINUE FASTLANE`. The Codex IDE extension cannot manage plugins and
-must receive the supported-surface handoff instead. Never infer plugin
+must receive precise owner-run supported-surface instructions instead. Never infer plugin
 availability from files or a generic documentation connector; require
 successful AWS Core `retrieve_skill` and `search_documentation` checks.
 
@@ -421,7 +422,9 @@ Agent Toolkit marketplace; project-agent files; and current-session AWS Core
 capability observation plus the observed Codex client surface and `uvx`
 launcher availability; `python3` hook-runtime availability; Codex `/hooks`
 inventory and trust state; and the exact pinned AWS Core hook contract reported
-by `bootstrap_dependencies.py`.
+by `bootstrap_dependencies.py`; and the current instruction-only JSON result
+from `uv_setup_assistant.py`, including its manifest-controlled tree, owner-run
+command, and explicit no-execution receipt.
 
 **Permitted writes:** For `THIS_REPOSITORY`, only allowlisted placeholder
 rendering by `bootstrap.py --in-place-template-instance` after the tree matches
@@ -436,6 +439,10 @@ targets are inspected and resumed without regeneration. When and only when
 local-Git setup is `INIT_AND_BASELINE_COMMIT`, an absent local repository may
 be initialized and the reviewed bootstrap state committed as its baseline
 using existing Git author identity. No remote may be added.
+Codex client installation, uv installation, marketplace registration, plugin
+selection, session launch, and hook trust are owner-run steps that Fastlane
+only explains. Fastlane never executes the uv command or treats instructions as
+authority for a package-manager, plugin, hook, session, or AWS action.
 
 **GitHub mode:** NONE. Local Git initialization and one baseline commit are not
 GitHub actions and are allowed only by the setup choice above. No remote,
@@ -449,13 +456,13 @@ account API during BOOT-00.
 **Required authorization:** The exact start command authorizes only safe local
 initialization or inspection for its named or safely derived setup method,
 repository-local dependency validation, and the marketplace's exact pinned
-`INSTALLED_BY_DEFAULT` AWS Core request. The exact `@AWS Core` verification
-command additionally authorizes only the two unauthenticated plugin checks
-named above. The exact `APPROVE AWS CORE HOOKS` confirmation authorizes trust
-only for the reviewed current hook-definition hash after a passing conflict
-review. None of these commands authorize requirements, tasks, implementation,
-remotes, GitHub writes, automatic Codex-client or runtime installation, AWS
-credentials, AWS account access, or a hook-trust bypass.
+`AVAILABLE` AWS Core request. It does not authorize Fastlane to execute a uv
+installation command. The exact `@AWS Core` verification command additionally authorizes only the two
+unauthenticated plugin checks named above. The exact `APPROVE AWS CORE HOOKS`
+confirmation is accepted only after the owner has trusted the reviewed current
+hook-definition hash and conflict/probe checks pass. None of these commands
+authorize requirements, tasks, implementation, remotes, GitHub writes, AWS
+credentials, AWS account access, automatic hook trust, or a trust bypass.
 
 **Stop conditions:** Missing or ambiguous setup; unsafe repository root; ordinary
 external source/target equality or containment; a modified or dirty in-place
@@ -464,18 +471,21 @@ escape; dry-run failure; collision or overwrite risk; unresolved
 source-of-truth conflict; partial write; expected-file, skill, placeholder, or
 doctor failure; partial core-contract adoption; unconfirmed adoption plan;
 adoption-plan digest or target-root drift; dependency-check failure; altered
-AWS Toolkit pin; a Codex surface without plugin support; missing explicit `@AWS
-Core` invocation; missing `uvx` on a supported surface; or failed
+AWS Toolkit pin; an attempted automatic uv/package-manager/runtime execution;
+unverified owner-run marketplace registration; an unsupported Codex surface;
+missing explicit `@AWS Core` invocation; missing owner-verified `uvx`; or failed
 `retrieve_skill` or `search_documentation` verification; missing `python3` for
 the pinned hook command; an unreviewed or changed AWS Core hook; an unknown or
 conflicting active hook; disabled hooks; or any attempted automatic trust or
 `--dangerously-bypass-hook-trust` use.
 
 **Receipt:** After local initialization and doctor validation, a stable
-supported-surface handoff when the current Codex client cannot manage plugins,
-or a stable runtime-prerequisite receipt when `uvx` is missing, or a stable AWS
-Core setup walkthrough when the pinned plugin is not yet verified; then a
-stable hook-runtime, hook-review, or hook-approval receipt as observed. After
+`OWNER_SETUP_INSTRUCTIONS_REQUIRED` receipt when the current surface cannot
+manage plugins; a `UV_INSTALL_INSTRUCTIONS_REQUIRED` or
+`UV_DETECTED_OWNER_VERIFICATION_REQUIRED` receipt when `uvx` is not
+owner-verified; or a stable AWS Core setup walkthrough
+when the pinned plugin is not yet verified; then a stable hook-runtime,
+hook-review, or hook-approval receipt as observed. After
 the exact `@AWS Core` command, a stable live-verification receipt. Only then may
 BOOT-00 emit the stable doctor-derived READY, RESUME, or BLOCKED receipt containing
 classification, lifecycle, doctor result, next prompt, Git baseline, Fastlane
@@ -522,10 +532,13 @@ python scripts/bootstrap_dependencies.py --root <repository root> --json
 
 Require `status`, `fastlane_skills.status`, and `project_agents.status` to equal
 `READY`, and require `aws_agent_toolkit.marketplace` to equal
-`DECLARED_AND_PINNED`. This proves repository assets and the immutable install
-request only. It does not prove that AWS Core is installed, updated, loaded, or
-callable. If the checker is BLOCKED, print a BLOCKED receipt with the observed
-values and stop before any write.
+`DECLARED_AND_PINNED`. Require `aws_agent_toolkit.installation_policy` to equal
+`AVAILABLE`, `aws_agent_toolkit.setup_mode` to equal `INSTRUCTIONS_ONLY`, and
+`aws_agent_toolkit.uv_setup.status` to equal
+`UV_SETUP_ASSISTANCE_AVAILABLE`. This proves repository assets, the immutable
+available plugin request, and the narrow uv helper only. It does not prove that
+AWS Core is installed, updated, loaded, or callable. If the checker is BLOCKED,
+print a BLOCKED receipt with the observed values and stop before any write.
 
 Do not inspect plugin availability yet. Complete the safe local initialization
 or resume flow and doctor validation below first. Do not probe for `pytest`,
@@ -534,13 +547,19 @@ Fastlane local setup uses only Python 3.11+ standard-library scripts. The
 separate AWS Core `uvx` prerequisite is checked only after safe local setup,
 doctor validation, and supported-surface detection.
 
-Ask no more than these three setup questions, and ask only for values the user
+Ask no more than these two setup questions, and ask only for values the user
 did not already supply:
 1. What should the project be called?
 2. Which AWS Region should planning prefer?
-3. What monthly development budget should the design stay within?
 
-Recommend `us-west-2` and `$20/month` when the owner is unsure. These are
+Recommend `us-west-2` when the owner is unsure. If the owner supplied a genuine
+hard cost cap, preserve its exact ISO currency and amount as
+`MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; for example,
+an owner-provided USD 20.00 cap becomes
+`MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00`.
+Otherwise use
+`MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. Do not ask for or invent a monthly
+number during BOOT-00, and never treat a budget as a spending target. These are
 planning inputs, not AWS authorization.
 
 Inspect before writing and classify exactly one:
@@ -555,8 +574,8 @@ For UNCONFIGURED_TEMPLATE, first run the in-place command with `--dry-run`, then
 run it without `--dry-run` only when the manifest, source hashes, Git protection,
 symlink checks, and collision checks pass:
 
-python bootstrap.py --target <repository root> --project-name <name> --region <region> --budget <budget> --in-place-template-instance --dry-run
-python bootstrap.py --target <repository root> --project-name <name> --region <region> --budget <budget> --in-place-template-instance
+python bootstrap.py --target <repository root> --project-name <name> --region <region> --cost-posture "<MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED or exact owner value MINIMIZE_TOTAL_COST; HARD_CAP: ISO_CURRENCY OWNER_AMOUNT>" --in-place-template-instance --dry-run
+python bootstrap.py --target <repository root> --project-name <name> --region <region> --cost-posture "<MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED or exact owner value MINIMIZE_TOTAL_COST; HARD_CAP: ISO_CURRENCY OWNER_AMOUNT>" --in-place-template-instance
 
 Only the allowlisted placeholders may change. The full update is atomic and
 must pass the doctor; a failure rolls back every changed file.
@@ -637,58 +656,56 @@ requirements or design repair prompt below while construction remains stopped.
 Before presenting plugin-management steps, determine the observed Codex client
 surface. AWS Core plugins are supported in the ChatGPT desktop app's Codex
 experience and Codex CLI. They are not available in the Codex IDE extension.
-If the current surface is the IDE extension, print exactly:
+Fastlane is instruction-only for Codex setup: never install a Codex client,
+register a marketplace, change plugin state, or launch another session. If the
+current surface cannot manage plugins, print this stable receipt:
 
-AWS CODEX FASTLANE — SUPPORTED CODEX SURFACE REQUIRED
+AWS CODEX FASTLANE — OWNER SETUP INSTRUCTIONS REQUIRED
 
-Local setup: COMPLETE
-Doctor: PASS
-Current Codex surface: IDE_EXTENSION
-AWS Core plugin management: UNAVAILABLE_ON_THIS_SURFACE
-AWS Toolkit marketplace: DECLARED_AND_PINNED
-aws-core plugin: NOT_VERIFIED
+Repository: <canonical path>
+Current surface: <observed surface>
+Required surface: CHATGPT_DESKTOP_CODEX_OR_INTERACTIVE_CODEX_CLI
+Codex installation: OWNER_MANAGED
+Marketplace registration: OWNER_MANAGED
+Plugin selection: OWNER_MANAGED
+Session launch: OWNER_MANAGED
 AWS credentials: NOT CHECKED
 AWS access: NOT USED
 AWS authorization: NONE
-Next action: OPEN THIS REPOSITORY IN THE CHATGPT DESKTOP APP (CODEX) OR CODEX CLI
+Next action: OPEN A SUPPORTED CODEX SURFACE AND FOLLOW THE COMMANDS BELOW
 
-Then explain that the repository may still be edited in the IDE, but AWS Core
-plugin setup and verification require one of the two supported surfaces. Stop
-before AWS Core verification and intake. Do not download, launch, or install
-another Codex client as a workaround, including through `npx`. Do not claim
-that running a CLI version command installs or exposes AWS Core. Do not
-register a marketplace, install a plugin, or install `uv`, `uvx`, `pipx`, or
-another package from the unsupported IDE surface.
+Then tell the owner to use the
+[official Codex instructions](https://learn.chatgpt.com/docs/developer-commands?surface=cli)
+if they need to install or update Codex. Do not run that installation. In a
+terminal the owner opened at the canonical repository root, tell them to run:
 
-On a supported surface, run `uvx --version` as a read-only prerequisite check.
-AWS Core launches its MCP server through `uvx`, which is supplied by Astral
-`uv`. If the command is missing or fails because `uvx` is unavailable, print
-exactly:
+codex plugin marketplace add .
+codex -C . --sandbox workspace-write --ask-for-approval on-request
 
-AWS CODEX FASTLANE — AWS CORE RUNTIME REQUIRED
+Explain each command before the owner runs it: the first registers only this
+repository's pinned marketplace in that owner's local Codex profile; the second
+opens an interactive session at this repository with normal on-request
+approvals. Fastlane never runs either command, reads the Codex credential store,
+or writes client paths, versions, plugin state, trust, credentials, usernames,
+or setup history to the repository or `bootstrap.yaml`.
 
-Local setup: COMPLETE
-Doctor: PASS
-Current Codex surface: <CHATGPT_DESKTOP_CODEX|CODEX_CLI>
-AWS Toolkit marketplace: DECLARED_AND_PINNED
-aws-core plugin: NOT_VERIFIED
-AWS Core runtime: UVX_MISSING
-Automatic runtime installation: NOT AUTHORIZED
-AWS credentials: NOT CHECKED
-AWS access: NOT USED
-AWS authorization: NONE
-Next action: INSTALL UV FROM THE OFFICIAL ASTRAL GUIDE, THEN START A NEW CODEX SESSION
+Ask the owner to run `uvx --version` visibly in the terminal they opened. AWS
+Core launches its MCP server through `uvx`, which is supplied by Astral `uv`.
+Do not execute a PATH-discovered `uvx` binary as a setup probe. If the owner
+reports that `uvx` is missing, run:
 
-Then link the owner to the official AWS Agent Toolkit quick start at
-`https://docs.aws.amazon.com/agent-toolkit/latest/userguide/quick-start.html`
-and the Astral installation guide at
-`https://docs.astral.sh/uv/getting-started/installation/`. Explain that
-`pipx install uv` is one official isolated option when `pipx` already exists,
-but do not run `pipx install uv`, `pip install uv`, a remote installer, or any
-package-manager command during BOOT-00. Runtime installation is a separate,
-explicit user action or approval. Stop before plugin management and intake.
-After the owner installs `uv`, require a new Codex session, rerun BOOT-00, and
-observe `uvx --version` successfully before continuing.
+python scripts/uv_setup_assistant.py plan --root <repository root> --json
+
+The helper may offer WinGet's `astral-sh.uv` package on Windows, Homebrew on
+macOS, or an already-installed `pipx` elsewhere. It never executes its printed
+command, bootstraps a package manager, uses plain `pip`, pipes a downloaded
+script into a shell, installs Codex, changes plugin state, or launches a
+session. Return `UV_INSTALL_INSTRUCTIONS_REQUIRED`, display the command as an
+argument array, and link the
+[Astral guide](https://docs.astral.sh/uv/getting-started/installation/). Tell
+the owner to run the command themselves in a visible terminal, restart it, and
+run `uvx --version` visibly. Runtime setup is a tool prerequisite, not Gate A,
+Gate B, AWS authentication, or AWS authority.
 
 On a supported surface with `uvx` available, inspect plugin-management state.
 When the pinned plugin is not installed, enabled, and current, print exactly
@@ -701,7 +718,7 @@ Doctor: PASS
 Fastlane skills: READY
 Project agents: READY
 AWS Toolkit marketplace: DECLARED_AND_PINNED
-aws-core plugin: MANAGEMENT_CHECK_REQUIRED
+aws-core plugin: AVAILABLE_NOT_INSTALLED
 AWS MCP: NOT CONNECTED
 AWS credentials: NOT CHECKED
 AWS access: NOT USED
@@ -711,7 +728,8 @@ Next action: OPEN `/plugins`
 Then give this walkthrough:
 1. Enter `/plugins` in Codex.
 2. Open `AWS Codex Fastlane Dependencies`.
-3. Install or update `AWS Core` to the template-approved `1.1.0` revision.
+3. Select the explicitly `AVAILABLE` AWS Core `1.1.0` entry pinned to
+   `36f16570de2015c0f0ce94ba9e391bd703c9ffb7` and approve its install.
 4. Restart Codex if prompted and reopen this repository in a new task.
 5. Send exactly:
 
@@ -730,13 +748,18 @@ Moving upstream fallback: PROHIBITED
 AWS credentials: NOT CHECKED
 AWS access: NOT USED
 AWS authorization: NONE
-Next action: VERIFY REPOSITORY TRUST AND THE UNCHANGED MARKETPLACE DECLARATION, THEN REOPEN THIS REPOSITORY
+Next action: FROM THIS REPOSITORY RUN `codex plugin marketplace add .`, THEN REOPEN IT
 
-Do not register `aws/agent-toolkit-for-aws` or another marketplace as a
-fallback, because a live upstream source does not prove the immutable revision
-approved by Fastlane. If the pinned entry remains unavailable, stop before
-plugin installation and intake. This tool-availability pause is not Gate A or
-Gate B.
+Do not register moving `aws/agent-toolkit-for-aws` upstream or another
+marketplace as a fallback, because it does not prove the immutable revision
+approved by Fastlane. The general `aws configure agent-toolkit` wizard is also
+not a substitute because it installs user-global current content. If the
+pinned entry remains unavailable, stop before plugin installation and intake.
+A separately approved read-only upstream comparison may return
+`AWS_CORE_UPDATE_REVIEW_REQUIRED`; it never changes the pin. Updating the pin
+requires reviewing the complete plugin subtree, MCP launcher, hooks, skills,
+hashes, tests, and manifest. This tool-availability pause is not Gate A or Gate
+B.
 
 When the pinned plugin is installed and current after restart, review its hooks
 before the live AWS Core handshake. Require the static dependency report's
@@ -1008,13 +1031,22 @@ Capture:
 - users, problem, observable outcome, and success measures;
 - in-scope behavior and explicit non-goals;
 - data sensitivity, identity boundary, integrations, and failure impact;
-- environment, Region constraints, budget sensitivity, and release expectation;
+- environment, Region constraints, cost sensitivity or a real hard cap, and release expectation;
 - brownfield compatibility, migration, and operational constraints.
 
 For quick-mvp, propose a thin first release: one primary actor, one observable
 outcome, one core entity or state transition, one entry point, one Region, one
 development environment, measurable requirements, explicit non-goals, and one
 rollback/teardown path.
+
+Default cost posture to `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. Ask about a
+hard cap only when the owner says one exists or a material choice cannot be
+made without it. Preserve a supplied cap's exact ISO currency and amount as
+`MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; for example,
+an owner-provided USD 20.00 cap becomes
+`MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00`. A missing amount alone never blocks intake.
+Security, recovery, and evidence requirements are not
+negotiable cost tradeoffs.
 
 Do not ask the user to choose an AWS service unless that choice is itself a
 business constraint. Do not design, generate tasks, or seek approval yet.
@@ -1071,7 +1103,8 @@ Record in docs/project/PRD.md:
 - problem, actors, outcome, scope, and non-goals;
 - measurable functional and non-functional requirements;
 - security, privacy, data, failure, concurrency, recovery, observability,
-  performance, cost, accessibility, and regional constraints where applicable;
+  performance, cost posture and any real hard cap, accessibility, and regional
+  constraints where applicable;
 - brownfield compatibility and migration constraints;
 - acceptance criteria and objective verification method for each requirement;
 - assumptions explicitly proposed for acceptance;
@@ -1081,9 +1114,14 @@ Record in docs/project/PRD.md:
 Fill the Gate A readiness card with these exact fields: Outcome; Owner and
 users; Scope and non-goals; Measurable requirement/acceptance IDs; Data
 boundary; Identity/security boundary; Environment/Region; Failure/recovery;
-Cost ceiling; Intake provenance. Every value must be explicit and trace to the
+Cost posture; Intake provenance. Every value must be explicit and trace to the
 current revision. Use `NOT_APPLICABLE — <reason>` only when genuinely
 inapplicable; a blank, TODO, TBD, UNKNOWN, or bare NONE keeps readiness BLOCKED.
+`MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED` is explicit and ready when no hard
+cap is an owner requirement. When one exists, preserve the owner's exact
+currency and amount as
+`MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; `USD 20.00` is
+only an example. Do not manufacture a numeric ceiling for Gate A.
 
 For brownfield mode, do not mark ready until repository/baseline,
 deployments, architecture/ownership, interfaces/consumers, data/migration,
@@ -1166,15 +1204,18 @@ trimming surrounding whitespace:
 
 APPROVE REQUIREMENTS GATE A
 Requirements revision: REQ-0001
+Cost posture: <exact current Gate A cost posture>
 Accepted assumptions: ASM-... or NONE
 Approver: <name/handle>
 
-The revision and assumptions must exactly match the proposed card. Reject extra
-or duplicate fields, comments, reordered lines, partial blocks, and code fences.
+The revision, cost posture, and assumptions must exactly match the proposed
+card. Reject extra or duplicate fields, comments, reordered lines, partial
+blocks, and code fences.
 Silence, continued conversation, task state, or tool access never counts. After
 a valid receipt, preserve the complete normalized receipt inside the uniquely
-marked Gate A receipt block, then atomically update the detailed owner record,
-Document status, and lifecycle mirror to APPROVED_FOR_DESIGN. Record the
+marked Gate A receipt block, copy its exact cost posture into the detailed
+owner record, then atomically update that record, Document status, and lifecycle
+mirror to APPROVED_FOR_DESIGN. Record the
 observed ISO 8601 authorization time and exact message/issue/meeting-record
 source as structured provenance without adding either value to the receipt.
 Do not invent a source. Return a standard work receipt whose Next is DESIGN-10.
@@ -1240,6 +1281,20 @@ Complete only the design needed to build safely:
 - brownfield compatibility, rollout, migration, and rollback when applicable;
 - explicit decisions, alternatives, assumptions, and Well-Architected effects.
 
+For a greenfield application, evaluate a secure managed serverless baseline
+first. Prefer the smallest pay-per-use design that satisfies the accepted
+requirements, minimizes idle infrastructure and operational burden, and
+includes least-privilege IAM, approved encryption, secrets outside code and
+logs, bounded input validation, safe failure handling, and useful telemetry.
+Never weaken one of those required controls to lower cost.
+
+Serverless-first is a hypothesis, not a forced answer. Record why another
+architecture is better when current AWS evidence shows a material latency,
+sustained-utilization, service-limit, networking, compliance, portability, or
+total-cost advantage. Document expected low-usage cost, primary billing
+dimensions, scaling breakpoints, and measurable expansion or migration
+triggers. Do not provision future capacity before a trigger is reached.
+
 Fill the Gate B readiness card with these exact fields: Design basis IDs;
 Architecture/components; Interfaces/data flow; Identity/secrets;
 Failure/retry/concurrency; Deployment/operations; Validation/evidence;
@@ -1249,15 +1304,18 @@ only when genuinely inapplicable. Outstanding gaps is exactly `NONE` or stable
 gap IDs, and any gap keeps Gate B BLOCKED.
 
 Prefer the simplest architecture satisfying the accepted requirements. In
-quick-mvp, avoid VPCs, NAT Gateways, public IPv4, container platforms,
-always-on compute, and provisioned databases unless a requirement demands one.
+quick-mvp, do not add VPCs, NAT Gateways, public IPv4, container platforms,
+always-on compute, or provisioned databases unless a requirement or verified
+workload-fit decision demands one.
 
 Propose a complete construction envelope with the fields defined in this pack.
 GitHub writes default to branch/commit/push/pull-request only when explicitly
 listed. Merge and branch deletion default to not authorized. AWS defaults to
 DOCS_ONLY. A fast-dev AWS mutation envelope may be proposed only when every AWS
 mutation-boundary field is complete, the environment is non-production, the
-cost ceiling is explicit, rollback/teardown is proven feasible, artifact
+cost ceiling is a finite positive ISO-currency amount such as `USD: 20.00`, it
+does not exceed or change the currency of an owner Gate A hard cap, and
+rollback/teardown is proven feasible, artifact
 authority is an exact lowercase SHA-256 digest or deterministic authorized
 source rule, and the exact finite expiry remains in the future. Use
 `ENVIRONMENT: <exact>; CLASS: NON_PRODUCTION`, `EXACT_DIGEST: sha256:<64
@@ -1820,7 +1878,8 @@ Confirm without exposing secrets:
 - proposed change set or equivalent read-only plan;
 - service availability, quotas, naming, IAM boundary, encryption, networking,
   logging, alarms, backups, and data-retention implications;
-- estimated billing dimensions/budget boundary;
+- estimated low-usage cost, billing dimensions, scaling breakpoints, and the
+  exact authorization ceiling for any proposed mutation;
 - rollback and teardown commands and retained-resource behavior;
 - absence of unexpected drift or shared-resource impact.
 
@@ -1873,7 +1932,9 @@ mark Gate B stale and route to DESIGN-10. An action-specific receipt cannot
 repair a fast-dev envelope mismatch.
 
 Reconfirm caller identity, account, Region, environment, artifact digest, exact
-change set, cost ceiling, and rollback path immediately before mutation. Use
+change set, finite positive cost ceiling, owner-cap compatibility, and rollback
+path immediately before mutation. The ceiling covers the authorization-validity
+period and is not a guaranteed provider billing stop. Use
 the least-privileged approved write profile. Execute the documented deployment
 method; do not improvise broader permissions or resources.
 

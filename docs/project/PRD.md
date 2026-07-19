@@ -49,6 +49,18 @@ or approval. An AWS lane describes planned access; it does not authorize a
 change. AWS changes require an approved record naming the account, Region,
 environment, resources, operations, cost limit, rollback plan, and expiration.
 
+Planning starts with `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED` unless the owner
+provides a real limit. Preserve that limit's exact ISO currency and amount as
+`MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; `USD 20.00` is
+only an example and never a default or substituted value.
+This is an optimization objective, not permission to spend up to a target.
+Gate A records the cost posture and material constraints; a finite positive
+ceiling such as `USD: 20.00` becomes mandatory before an AWS mutation or
+billable deployed test. That ceiling covers the authorization-validity period,
+may not exceed or change the currency of an owner hard cap, and is not a guaranteed AWS billing stop.
+Required security, recovery, and evidence controls
+are never traded away for a lower estimate.
+
 Use this canonical mapping. Project lane, one prompt's access mode, and the
 Gate B boundary are separate fields; do not invent synonyms.
 
@@ -90,7 +102,7 @@ requirements, and none adds a routine owner gate beyond Gate A and Gate B.
 | Data classification | Public / internal / confidential / regulated |
 | Availability target | TODO |
 | Recovery target | RTO: TODO; RPO: TODO |
-| Monthly cost ceiling | {{MONTHLY_BUDGET}} |
+| Cost posture | {{COST_POSTURE}} |
 | Expected traffic | TODO |
 | Applicable AWS lenses | TODO |
 
@@ -218,14 +230,27 @@ Acceptance criteria must be objective and observable. Replace terms such as "fas
 sequenceDiagram
     actor User
     participant Client
-    participant Service
+    participant Identity
+    participant Service as Trusted service boundary
     participant Store
+    participant Telemetry
 
     User->>Client: Initiate action
-    Client->>Service: Validated request
-    Service->>Store: Read or write
-    Store-->>Service: Result
-    Service-->>Client: Safe response
+    Client->>Service: Request with untrusted input and identity context
+    opt Sign-in required
+        Service->>Identity: Verify identity
+        Identity-->>Service: Claims or denial
+    end
+    Service->>Service: Authorize, validate, and apply idempotency
+    alt Request rejected
+        Service->>Telemetry: Rejection outcome and correlation ID
+        Service-->>Client: Safe rejection
+    else Request approved
+        Service->>Store: Persist approved data
+        Store-->>Service: Result
+        Service->>Telemetry: Outcome, latency, and correlation ID
+        Service-->>Client: Safe response
+    end
     Client-->>User: Outcome
 ```
 
@@ -289,12 +314,28 @@ generic template prose.
 
 ### Cost optimization
 
-- Monthly ceiling: {{MONTHLY_BUDGET}}
-- Budget threshold and recipients: TODO
+- Planning posture: {{COST_POSTURE}}
+- Hard monthly ceiling: TODO / `NOT_STATED`
+- Optimization objective: Minimize total expected cost and idle spend while satisfying approved security, reliability, performance, and evidence requirements.
+- Budget alert thresholds and recipients: TODO / `NOT_APPLICABLE — no authenticated AWS spend`
 - Primary cost drivers: TODO
+- Expected low-usage cost and scaling breakpoints: TODO
+- Measurable expansion or migration triggers: TODO
 - Tagging standard: TODO
 - Idle-resource policy: TODO
 - Teardown expectation: TODO
+
+A hard cap is optional during requirements approval unless it is an owner-stated
+business constraint. Do not manufacture one. Preserve a real cap in the Gate A
+posture as `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>` using
+the owner's exact currency and amount. For example, an owner-provided USD 20.00
+cap becomes `MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00`. A finite positive Gate B
+ceiling such as `USD: 20.00` is required before any AWS mutation or billable
+deployed test, applies across that authorization's validity period, and cannot
+exceed or change the currency of the Gate A cap. It is an authorization limit,
+not a guaranteed provider-side billing stop. Never select a cheaper option by
+weakening required identity, encryption, secrets handling, input validation,
+isolation, recovery, logging, or evidence controls.
 
 ### Sustainability
 
@@ -391,7 +432,7 @@ allowed only when the concern genuinely cannot apply; blank values, `TODO`,
 | Identity/security boundary | TODO |
 | Environment/Region | TODO |
 | Failure/recovery | TODO |
-| Cost ceiling | TODO |
+| Cost posture | TODO (exactly `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED` or the owner's `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; `USD 20.00` is only an example) |
 | Intake provenance | TODO |
 
 When the recommendation becomes `READY_WITH_PROPOSED_ASSUMPTIONS` or
@@ -412,6 +453,7 @@ a requirements revision.
 | Approver | TODO |
 | Owner decision | `PENDING` / `CHANGES_REQUESTED` / `APPROVED` / `STALE` |
 | Authorized requirements revision | TODO |
+| Authorized cost posture | TODO (must exactly match the approved Gate A readiness card) |
 | Explicitly accepted assumption IDs | TODO / `NONE` |
 | Explicitly rejected assumption IDs and resolution | TODO / `NONE` |
 | Authorization provided at | TODO (ISO 8601 with timezone) |
@@ -426,6 +468,7 @@ values substituted:
 ```text
 APPROVE REQUIREMENTS GATE A
 Requirements revision: <REQ-nnnn>
+Cost posture: <exact-Gate-A-cost-posture>
 Accepted assumptions: <assumption-IDs-or-NONE>
 Approver: <name/handle>
 ```
@@ -452,7 +495,9 @@ Gate A is valid only when all of the following are true:
 4. No finding or decision marked blocking remains open.
 5. The agent recommendation is `READY_WITH_PROPOSED_ASSUMPTIONS` or
    `READY_FOR_OWNER_APPROVAL`.
-6. The owner decision is `APPROVED` for that exact revision.
+6. The owner decision is `APPROVED` for that exact revision and exact cost
+   posture. The receipt, owner record, readiness card, and `bootstrap.yaml` must
+   all contain the same normalized cost posture.
 7. Every proposed assumption required to proceed is explicitly accepted by ID,
    or the requirement is revised so that the assumption is no longer needed.
 8. The authorization source and verbatim owner receipt are present and agree
@@ -497,21 +542,41 @@ it implements.
 
 ## 14. Architecture overview
 
+For a greenfield application, evaluate a secure managed serverless baseline
+first. Prefer the smallest pay-per-use design that meets the requirements,
+minimizes idle infrastructure and operational burden, and preserves clear
+identity, data, failure, and observability boundaries. This is a design
+hypothesis, not a mandate. Record why a non-serverless option is better when
+current AWS evidence shows a material latency, sustained-utilization, service
+limit, networking, compliance, portability, or total-cost advantage. Define
+measurable expansion triggers instead of provisioning future capacity early.
+
 ```mermaid
 flowchart LR
-    User[User or system actor]
-    Edge[Entry point]
-    App[Application or API]
-    Async[Async processing]
-    Data[(Data stores)]
-    Obs[Observability]
+    subgraph External["External trust boundary"]
+        Actor[User or system actor]
+        ExternalDependency[Optional external dependency]
+    end
 
-    User --> Edge --> App
+    subgraph AWS["Approved AWS account, Region, and environment"]
+        Entry[Managed entry point]
+        Identity[Identity and authorization]
+        App[Application compute]
+        Queue[Optional queue]
+        Worker[Optional worker]
+        Data[(Authoritative encrypted data)]
+        Obs[Logs, metrics, traces, and alarms]
+    end
+
+    Actor --> Entry --> Identity --> App
     App --> Data
-    App --> Async
-    Async --> Data
+    App -. When asynchronous work is required .-> Queue
+    Queue -.-> Worker
+    Worker -.-> Data
+    App -. Approved call only .-> ExternalDependency
+    Entry --> Obs
     App --> Obs
-    Async --> Obs
+    Worker -.-> Obs
 ```
 
 Describe:
@@ -542,15 +607,21 @@ Put executable schemas in code. This section owns the architectural contract, no
 
 ```mermaid
 flowchart TD
-    Input[Validated input]
-    Active[(Active data)]
-    Archive[(Backup or archive)]
-    Deleted[Deletion or expiry]
+    Input[Received untrusted input]
+    Decision{Authorization and validation decision}
+    Rejected[Rejected input]
+    Active[(Encrypted active data)]
+    Retention[Approved retention period]
+    Backup[(Optional encrypted backup)]
+    Deleted[Approved deletion]
+    BackupExpiry[Backup expiry]
 
-    Input --> Active
-    Active --> Archive
-    Active --> Deleted
-    Archive --> Deleted
+    Input --> Decision
+    Decision -->|Denied or invalid| Rejected
+    Decision -->|Approved| Active
+    Active --> Retention --> Deleted
+    Active -. Only when recovery requirements justify it .-> Backup
+    Backup --> BackupExpiry
 ```
 
 Define:
@@ -572,16 +643,37 @@ Define:
 sequenceDiagram
     actor User
     participant Client
+    participant Identity
     participant API
+    participant Queue as Optional queue
     participant Worker
     participant Data
+    participant Telemetry
 
     User->>Client: Request outcome
-    Client->>API: Authenticated request
-    API->>Data: Validate or persist
-    API->>Worker: Optional asynchronous work
-    Worker->>Data: Idempotent update
-    API-->>Client: Accepted or completed response
+    Client->>API: Request with untrusted input and identity context
+    opt Sign-in required
+        API->>Identity: Verify identity
+        Identity-->>API: Claims or denial
+    end
+    API->>API: Authorize, validate, and apply idempotency
+    alt Request rejected
+        API->>Telemetry: Rejection outcome and correlation ID
+        API-->>Client: Safe rejection
+    else Request approved
+        alt Bounded asynchronous work is required
+            API->>Queue: Enqueue approved work with idempotency key
+            Queue->>Worker: Deliver work
+            Worker->>Data: Persist approved data
+            Worker->>Telemetry: Completion and correlation ID
+            API-->>Client: Accepted response with correlation ID
+        else Synchronous completion
+            API->>Data: Persist approved data
+            Data-->>API: Result
+            API->>Telemetry: Outcome and correlation ID
+            API-->>Client: Completed response with correlation ID
+        end
+    end
     Client-->>User: Safe result
 ```
 
@@ -593,17 +685,22 @@ sequenceDiagram
     participant Service
     participant Dependency
     participant Recovery
+    participant Telemetry
 
     Caller->>Service: Request
-    Service->>Dependency: Bounded call
-    Dependency--xService: Failure
+    Service->>Dependency: Call with explicit timeout
+    Dependency--xService: Timeout or failure
     Service->>Service: Classify failure
-    alt Retryable
+    alt Retry is safe and attempts remain
         Service->>Dependency: Bounded retry
-    else Terminal
+        Dependency-->>Service: Result or final failure
+    else Durable recovery is required
         Service->>Recovery: Record safe recovery work
-        Service-->>Caller: Safe terminal response
+    else No durable recovery is required
+        Service->>Service: Stop without retry
     end
+    Service->>Telemetry: Failure class, attempts, correlation ID, and alarm
+    Service-->>Caller: Safe terminal response with correlation ID
 ```
 
 Add workload-specific sequences for authentication, asynchronous processing, deployment, rollback, or other complex flows.
@@ -634,7 +731,11 @@ Define error taxonomy, safe messages, correlation IDs, retry ownership, timeout 
 | Secrets and encryption | TODO | TODO | TODO | TODO |
 
 Use the installed `aws-core` plugin from Agent Toolkit for AWS and current AWS
-primary documentation when completing this section.
+primary documentation when completing this section. Compare the secure
+serverless baseline with any proposed alternative using workload fit, required
+controls, expected low-usage cost, scaling breakpoints, operational ownership,
+and migration or expansion triggers. Cost never overrides a required security
+or recovery control.
 
 ## 21. Implementation boundaries and order
 
@@ -704,7 +805,7 @@ Add workload-specific properties for:
 - Local emulation or mocks: TODO
 - AWS test environment: TODO
 - Cleanup strategy: TODO
-- Cost limit for tests: TODO
+- Cost limit for billable deployed tests: TODO / `NOT_APPLICABLE — local or documentation-only validation`
 
 ## 26. Release acceptance
 
@@ -812,7 +913,7 @@ it, never undecided.
 | AWS stack or application | TODO / `NOT_APPLICABLE — <reason>` |
 | AWS resource allowlist | TODO / `NOT_APPLICABLE — <reason>` |
 | AWS allowed operations | TODO / `NOT_APPLICABLE — <reason>` |
-| AWS cost ceiling | TODO / `NOT_APPLICABLE — <reason>` |
+| AWS cost ceiling | TODO (finite positive ISO-currency amount such as `USD: 20.00`) / `NOT_APPLICABLE — <reason>` |
 | AWS prohibited operations | TODO / `NOT_APPLICABLE — <reason>` |
 | AWS artifact authorization and provenance | `EXACT_DIGEST: sha256:<64 lowercase hex>` / `DERIVED_FROM_AUTHORIZED_SOURCE: SHA-256 from baseline <full authorized commit>; <deterministic rule>` / `NOT_APPLICABLE — <reason>` |
 | AWS rollback boundary | TODO / `NOT_APPLICABLE — <reason>` |

@@ -20,10 +20,21 @@ from typing import Sequence
 PLACEHOLDERS = {
     "My AWS Project": "AWS Codex Project",
     "{{AWS_REGION}}": "us-west-2",
-    "{{MONTHLY_BUDGET}}": "$50/month",
+    "{{COST_POSTURE}}": "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
     "{{SETUP_METHOD}}": "EXTERNAL_COPY",
     "{{SETUP_STATUS}}": "CONFIGURED",
 }
+DEFAULT_COST_POSTURE = "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED"
+COST_POSTURE_WITH_CAP = re.compile(
+    r"MINIMIZE_TOTAL_COST; HARD_CAP: (?P<currency>[A-Z]{3}) "
+    r"(?P<amount>[1-9]\d*(?:\.\d{1,2})?)"
+)
+# Current ISO 4217 List One currency and fund codes, excluding the testing
+# code XTS and no-currency code XXX. The static allowlist keeps bootstrap
+# validation deterministic and dependency-free.
+ISO_4217_CURRENCY_CODES = frozenset(
+    """AED AFN ALL AMD AOA ARS AUD AWG AZN BAM BBD BDT BHD BIF BMD BND BOB BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW CLF CLP CNY COP COU CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MXV MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD SHP SLE SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD USN UYI UYU UYW UZS VED VES VND VUV WST XAD XAF XAG XAU XBA XBB XBC XBD XCD XCG XDR XOF XPD XPF XPT XSU XUA YER ZAR ZMW ZWG""".split()
+)
 
 SKIP_NAMES = {".git", "__pycache__"}
 SKIP_SUFFIXES = {".zip", ".pyc"}
@@ -33,6 +44,7 @@ NO_RENDER_PATHS = {
     "bootstrap.manifest.json",
     "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
+    "scripts/uv_setup_assistant.py",
     "scripts/task_waves.py",
 }
 NO_RENDER_PREFIXES = ("tests/",)
@@ -48,6 +60,7 @@ CORE_CONTROL_PATHS = {
     "bootstrap.yaml",
     "prompts/CODEX-PROMPTS.md",
     "scripts/bootstrap_doctor.py",
+    "scripts/uv_setup_assistant.py",
     "scripts/task_waves.py",
 }
 ADOPTION_ACTIONS = {"PRESERVE", "ADOPT_TEMPLATE", "STAGE_FOR_MERGE"}
@@ -55,6 +68,7 @@ RUNTIME_CONTROL_PATHS = {
     "bootstrap.py",
     "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
+    "scripts/uv_setup_assistant.py",
     "scripts/task_waves.py",
 }
 RFC3339_PATTERN = re.compile(
@@ -335,6 +349,10 @@ def validate_template_control_hashes(source: Path) -> None:
 def validate_repository_dependencies(source: Path) -> None:
     """Fail before setup when pinned skills, agents, or AWS Core metadata drift."""
 
+    # The validator is executable code. Bind every runtime control to the
+    # manifest before starting that helper so drift cannot execute first and be
+    # detected only by a later in-place or copy-path check.
+    validate_template_control_hashes(source)
     script = source / "scripts" / "bootstrap_dependencies.py"
     if script.is_symlink() or not script.is_file():
         raise ValueError("Bootstrap dependency validator is missing or unsafe")
@@ -1095,9 +1113,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--project-name", required=True, help="Human-readable project name")
     parser.add_argument("--region", default="us-west-2", help="Primary AWS Region")
     parser.add_argument(
+        "--cost-posture",
         "--budget",
-        default="$50/month",
-        help='Monthly cost ceiling, for example "$50/month"',
+        dest="cost_posture",
+        default=DEFAULT_COST_POSTURE,
+        help=(
+            "Canonical planning posture; use MINIMIZE_TOTAL_COST; HARD_CAP: "
+            "USD 20.00 only when the owner supplied that real limit"
+        ),
     )
     parser.add_argument(
         "--in-place-template-instance",
@@ -1137,9 +1160,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     values = dict(PLACEHOLDERS)
     values["My AWS Project"] = args.project_name
     values["{{AWS_REGION}}"] = args.region
-    values["{{MONTHLY_BUDGET}}"] = args.budget
+    values["{{COST_POSTURE}}"] = args.cost_posture
 
     try:
+        if args.cost_posture != DEFAULT_COST_POSTURE:
+            cost_match = COST_POSTURE_WITH_CAP.fullmatch(args.cost_posture)
+            if cost_match is None:
+                raise ValueError(
+                    "--cost-posture must be MINIMIZE_TOTAL_COST; "
+                    "HARD_CAP_NOT_STATED or preserve the owner's exact value "
+                    "as MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00"
+                )
+            if cost_match.group("currency") not in ISO_4217_CURRENCY_CODES:
+                raise ValueError(
+                    "--cost-posture currency must be a current ISO 4217 "
+                    "List One code"
+                )
         validate_repository_dependencies(source)
         if args.in_place_template_instance:
             if target != source:
@@ -1209,8 +1245,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("Next steps:")
     print("1. Run: python scripts/bootstrap_doctor.py --root .")
     print("2. Open this repository in Codex and send: init template")
-    print("3. If prompted, use /plugins and then invoke @AWS Core to verify it.")
-    print("4. Use START GUIDED INTAKE only after BOOT-00 returns it.")
+    print("3. If uv is missing, follow BOOT-00's owner-run uv instructions.")
+    print("4. Follow BOOT-00's owner-run Codex, /plugins, and hook instructions.")
+    print("5. Use START GUIDED INTAKE only after BOOT-00 returns it.")
     return 0
 
 

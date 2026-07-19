@@ -13,7 +13,7 @@
         "sha": "36f16570de2015c0f0ce94ba9e391bd703c9ffb7"
       },
       "policy": {
-        "installation": "INSTALLED_BY_DEFAULT",
+        "installation": "AVAILABLE",
         "authentication": "ON_INSTALL"
       },
       "category": "Cloud"

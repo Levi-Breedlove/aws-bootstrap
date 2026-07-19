@@ -131,7 +131,7 @@ def approve_gate_a(text: str) -> str:
         "Identity/security boundary": "`Local development identity; no public access`",
         "Environment/Region": "`Development; us-west-2`",
         "Failure/recovery": "`Fail closed; local rollback to baseline`",
-        "Cost ceiling": "`No authenticated AWS spend`",
+        "Cost posture": "`MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`",
         "Intake provenance": "`owner message MSG-000`",
     }
     for field, value in gate_a_card.items():
@@ -146,6 +146,7 @@ def approve_gate_a(text: str) -> str:
         "Approver": "alice",
         "Owner decision": "`APPROVED`",
         "Authorized requirements revision": "`REQ-0001`",
+        "Authorized cost posture": "`MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`",
         "Explicitly accepted assumption IDs": "`NONE`",
         "Authorization provided at": "`2026-07-17T10:00:00-07:00`",
         "Authorization source": "`owner message MSG-001`",
@@ -167,6 +168,7 @@ def approve_gate_a(text: str) -> str:
             [
                 "APPROVE REQUIREMENTS GATE A",
                 "Requirements revision: REQ-0001",
+                "Cost posture: MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
                 "Accepted assumptions: NONE",
                 "Approver: alice",
             ]
@@ -347,7 +349,7 @@ def current_greenfield_state(state: dict[str, object], *, gate_b: bool = False) 
         {
             "name": "Doctor Test Project",
             "region": "us-west-2",
-            "development_budget": "$20/month",
+            "cost_posture": "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
             "mode": "greenfield",
             "delivery_profile": "quick-mvp",
             "effective_risk": "low",
@@ -451,7 +453,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             {
                 "My AWS Project": "Doctor Test Project",
                 "{{AWS_REGION}}": "us-west-2",
-                "{{MONTHLY_BUDGET}}": "$20/month",
+                "{{COST_POSTURE}}": "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
             }
         )
         for relative in manifest["required_files"]:
@@ -999,6 +1001,7 @@ class BootstrapDoctorTests(unittest.TestCase):
                     [
                         "APPROVE REQUIREMENTS GATE A",
                         "Requirements revision: REQ-0001",
+                        "Cost posture: MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
                         "Accepted assumptions: ASM-001, ASM-999",
                         "Approver: alice",
                     ]
@@ -1100,6 +1103,7 @@ class BootstrapDoctorTests(unittest.TestCase):
                     [
                         "APPROVE REQUIREMENTS GATE A",
                         "Requirements revision: REQ-0001",
+                        "Cost posture: MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
                         "Accepted assumptions: ASM-002, ASM-001",
                         "Approver: alice",
                     ]
@@ -1264,6 +1268,25 @@ class BootstrapDoctorTests(unittest.TestCase):
             prd_path.write_text(rebind_gate_b_envelope(text), encoding="utf-8")
             valid_mutation_report = doctor.inspect_project(project)
 
+            text = set_table_value(
+                prd_path.read_text(encoding="utf-8"),
+                "## 28. Construction envelope",
+                "## 29. Gate B owner authorization record",
+                "AWS cost ceiling",
+                "`unlimited`",
+            )
+            prd_path.write_text(rebind_gate_b_envelope(text), encoding="utf-8")
+            invalid_cost_report = doctor.inspect_project(project)
+
+            text = set_table_value(
+                prd_path.read_text(encoding="utf-8"),
+                "## 28. Construction envelope",
+                "## 29. Gate B owner authorization record",
+                "AWS cost ceiling",
+                "`USD: 20.00`",
+            )
+            prd_path.write_text(rebind_gate_b_envelope(text), encoding="utf-8")
+
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["project"]["aws_lane"] = "explicit-gate"
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -1301,13 +1324,106 @@ class BootstrapDoctorTests(unittest.TestCase):
         validity_messages = "\n".join(
             item["message"] for item in validity_report["diagnostics"]
         )
+        invalid_cost_messages = "\n".join(
+            item["message"] for item in invalid_cost_report["diagnostics"]
+        )
         self.assertIn("must be NON_PRODUCTION", production_messages)
         self.assertIn("EXACT_DIGEST", artifact_messages)
         self.assertIn("Expires at <ISO8601>", validity_messages)
+        self.assertIn("finite positive currency amount", invalid_cost_messages)
+        self.assertEqual(invalid_cost_report["authorizations"]["aws"], "NONE")
         self.assertNotIn("GATE_B_ENVELOPE", codes(valid_mutation_report))
         self.assertNotIn("AWS_LANE_BOUNDARY", codes(valid_mutation_report))
         self.assertNotIn("GATE_B_ENVELOPE", codes(explicit_gate_report))
         self.assertNotIn("AWS_LANE_BOUNDARY", codes(explicit_gate_report))
+
+    def test_cost_posture_and_mutation_ceiling_are_canonical_and_bounded(self) -> None:
+        self.assertIsNone(
+            doctor.parse_cost_posture(
+                "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED"
+            )
+        )
+        currency, amount = doctor.parse_cost_posture(
+            "MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00"
+        )
+        self.assertEqual(currency, "USD")
+        self.assertEqual(str(amount), "20.00")
+        doctor.validate_aws_cost_ceiling(
+            "USD: 20.00",
+            "MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00",
+        )
+        for invalid in (
+            "unlimited",
+            "HARD_CAP_NOT_STATED",
+            "-1",
+            "NaN",
+            "Infinity",
+            "20.00",
+            "usd: 20.00",
+            "USD: 0",
+            "USD: 20.000",
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "finite positive"):
+                    doctor.validate_aws_cost_ceiling(
+                        invalid,
+                        "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
+                    )
+        for invalid_currency in ("ZZZ: 20.00", "XTS: 20.00", "XXX: 20.00"):
+            with self.subTest(invalid_currency=invalid_currency):
+                with self.assertRaisesRegex(ValueError, "current ISO 4217"):
+                    doctor.validate_aws_cost_ceiling(
+                        invalid_currency,
+                        "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
+                    )
+        with self.assertRaisesRegex(ValueError, "current ISO 4217"):
+            doctor.parse_cost_posture(
+                "MINIMIZE_TOTAL_COST; HARD_CAP: ZZZ 20.00"
+            )
+        self.assertEqual(
+            bootstrap_runtime.ISO_4217_CURRENCY_CODES,
+            doctor.ISO_4217_CURRENCY_CODES,
+        )
+        with self.assertRaisesRegex(ValueError, "currency must match"):
+            doctor.validate_aws_cost_ceiling(
+                "EUR: 10.00",
+                "MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00",
+            )
+        with self.assertRaisesRegex(ValueError, "exceeds"):
+            doctor.validate_aws_cost_ceiling(
+                "USD: 20.01",
+                "MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00",
+            )
+
+    def test_gate_a_receipt_binds_exact_owner_cost_posture(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            self.approve_project(project, gate_b=False)
+
+            prd_path = project / "docs/project/PRD.md"
+            text = set_table_value(
+                prd_path.read_text(encoding="utf-8"),
+                "### Gate A — readiness card",
+                "### Gate A — owner acceptance record",
+                "Cost posture",
+                "`MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00`",
+            )
+            prd_path.write_text(text, encoding="utf-8")
+
+            state_path = project / "bootstrap.yaml"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["project"]["cost_posture"] = (
+                "MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00"
+            )
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+
+            report = doctor.inspect_project(project)
+
+        self.assertFalse(report["ok"])
+        self.assertIn("GATE_A_COST_AUTHORIZATION", codes(report))
+        self.assertIn("GATE_A_RECEIPT_MISMATCH", codes(report))
+        self.assertEqual(report["authorizations"]["aws"], "NONE")
+        self.assertEqual(report["next_prompt"], "STOP")
 
     def test_gate_b_hash_binds_every_envelope_row(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1553,8 +1669,8 @@ class BootstrapDoctorTests(unittest.TestCase):
                     "Brownfield Doctor Test",
                     "--region",
                     "us-west-2",
-                    "--budget",
-                    "$20/month",
+                    "--cost-posture",
+                    "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
                     "--in-place-template-instance",
                 ],
                 cwd=project,

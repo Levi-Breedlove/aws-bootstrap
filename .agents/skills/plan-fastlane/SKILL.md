@@ -18,7 +18,12 @@ description: Turn a rough AWS project idea or brownfield change into owner-appro
    time. Separate owner facts, repository facts, recommendations, proposed
    assumptions, and open decisions.
 4. Give requirements and assumptions stable IDs and make acceptance criteria
-   observable. Preserve the brownfield contract when applicable.
+   observable. Default to `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`; preserve
+   an owner-supplied cap's exact ISO currency and amount as
+   `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>` (for example,
+   `MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00`); ask for a
+   number only when the owner has a hard cap or a material decision requires
+   one. Preserve the brownfield contract when applicable.
 5. Use the read-only `fastlane-requirements-reviewer` for Gate A analysis and
    the read-only `fastlane-aws-advisor` when AWS feasibility or design facts
    are material. The coordinator remains the sole PRD and lifecycle writer.
@@ -26,12 +31,18 @@ description: Turn a rough AWS project idea or brownfield change into owner-appro
    affects requirements, a gate recommendation, or design. Record what was
    verified and any unavailable fact. Do not require AWS credentials and do
    not access an AWS account during planning.
-7. Let the agent populate analysis and readiness cards. Require the exact
-   current owner receipt for Gate A and Gate B; never accept assumptions or
-   approve either gate on the owner's behalf.
-8. Update only the files permitted by the active prompt and keep
+7. For greenfield design, evaluate a secure managed serverless baseline first.
+   Minimize total expected cost and idle resources, preserve required security
+   and recovery controls, compare scaling breakpoints, and record measurable
+   expansion triggers. Do not force serverless when verified workload fit says
+   otherwise.
+8. Let the agent populate analysis and readiness cards. Require the exact
+   current owner receipt for Gate A and Gate B; Gate A must bind the exact
+   readiness-card cost posture. Never accept assumptions or approve either gate
+   on the owner's behalf.
+9. Update only the files permitted by the active prompt and keep
    `bootstrap.yaml` as a derived mirror.
-9. Run the doctor after each coordinator checkpoint and return its next route.
+10. Run the doctor after each coordinator checkpoint and return its next route.
 
 Stop when a material owner choice is missing, a source conflicts, an approval
 is stale, or the proposed design or construction boundary exceeds the approved

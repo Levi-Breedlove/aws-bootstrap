@@ -22,11 +22,15 @@ description: Perform the Fastlane AWS read-only preflight, exactly authorized de
 5. Run `AWS-10` read-only first. Reconfirm the caller, account, role or profile,
    Region, environment, stack, resources, operations, cost, artifact, rollback,
    and expiration against the exact active record.
-6. Before `AWS-20`, prove the final infrastructure diff is completely contained
+6. Confirm expected low-usage cost, billing dimensions, scaling breakpoints,
+   alerts, and the exact mutation ceiling. Treat the ceiling as a maximum, not
+   a spending goal, and never weaken an approved security or recovery control
+   for savings.
+7. Before `AWS-20`, prove the final infrastructure diff is completely contained
    in that record. Serialize every mutation and checkpoint before and after it.
-7. Route deployed observation through `AWS-30`. Record only evidence actually
+8. Route deployed observation through `AWS-30`. Record only evidence actually
    observed from the named environment.
-8. Require the separate exact teardown receipt for `AWS-50`; preserve retained
+9. Require the separate exact teardown receipt for `AWS-50`; preserve retained
    data and verify residual resources read-only afterward.
 
 Stop on any identity, target, artifact, resource, operation, cost, validity, or
