@@ -300,8 +300,8 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertNotIn(forbidden_live_fallback, document)
 
         self.assertIn("PINNED_MARKETPLACE_UNAVAILABLE", boot)
-        self.assertIn(".agents/plugins/marketplace.json", self.root_readme)
-        self.assertIn("immutable AWS Core marketplace declaration", self.root_readme)
+        self.assertIn("AWS Core", self.root_readme)
+        self.assertIn("AWS Agent Toolkit", self.root_readme)
         self.assertIn("PINNED MARKETPLACE REQUIRED", boot)
         self.assertIn(
             "Expected AWS Core commit: "
@@ -324,7 +324,10 @@ class PromptPackContractTests(unittest.TestCase):
         for section in (gate_a, gate_b):
             self.assertIn("AWS mode:** DOCS_ONLY", section)
             self.assertRegex(section, r"AWS\s+Core unavailable")
-        self.assertIn("cannot approve either gate", self.root_readme)
+        self.assertIn(
+            "AWS Core cannot approve Gate A, Gate B, or an AWS change.",
+            self.root_readme,
+        )
 
     def test_receipts_require_complete_normalized_block_equality(self) -> None:
         self.assertIn("equal to this complete", self.prompts)
@@ -471,12 +474,7 @@ class PromptPackContractTests(unittest.TestCase):
             for phrase in rejected:
                 self.assertNotIn(phrase, document)
 
-        for document in (
-            self.root_readme,
-            self.agents,
-            self.prd,
-            self.prompts,
-        ):
+        for document in (self.agents, self.prd, self.prompts):
             self.assertRegex(
                 document,
                 r"A Quick MVP is one small, reversible development release",
@@ -485,6 +483,10 @@ class PromptPackContractTests(unittest.TestCase):
                 document,
                 r"An AWS lane describes planned access; it does not authorize a\s+change",
             )
+        self.assertIn(
+            "lowest practical total\ncost without weakening required safeguards",
+            self.root_readme,
+        )
 
         self.assertIn(
             "approved access succeeds and unapproved access is denied",
@@ -533,49 +535,28 @@ class PromptPackContractTests(unittest.TestCase):
         for phrase in (
             "init template",
             "https://github.com/Levi-Breedlove/aws-bootstrap/generate",
-            "Setup: THIS_REPOSITORY",
-            "Local Git setup: USE_EXISTING",
-            "Local Git setup: INIT_AND_BASELINE_COMMIT",
-            "Setup: ADOPT_EXISTING_REPOSITORY",
-            "instruction-only for Codex and AWS Core",
-            "codex plugin marketplace add .",
-            "uv_setup_assistant.py plan",
-            "AWS CODEX FASTLANE — READY",
-            "Classification: ACTIVE_GREENFIELD",
-            "Lifecycle: INTAKE_REQUIRED",
-            "Doctor: PASS",
-            "Next prompt: INTAKE-10",
-            "Fastlane skills: READY",
-            "Project agents: READY",
-            "AWS Toolkit marketplace: DECLARED_AND_PINNED",
-            "aws-core plugin: AVAILABLE",
-            "AWS Core hooks: APPROVED_AND_VERIFIED",
-            "AWS Core hook conflict review: PASS",
-            "AWS access: NOT USED",
-            "@AWS Core",
-            "VERIFY AWS CORE AND CONTINUE FASTLANE",
-            "retrieve_skill",
-            "search_documentation",
-            "https://docs.astral.sh/uv/getting-started/installation/",
+            "AWS Core",
+            "AWS Agent Toolkit",
+            "Template setup does not access or change an AWS account",
+            "asks short, plain-language questions",
+            "creates dependency-aware tasks",
+            "exact authorization",
         ):
             self.assertIn(phrase, self.root_readme)
         self.assertNotIn("npx -y @openai/codex", self.root_readme)
         for path in (
             "AGENTS.md",
+            "docs/project/",
             "PRD.md",
             "TASKS.md",
-            "VERIFY.md",
-            "RUNBOOK.md",
-            "bootstrap.manifest.json",
             ".agents/skills/",
-            "scripts/",
+            ".codex/agents/",
+            "prompts/CODEX-PROMPTS.md",
         ):
             self.assertIn(path, self.root_readme)
-        self.assertIn(
-            "python scripts/update_manifest.py --check",
-            self.root_readme,
-        )
-        self.assertLessEqual(len(self.root_readme.splitlines()), 220)
+        self.assertNotIn("codex plugin marketplace add", self.root_readme)
+        self.assertNotIn("uv_setup_assistant.py", self.root_readme)
+        self.assertLessEqual(len(self.root_readme.splitlines()), 90)
         self.assertFalse((REPOSITORY_ROOT / "my-project" / "README.md").exists())
 
     def test_boot_prompt_has_stable_template_first_contract(self) -> None:
@@ -769,27 +750,16 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("Do not manufacture a numeric ceiling for Gate A", requirements)
         self.assertIn("Cost posture: <exact current Gate A cost posture>", self.prompts)
 
-        for surface in (
-            self.root_readme,
-            self.agents,
-            self.prd,
-            design,
-            plan_skill,
-            aws_advisor,
-        ):
+        for surface in (self.agents, self.prd, design, plan_skill, aws_advisor):
             self.assertIn("serverless", surface.lower())
+        self.assertIn("pay-per-use serverless options", self.root_readme)
 
-        for surface in (
-            self.root_readme,
-            self.agents,
-            self.prd,
-            plan_skill,
-        ):
+        for surface in (self.agents, self.prd, plan_skill):
             self.assertIn("MINIMIZE_TOTAL_COST", surface)
 
-        self.assertRegex(
+        self.assertIn(
+            "lowest practical total\ncost without weakening required safeguards",
             self.root_readme,
-            r"Security\s+controls are\s+requirements, not cost tradeoffs",
         )
         self.assertIn("Never weaken one of those required controls", design)
         self.assertIn("measurable expansion or migration\ntriggers", design)

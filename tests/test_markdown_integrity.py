@@ -165,14 +165,13 @@ sequenceDiagram
 
     def test_readme_is_short_human_onboarding(self) -> None:
         readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertLessEqual(len(readme.splitlines()), 220)
+        self.assertLessEqual(len(readme.splitlines()), 90)
         for heading in (
-            "## What Fastlane does",
-            "## Start in three steps",
-            "## Set up AWS Core",
-            "## How the workflow runs",
-            "## Repository map",
-            "## Privacy and AWS safety",
+            "## Start",
+            "## What to expect",
+            "## Project files",
+            "## Safety",
+            "## Agent reference",
         ):
             self.assertIn(heading, readme)
         self.assertIn(
