@@ -31,6 +31,7 @@ SKIP_NAMES_CASEFOLD = {name.casefold() for name in SKIP_NAMES}
 NO_RENDER_PATHS = {
     "bootstrap.py",
     "bootstrap.manifest.json",
+    "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
     "scripts/task_waves.py",
 }
@@ -50,6 +51,7 @@ CORE_CONTROL_PATHS = {
 ADOPTION_ACTIONS = {"PRESERVE", "ADOPT_TEMPLATE", "STAGE_FOR_MERGE"}
 RUNTIME_CONTROL_PATHS = {
     "bootstrap.py",
+    "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
     "scripts/task_waves.py",
 }
@@ -318,6 +320,36 @@ def validate_template_control_hashes(source: Path) -> None:
         actual = sha256_bytes(path.read_bytes())
         if actual != expected:
             raise ValueError(f"Runtime control hash mismatch: {relative}")
+
+
+def validate_repository_dependencies(source: Path) -> None:
+    """Fail before setup when pinned skills, agents, or AWS Core metadata drift."""
+
+    script = source / "scripts" / "bootstrap_dependencies.py"
+    if script.is_symlink() or not script.is_file():
+        raise ValueError("Bootstrap dependency validator is missing or unsafe")
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script), "--root", str(source), "--json"],
+            cwd=source,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise ValueError(f"Bootstrap dependency validation could not run: {exc}") from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ValueError(
+            "Bootstrap dependency validation failed"
+            + (f": {detail}" if detail else "")
+        )
+    try:
+        report = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Bootstrap dependency validator returned invalid JSON") from exc
+    if not isinstance(report, dict) or report.get("status") != "READY":
+        raise ValueError("Bootstrap dependency validator did not report READY")
 
 
 def load_template_manifest(source: Path) -> dict[str, object]:
@@ -1098,6 +1130,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     values["{{MONTHLY_BUDGET}}"] = args.budget
 
     try:
+        validate_repository_dependencies(source)
         if args.in_place_template_instance:
             if target != source:
                 raise ValueError(

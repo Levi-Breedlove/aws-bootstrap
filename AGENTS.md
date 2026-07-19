@@ -4,6 +4,46 @@
 
 Build and operate **My AWS Project** according to the approved requirements and design in `PRD.md`.
 
+## Immediate template entrypoint
+
+When the owner says `init template`, `initialize template`, or `start Fastlane`,
+route immediately through the repo-scoped `launch-fastlane` skill and `BOOT-00`.
+Welcome the owner before asking questions:
+
+> Welcome to AWS Codex Fastlane. This template turns a rough AWS idea into
+> owner-approved requirements and a technical PRD, then lets Codex build inside
+> the exact boundary approved at Gate B. Setup checks tools and repository state
+> only; it does not access or change AWS.
+
+The short `init template` form means `THIS_REPOSITORY`. Use the existing local
+Git repository when present. When Git is absent, follow BOOT-00's safe local
+baseline behavior and stop if author identity or another precondition is
+missing. Brownfield adoption still requires the explicit target-path form.
+
+Before project questions or file changes, run:
+
+```text
+python scripts/bootstrap_dependencies.py --root . --json
+```
+
+The repository marketplace requests the official `aws-core` plugin from Agent
+Toolkit for AWS with `INSTALLED_BY_DEFAULT`, pinned to the immutable revision
+recorded in `.agents/plugins/marketplace.json`. Repo skills under
+`.agents/skills/` and project agents under `.codex/agents/` are discovered from
+this repository; do not copy them into a user's personal Codex directory.
+
+Plugin installation may require repository trust or platform approval, and a
+new Codex session is required before newly installed plugin capabilities are
+available. Treat `aws-core` as loaded only when the current session actually
+surfaces an AWS Core skill or AWS MCP tool. If it does not, return the exact
+BOOT-00 toolkit setup receipt and stop before intake. Never claim the plugin is
+ready merely because its marketplace entry exists.
+
+BOOT-00 does not configure AWS credentials or call AWS tools. Later planning
+uses AWS Core's unauthenticated documentation capability. Account access, when
+later required, is configured and validated only in the explicitly invoked AWS
+operating flow.
+
 ## How to use this guide
 
 The owner should be able to answer three questions without reading the agent
@@ -25,6 +65,16 @@ Codex loads this `AGENTS.md` automatically. The repo-scoped skills under
 `.agents/skills/` provide the canonical launch, planning, construction, and AWS
 operating procedures. Use `operate-fastlane-aws` only when the owner explicitly
 invokes it; the other three skills may route matching Fastlane work.
+
+The project-scoped agents are bounded advisors:
+
+- `fastlane-requirements-reviewer` checks requirements and Gate A readiness;
+- `fastlane-aws-advisor` verifies current AWS design facts through AWS Core;
+- `fastlane-evidence-reviewer` checks task boundaries and evidence claims.
+
+All three are read-only. The coordinator remains the sole writer of PRD.md,
+TASKS.md, VERIFY.md, RUNBOOK.md, lifecycle state, and GitHub state. Advisors
+never approve a human gate or authorize an AWS change.
 
 ## Sources of truth
 
@@ -199,25 +249,28 @@ Do not silently design around an unresolved contradiction.
 
 1. Read this file and every applicable nested `AGENTS.md`.
 2. Run or resume `BOOT-00` and determine greenfield or brownfield mode.
-3. Run `python scripts/bootstrap_doctor.py --root .` and stop on an unsafe or
+3. Run `python scripts/bootstrap_dependencies.py --root . --json`, require the
+   current session to expose AWS Core, and stop on a missing or altered
+   dependency.
+4. Run `python scripts/bootstrap_doctor.py --root .` and stop on an unsafe or
    inconsistent result.
-4. Determine feature-spec, bugfix-spec, or mixed mode.
-5. Use `INTAKE-10` and `REQ-10` to draft and analyze requirements.
-6. Stop for explicit owner approval at Gate A.
-7. Use `DESIGN-10` to complete architecture, data flow, error handling, and testing design.
-8. Stop for explicit owner approval at Gate B.
-9. Generate discrete tasks with `TASK-10` inside the approved envelope.
-10. Validate dependencies and structural waves with `scripts/task_waves.py`.
-11. Acquire one durable run coordinator before `BUILD-20`; treat an
+5. Determine feature-spec, bugfix-spec, or mixed mode.
+6. Use `INTAKE-10` and `REQ-10` to draft and analyze requirements.
+7. Stop for explicit owner approval at Gate A.
+8. Use `DESIGN-10` to complete architecture, data flow, error handling, and testing design.
+9. Stop for explicit owner approval at Gate B.
+10. Generate discrete tasks with `TASK-10` inside the approved envelope.
+11. Validate dependencies and structural waves with `scripts/task_waves.py`.
+12. Acquire one durable run coordinator before `BUILD-20`; treat an
     interrupted `RUNNING` state as recovery-required, not automatically resumable.
-12. Execute one task with `BUILD-10` or long-run safe groups with `BUILD-20`.
-13. Claim a task atomically before implementation; the claim increments its
+13. Execute one task with `BUILD-10` or long-run safe groups with `BUILD-20`.
+14. Claim a task atomically before implementation; the claim increments its
     persistent attempt count. Mark it `DONE` only after acceptance evidence.
-14. Record meaningful progress, blockers, deviations, and validation in the task log.
-15. Record produced evidence in `VERIFY.md` and update `RUNBOOK.md` only when repeatable procedures change.
-16. Synchronize GitHub only when the current Gate B envelope permits it; otherwise preserve `PENDING_SYNC`.
-17. Use read-only AWS preflight before any deployment and require a fully matching AWS authorization envelope for mutation.
-18. Create an ADR only for a consequential, difficult-to-reverse decision.
+15. Record meaningful progress, blockers, deviations, and validation in the task log.
+16. Record produced evidence in `VERIFY.md` and update `RUNBOOK.md` only when repeatable procedures change.
+17. Synchronize GitHub only when the current Gate B envelope permits it; otherwise preserve `PENDING_SYNC`.
+18. Use read-only AWS preflight before any deployment and require a fully matching AWS authorization envelope for mutation.
+19. Create an ADR only for a consequential, difficult-to-reverse decision.
 
 Release state is exactly `NOT_READY`, `READY_TO_DEPLOY`, or
 `RELEASE_VERIFIED`. RELEASE-10 alone changes it. AWS-10 accepts only
@@ -440,19 +493,27 @@ or AWS authorization requirements.
 
 ## AWS evidence and research
 
-- `aws-core` is optional during intake. Use it only when a current AWS fact
-  affects requirements feasibility.
-- During technical design or AWS operations, use applicable `aws-core`
-  capabilities and current primary AWS documentation to verify service
-  behavior, Region availability, IAM, quotas, networking, encryption, recovery,
-  and cost.
-- If `aws-core` is unavailable, planning may continue only with the limitation
-  recorded and without asserting an unverified current AWS fact. AWS operations
-  stop until the required capability and current evidence are available.
+- A Fastlane session is setup-ready only when the current session exposes the
+  pinned official `aws-core` plugin. The marketplace entry alone is not proof
+  that the plugin loaded.
+- Use AWS Core whenever a current AWS fact affects requirements feasibility,
+  either gate recommendation, technical design, or AWS operations. Verify
+  service behavior, Region availability, IAM, quotas, networking, encryption,
+  recovery, observability, and cost with current primary AWS documentation.
+- Requirements intake may collect owner facts before every AWS question is
+  answered, but Gate A must not receive a ready recommendation while a material
+  AWS feasibility fact remains unverified. Gate B always requires the current
+  AWS design checks applicable to its proposed boundary.
+- If AWS Core disappears or a required capability fails after setup, stop the
+  affected gate or AWS operation, record the missing check, and route through
+  BOOT-00 dependency recovery. Do not substitute model memory.
 - Do not rely on memory for IAM, quotas, networking, service behavior,
   encryption, recovery, cost, or deployment guidance.
 - Distinguish recommendations from verified repository facts.
 - Distinguish local evidence from deployed AWS evidence.
+- AWS Core and the read-only project agents advise the coordinator. Only the
+  human owner can approve Gate A or Gate B, and only an exact current AWS record
+  can authorize a later mutation.
 
 ## AWS mutation safety
 

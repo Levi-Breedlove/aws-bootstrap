@@ -15,8 +15,20 @@ and its
 [checksum](https://github.com/Levi-Breedlove/aws-bootstrap/releases/download/v1.0.0/aws-codex-fastlane-bootstrap.zip.sha256)
 provide the same working bootstrap as a downloadable recovery artifact.
 
-For a repository created with **Use this template**, open the repository root
-in Codex and send:
+Open the repository root in the Codex desktop app or Codex CLI, trust the
+repository when prompted, and send:
+
+```text
+init template
+```
+
+That short message is the normal entrypoint. Fastlane welcomes you, checks its
+repo-scoped skills and project agents, confirms that the pinned official AWS
+Core plugin is loaded, inspects the repository, and then asks only for project
+name, preferred AWS Region, and development budget.
+
+For a repository created with **Use this template**, the equivalent explicit
+form is:
 
 ```text
 START AWS CODEX FASTLANE
@@ -24,7 +36,9 @@ Setup: THIS_REPOSITORY
 Local Git setup: USE_EXISTING
 ```
 
-For an extracted release ZIP, send:
+For an extracted release ZIP, `init template` safely creates a local Git
+baseline when Git is absent and author identity is already configured. The
+equivalent explicit form is:
 
 ```text
 START AWS CODEX FASTLANE
@@ -32,9 +46,29 @@ Setup: THIS_REPOSITORY
 Local Git setup: INIT_AND_BASELINE_COMMIT
 ```
 
-Codex asks for the project name, preferred AWS Region, and development budget
-in one short round. Setup changes only the untouched template placeholders,
-runs the read-only doctor, and does not contact AWS.
+Setup changes only untouched template placeholders and runs read-only checks.
+It may download the exact pinned `aws-core` plugin from the official AWS Agent
+Toolkit repository. It does not configure AWS credentials, inspect an AWS
+account, or authorize an AWS change.
+
+### First-session AWS Core setup
+
+The repo marketplace at `.agents/plugins/marketplace.json` declares AWS Core as
+`INSTALLED_BY_DEFAULT` from an immutable official AWS commit. The four Fastlane
+skills and three read-only project agents are already stored in the repository
+and are discovered by Codex; they are not copied into a personal Codex folder.
+The current dependency is AWS Core `1.1.0` at Agent Toolkit commit
+[`36f16570`](https://github.com/aws/agent-toolkit-for-aws/commit/36f16570de2015c0f0ce94ba9e391bd703c9ffb7).
+See the official [Agent Toolkit product page](https://aws.amazon.com/products/developer-tools/agent-toolkit-for-aws/),
+[plugin guide](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/plugins.html),
+and [Codex plugin documentation](https://learn.chatgpt.com/docs/plugins).
+
+New plugin capabilities load only when a Codex session starts. If the first
+`init template` request cannot see AWS Core yet, Fastlane returns `TOOLKIT SETUP
+REQUIRED` with one next action: approve or confirm AWS Core in `/plugins` if
+prompted, start a new Codex session in the same repository, and send `init
+template` again. Fastlane does not continue to intake or claim AWS assistance
+until the current session can actually observe the plugin.
 
 ## The complete path
 
@@ -70,6 +104,12 @@ Lifecycle: INTAKE_REQUIRED
 Doctor: PASS
 Next prompt: INTAKE-10
 Git baseline: <commit>
+Fastlane skills: READY
+Project agents: READY
+AWS Toolkit marketplace: READY
+aws-core plugin: AVAILABLE
+AWS MCP documentation: READY
+AWS credentials: NOT CHECKED
 AWS access: NOT USED
 Gate A: BLOCKED
 Gate B: BLOCKED
@@ -93,6 +133,8 @@ or AWS action may continue until it is reconciled.
 - After Gate B, Codex creates the task graph and continues through normal local
   work without task-by-task approval.
 - AWS credentials are not needed for setup, intake, design, or local work.
+- AWS Core supports requirements feasibility and design decisions with current
+  AWS documentation. It advises Codex; it cannot approve Gate A or Gate B.
 - AWS changes require an approved record naming the account, Region,
   environment, resources, operations, cost limit, rollback plan, and
   expiration. A credential or connected tool is never that approval.
@@ -112,6 +154,8 @@ or AWS action may continue until it is reconciled.
 ├── bootstrap.manifest.json   # Exact template inventory and control hashes
 ├── bootstrap.py              # Initialization and brownfield adoption
 ├── .agents/skills/           # Repo-scoped Fastlane workflows
+├── .agents/plugins/          # Pinned official AWS Core marketplace entry
+├── .codex/agents/            # Read-only planning and evidence advisors
 ├── app/AGENTS.md             # Application-specific rules
 ├── infrastructure/AGENTS.md  # Infrastructure-specific rules
 ├── tests/AGENTS.md           # Verification rules
@@ -127,7 +171,7 @@ shows the files most users need to understand.
 
 | Machine-enforced | Context-dependent agent work |
 |---|---|
-| Template inventory, hashes, and release bytes | Which understandable follow-up question is most useful |
+| Template inventory, dependency pin, skills, agents, hashes, and release bytes | Which understandable follow-up question is most useful |
 | Setup classification and lifecycle route | Recommended architecture and explained tradeoffs |
 | Gate revision and approval validity | Implementation choices inside the approved design |
 | Task dependency, claim, checkpoint, and ready-state rules | How independent approved tasks are divided |
@@ -136,6 +180,11 @@ shows the files most users need to understand.
 
 The model’s prose is intentionally human. Decisions, permissions, transitions,
 and evidence are checked by the runtime rather than inferred from prose.
+
+AWS Core adds current AWS knowledge and tools to the session; it does not make
+the gates automatic. The requirements reviewer and AWS advisor may challenge a
+proposal, but only the owner approves Gate A and Gate B. The evidence reviewer
+may identify a mismatch, but the coordinator remains the only ledger writer.
 
 ## Delivery choices
 
@@ -174,6 +223,7 @@ map. Blanket overwrite remains disabled.
 ## Verify or resume locally
 
 ```bash
+python scripts/bootstrap_dependencies.py --root .
 python scripts/bootstrap_doctor.py --root .
 python scripts/bootstrap_doctor.py --root . --json
 python scripts/task_waves.py TASKS.md --ready

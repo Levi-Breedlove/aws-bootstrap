@@ -24,6 +24,9 @@ This template and generated projects should prove that:
 - invalid or oversized input is rejected at the boundary;
 - IAM permits only required actions;
 - sensitive data uses approved encryption;
+- AWS Core is loaded only from the official Agent Toolkit repository revision
+  pinned in the validated repo marketplace; a changed source or revision stops
+  bootstrap dependency validation;
 - deployment and teardown remain inside the named account, Region,
   environment, resource, operation, cost, rollback, and expiration boundary.
 

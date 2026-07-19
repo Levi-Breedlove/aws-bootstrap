@@ -123,6 +123,39 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("START AWS CODEX BOOTSTRAP", self.prompts)
         self.assertIn("START GUIDED INTAKE", self.prompts)
 
+    def test_plain_language_init_welcomes_and_checks_aws_core_before_intake(self) -> None:
+        boot = self.prompt_section("BOOT-00")
+        launch_skill = (
+            PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8")
+        for phrase in ("init template", "initialize template", "start Fastlane"):
+            self.assertIn(phrase, boot)
+            self.assertIn(phrase, launch_skill)
+            self.assertIn(phrase, self.agents)
+        self.assertIn("Welcome to AWS Codex Fastlane", boot)
+        self.assertIn("bootstrap_dependencies.py", boot)
+        self.assertIn("AWS CODEX FASTLANE — TOOLKIT SETUP REQUIRED", boot)
+        self.assertIn("aws-core plugin: RESTART REQUIRED", boot)
+        self.assertIn("AWS credentials: NOT CHECKED", boot)
+        self.assertIn("AWS access: NOT USED", boot)
+        self.assertIn("AWS authorization: NONE", boot)
+        self.assertIn("or model memory as proof that plugin capabilities loaded", boot)
+
+    def test_aws_core_advises_both_gates_without_becoming_authority(self) -> None:
+        requirements = self.prompt_section("REQ-10")
+        gate_a = self.prompt_section("INTAKE-20")
+        design = self.prompt_section("DESIGN-10")
+        gate_b = self.prompt_section("DESIGN-20")
+        self.assertIn("fastlane-requirements-reviewer", requirements)
+        for section in (requirements, design):
+            self.assertIn("fastlane-aws-advisor", section)
+            self.assertIn("AWS Core", section)
+            self.assertIn("only writer", section)
+        for section in (gate_a, gate_b):
+            self.assertIn("AWS mode:** DOCS_ONLY", section)
+            self.assertRegex(section, r"AWS\s+Core unavailable")
+        self.assertIn("only the owner approves Gate A and Gate B", self.root_readme)
+
     def test_receipts_require_complete_normalized_block_equality(self) -> None:
         self.assertIn("equal to this complete", self.prompts)
         self.assertIn("after trimming surrounding whitespace", self.prompts)
@@ -327,6 +360,7 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertNotIn("| Gate | You approve |", self.root_readme)
 
     def test_template_first_readme_sets_complete_user_expectations(self) -> None:
+        self.assertIn("init template", self.root_readme)
         self.assertIn(
             "https://github.com/Levi-Breedlove/aws-bootstrap/generate",
             self.root_readme,
@@ -341,6 +375,10 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("Doctor: PASS", self.root_readme)
         self.assertIn("Next prompt: INTAKE-10", self.root_readme)
         self.assertIn("AWS access: NOT USED", self.root_readme)
+        self.assertIn("Fastlane skills: READY", self.root_readme)
+        self.assertIn("Project agents: READY", self.root_readme)
+        self.assertIn("AWS Toolkit marketplace: READY", self.root_readme)
+        self.assertIn("aws-core plugin: AVAILABLE", self.root_readme)
         self.assertIn("## What is deterministic and what uses agent judgment", self.root_readme)
         for path in (
             "AGENTS.md",

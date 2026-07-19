@@ -1,6 +1,6 @@
 interface:
   display_name: "Launch Fastlane"
   short_description: "Initialize or resume a Fastlane project"
-  default_prompt: "Use $launch-fastlane to initialize or resume this AWS Codex Fastlane repository."
+  default_prompt: "Use $launch-fastlane to init template, welcome me, verify AWS Core, and route this Fastlane repository."
 policy:
   allow_implicit_invocation: true

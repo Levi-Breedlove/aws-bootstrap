@@ -108,6 +108,26 @@ class PackageReleaseTests(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(setup.returncode, 0, setup.stdout + setup.stderr)
+            dependencies = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/bootstrap_dependencies.py",
+                    "--root",
+                    str(project),
+                    "--json",
+                ],
+                cwd=project,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                dependencies.returncode,
+                0,
+                dependencies.stdout + dependencies.stderr,
+            )
+            dependency_report = json.loads(dependencies.stdout)
+            self.assertEqual(dependency_report["status"], "READY")
             doctor = subprocess.run(
                 [
                     sys.executable,

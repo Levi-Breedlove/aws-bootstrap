@@ -61,6 +61,7 @@ CANONICAL_PLACEHOLDERS = {
     "{{SETUP_STATUS}}",
 }
 MANDATORY_REQUIRED_FILES = {
+    ".agents/plugins/marketplace.json",
     ".github/ISSUE_TEMPLATE/aws-vertical-slice.yml",
     ".github/ISSUE_TEMPLATE/bugfix.yml",
     ".github/ISSUE_TEMPLATE/waf-risk.yml",
@@ -70,6 +71,9 @@ MANDATORY_REQUIRED_FILES = {
     ".agents/skills/launch-fastlane/SKILL.md",
     ".agents/skills/operate-fastlane-aws/SKILL.md",
     ".agents/skills/plan-fastlane/SKILL.md",
+    ".codex/agents/fastlane-aws-advisor.toml",
+    ".codex/agents/fastlane-evidence-reviewer.toml",
+    ".codex/agents/fastlane-requirements-reviewer.toml",
     "AGENTS.md",
     "BUGFIX.md",
     "LICENSE",
@@ -87,6 +91,7 @@ MANDATORY_REQUIRED_FILES = {
     "infrastructure/AGENTS.md",
     "prompts/CODEX-PROMPTS.md",
     "scripts/bootstrap_doctor.py",
+    "scripts/bootstrap_dependencies.py",
     "scripts/task_waves.py",
     "tests/AGENTS.md",
 }
@@ -248,6 +253,7 @@ AWS_DETAIL_FIELDS = {
 }
 CONTROL_HASH_FILES = {
     "bootstrap.py",
+    "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
     "scripts/task_waves.py",
 }
