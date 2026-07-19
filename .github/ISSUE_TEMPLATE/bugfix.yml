@@ -1,5 +1,5 @@
 name: Bugfix
-description: Track a defect analyzed in BUGFIX.md
+description: Track a defect analyzed in docs/project/BUGFIX.md
 title: "[BUG] "
 labels:
   - type:bug
@@ -44,7 +44,7 @@ body:
   - type: textarea
     id: tasks
     attributes:
-      label: TASKS.md references
+      label: docs/project/TASKS.md references
       placeholder: TASK-004, TASK-005
 
   - type: textarea

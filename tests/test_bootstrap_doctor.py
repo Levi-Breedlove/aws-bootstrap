@@ -13,6 +13,13 @@ from pathlib import Path, PurePosixPath
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = REPOSITORY_ROOT
+TEMPLATE_SOURCE_MODE = "{{SETUP_STATUS}}" in (
+    REPOSITORY_ROOT / "bootstrap.yaml"
+).read_text(encoding="utf-8")
+source_template_only = unittest.skipUnless(
+    TEMPLATE_SOURCE_MODE,
+    "maintainer source-integrity test is not applicable after project configuration",
+)
 
 
 def load_module(name: str, path: Path):
@@ -222,7 +229,7 @@ def approve_gate_b(text: str, *, baseline: str = "a" * 40) -> str:
         "Protected dirty paths": "`NONE`",
         "In-scope components and environments": "`app and tests in development`",
         "Allowed repository write set": "`PATHS: app/**; tests/**`",
-        "Excluded or owner-only write set": "`PATHS: PRD.md; bootstrap.yaml`",
+        "Excluded or owner-only write set": "`PATHS: docs/project/PRD.md; bootstrap.yaml`",
         "Allowed external-state targets": "`NONE`",
         "Task boundary": "`DERIVED_FROM_AUTHORIZED_IDS_AND_WRITE_SET`",
         "Autonomous construction": "`ALLOWED`",
@@ -448,7 +455,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             }
         )
         for relative in manifest["required_files"]:
-            if relative in bootstrap_runtime.NO_RENDER_PATHS:
+            if not bootstrap_runtime.should_render_path(relative):
                 continue
             path = project.joinpath(*PurePosixPath(relative).parts)
             rendered = bootstrap_runtime.rendered_bytes(path, values, render=True)
@@ -473,7 +480,7 @@ class BootstrapDoctorTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout.strip()
-        prd_path = project / "PRD.md"
+        prd_path = project / "docs/project/PRD.md"
         text = approve_gate_a(prd_path.read_text(encoding="utf-8"))
         if gate_b:
             text = approve_gate_b(text, baseline=baseline)
@@ -483,7 +490,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         current_greenfield_state(state, gate_b=gate_b)
         state_path.write_text(json.dumps(state), encoding="utf-8")
         if gate_b:
-            tasks_path = project / "TASKS.md"
+            tasks_path = project / "docs/project/TASKS.md"
             tasks_path.write_text(
                 current_task_snapshot(
                     tasks_path.read_text(encoding="utf-8"), baseline=baseline
@@ -498,7 +505,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         state["execution"]["plan_state"] = "CURRENT"
         state["execution"]["attempts"] = {"TASK-001": 0}
         state_path.write_text(json.dumps(state), encoding="utf-8")
-        tasks_path = project / "TASKS.md"
+        tasks_path = project / "docs/project/TASKS.md"
         text = tasks_path.read_text(encoding="utf-8").replace(
             "| Task-plan revision | `UNINITIALIZED` |",
             "| Task-plan revision | `PLAN-0001` |",
@@ -514,7 +521,7 @@ class BootstrapDoctorTests(unittest.TestCase):
     def pause_project_at_real_checkpoint(self, project: Path) -> str:
         """Create a coherent paused checkpoint with coordinator ledgers dirty."""
 
-        subprocess.run(["git", "-C", str(project), "add", "PRD.md"], check=True)
+        subprocess.run(["git", "-C", str(project), "add", "docs/project/PRD.md"], check=True)
         subprocess.run(
             ["git", "-C", str(project), "commit", "-qm", "approve gate b prd"],
             check=True,
@@ -544,13 +551,13 @@ class BootstrapDoctorTests(unittest.TestCase):
                 "last_checkpoint": {
                     "id": "CP-0001",
                     "at": "2026-07-17T12:00:00-07:00",
-                    "evidence_ref": "VERIFY.md#cp-0001",
+                    "evidence_ref": "docs/project/VERIFY.md#cp-0001",
                 },
             }
         )
         state_path.write_text(json.dumps(state), encoding="utf-8")
 
-        tasks_path = project / "TASKS.md"
+        tasks_path = project / "docs/project/TASKS.md"
         text = tasks_path.read_text(encoding="utf-8")
         for field, value in {
             "Run state": "`PAUSED`",
@@ -577,7 +584,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         text = text.replace("\n\nTo resume,", "\n" + checkpoint + "\nTo resume,", 1)
         tasks_path.write_text(text, encoding="utf-8")
 
-        verify_path = project / "VERIFY.md"
+        verify_path = project / "docs/project/VERIFY.md"
         verify_path.write_text(
             verify_path.read_text(encoding="utf-8")
             + "\n\n### CP-0001\n\nCheckpoint receipt recorded.\n",
@@ -585,6 +592,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         )
         return known_green
 
+    @source_template_only
     def test_template_source_is_coherent_and_routes_to_intake(self) -> None:
         report = doctor.inspect_project(PROJECT_ROOT, template_source=True)
 
@@ -627,6 +635,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         }
         self.assertEqual(after, before)
 
+    @source_template_only
     def test_active_project_rejects_unresolved_placeholders(self) -> None:
         report = doctor.inspect_project(PROJECT_ROOT)
 
@@ -637,7 +646,7 @@ class BootstrapDoctorTests(unittest.TestCase):
     def test_missing_manifest_file_is_reported(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
-            (project / "PRD.md").unlink()
+            (project / "docs/project/PRD.md").unlink()
 
             report = doctor.inspect_project(project)
 
@@ -650,9 +659,9 @@ class BootstrapDoctorTests(unittest.TestCase):
             project = self.copy_project(root)
             outside = root / "outside.md"
             outside.write_text("not a PRD", encoding="utf-8")
-            (project / "PRD.md").unlink()
+            (project / "docs/project/PRD.md").unlink()
             try:
-                os.symlink(outside, project / "PRD.md")
+                os.symlink(outside, project / "docs/project/PRD.md")
             except OSError as exc:
                 self.skipTest(f"Symbolic links unavailable: {exc}")
 
@@ -688,7 +697,7 @@ class BootstrapDoctorTests(unittest.TestCase):
                 }
             )
             state_path.write_text(json.dumps(state), encoding="utf-8")
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = prd_path.read_text(encoding="utf-8")
             for field, value in {
                 "Project mode": "`greenfield`",
@@ -732,7 +741,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = prd_path.read_text(encoding="utf-8")
             text = text.replace("Approver: alice\n```\n<!-- bootstrap:gate-b", "Approver: mallory\n```\n<!-- bootstrap:gate-b")
             prd_path.write_text(text, encoding="utf-8")
@@ -748,7 +757,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["execution"]["plan_revision"] = "PLAN-0001"
             state_path.write_text(json.dumps(state), encoding="utf-8")
-            tasks_path = project / "TASKS.md"
+            tasks_path = project / "docs/project/TASKS.md"
             text = tasks_path.read_text(encoding="utf-8").replace(
                 "| Task-plan revision | `UNINITIALIZED` |",
                 "| Task-plan revision | `PLAN-0001` |",
@@ -790,7 +799,7 @@ class BootstrapDoctorTests(unittest.TestCase):
     def test_fenced_fake_task_is_not_parsed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
-            tasks_path = project / "TASKS.md"
+            tasks_path = project / "docs/project/TASKS.md"
             tasks_path.write_text(
                 tasks_path.read_text(encoding="utf-8")
                 + """
@@ -812,7 +821,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             fake = """```markdown
 ## 28. Construction envelope
 
@@ -845,7 +854,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             "Run state": "NOT_STARTED",
             "Active run ID": "NONE",
         }
-        ledger = (PROJECT_ROOT / "TASKS.md").read_text(encoding="utf-8")
+        ledger = (PROJECT_ROOT / "docs/project/TASKS.md").read_text(encoding="utf-8")
         task = ready_task()
         cases = {
             "duplicate singleton metadata": ledger + task.replace(
@@ -875,7 +884,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             "Run state": "NOT_STARTED",
             "Active run ID": "NONE",
         }
-        ledger = (PROJECT_ROOT / "TASKS.md").read_text(encoding="utf-8")
+        ledger = (PROJECT_ROOT / "docs/project/TASKS.md").read_text(encoding="utf-8")
         done = (
             ready_task()
             .replace("- Status: `READY`", "- Status: `DONE`", 1)
@@ -886,7 +895,7 @@ class BootstrapDoctorTests(unittest.TestCase):
 
 | Evidence ID | Task | Command or observation | Result | Actor | Observed at | Commit / worktree / artifact | Durable source | Status |
 |---|---|---|---|---|---|---|---|---|
-| EV-0001 | TASK-001 | python -m unittest | passed | alice | 2026-07-17T12:00:00-07:00 | commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | VERIFY.md#ev-0001 | LOCAL_PASS |
+| EV-0001 | TASK-001 | python -m unittest | passed | alice | 2026-07-17T12:00:00-07:00 | commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | docs/project/VERIFY.md#ev-0001 | LOCAL_PASS |
 """
         with self.assertRaisesRegex(ValueError, "observed Execution log"):
             doctor.validate_task_records(ledger + done, snapshot, valid_verify)
@@ -896,7 +905,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             "2026-07-17T12:00:00-07:00 coordinator observed validation pass.",
             1,
         )
-        stock_verify = (PROJECT_ROOT / "VERIFY.md").read_text(encoding="utf-8")
+        stock_verify = (PROJECT_ROOT / "docs/project/VERIFY.md").read_text(encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "wrong task|placeholder evidence|LOCAL_PASS"):
             doctor.validate_task_records(ledger + observed, snapshot, stock_verify)
 
@@ -909,7 +918,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             "| EV-0002 | TASK-001 | python -m unittest integration | passed | alice | "
             "2026-07-17T12:01:00-07:00 | "
             "commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | "
-            "VERIFY.md#ev-0002 | VERIFIED |\n"
+            "docs/project/VERIFY.md#ev-0002 | VERIFIED |\n"
         )
         doctor.validate_task_records(ledger + multi_done, snapshot, multi_verify)
 
@@ -919,7 +928,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         doctor.validate_task_records(ledger + mixed_url, snapshot, valid_verify)
 
         traversal_source = valid_verify.replace(
-            "VERIFY.md#ev-0001", "artifact: a/../b", 1
+            "docs/project/VERIFY.md#ev-0001", "artifact: a/../b", 1
         )
         with self.assertRaisesRegex(ValueError, "durable source"):
             doctor.validate_task_records(ledger + observed, snapshot, traversal_source)
@@ -960,7 +969,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project, gate_b=False)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = prd_path.read_text(encoding="utf-8")
             text = set_table_value(
                 text,
@@ -1020,7 +1029,7 @@ class BootstrapDoctorTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = approve_gate_a(prd_path.read_text(encoding="utf-8"))
             text = set_table_value(
                 text,
@@ -1046,7 +1055,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 29. Gate B owner authorization record",
@@ -1068,7 +1077,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project, gate_b=False)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = prd_path.read_text(encoding="utf-8")
             text = set_table_value(
                 text,
@@ -1106,7 +1115,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 28. Construction envelope",
@@ -1124,7 +1133,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 28. Construction envelope",
@@ -1141,7 +1150,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = prd_path.read_text(encoding="utf-8")
             text = set_table_value(
                 text, "## Document status", "## 1. Workload profile", "AWS lane", "`fast-dev`"
@@ -1176,7 +1185,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             state["project"]["aws_lane"] = "fast-dev"
             state_path.write_text(json.dumps(state), encoding="utf-8")
 
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = prd_path.read_text(encoding="utf-8")
             text = set_table_value(
                 text, "## Document status", "## 1. Workload profile", "AWS lane", "`fast-dev`"
@@ -1304,7 +1313,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 28. Construction envelope",
@@ -1323,7 +1332,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 28. Construction envelope",
@@ -1341,7 +1350,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project, gate_b=False)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "### Gate A — readiness card",
@@ -1358,7 +1367,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "### Gate B — readiness card",
@@ -1375,7 +1384,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "### Gate B — readiness card",
@@ -1392,7 +1401,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 28. Construction envelope",
@@ -1426,7 +1435,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 28. Construction envelope",
@@ -1447,7 +1456,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 28. Construction envelope",
@@ -1477,7 +1486,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = prd_path.read_text(encoding="utf-8")
             for field, value in {
                 "GitHub boundary": "`ISSUES`",
@@ -1517,7 +1526,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
                 project = self.copy_project(Path(directory))
                 self.approve_project(project)
-                prd_path = project / "PRD.md"
+                prd_path = project / "docs/project/PRD.md"
                 text = set_table_value(
                     prd_path.read_text(encoding="utf-8"),
                     "## 28. Construction envelope",
@@ -1566,7 +1575,7 @@ class BootstrapDoctorTests(unittest.TestCase):
                 }
             )
             state_path.write_text(json.dumps(state), encoding="utf-8")
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = prd_path.read_text(encoding="utf-8")
             for field, value in {
                 "Project mode": "`brownfield`",
@@ -1615,7 +1624,7 @@ class BootstrapDoctorTests(unittest.TestCase):
     def test_uninitialized_snapshot_is_still_structurally_validated(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
-            tasks_path = project / "TASKS.md"
+            tasks_path = project / "docs/project/TASKS.md"
             text = tasks_path.read_text(encoding="utf-8").replace(
                 "| Maximum workers | `1` |\n", "", 1
             )
@@ -1668,7 +1677,7 @@ class BootstrapDoctorTests(unittest.TestCase):
     def test_current_gate_b_and_checkpoint_states_require_real_git_history(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             prd_path.write_text(
                 approve_gate_b(approve_gate_a(prd_path.read_text(encoding="utf-8"))),
                 encoding="utf-8",
@@ -1677,7 +1686,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             current_greenfield_state(state, gate_b=True)
             state_path.write_text(json.dumps(state), encoding="utf-8")
-            tasks_path = project / "TASKS.md"
+            tasks_path = project / "docs/project/TASKS.md"
             tasks_path.write_text(
                 current_task_snapshot(tasks_path.read_text(encoding="utf-8")),
                 encoding="utf-8",
@@ -1691,7 +1700,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))
             self.approve_project(project)
-            prd_path = project / "PRD.md"
+            prd_path = project / "docs/project/PRD.md"
             text = set_table_value(
                 prd_path.read_text(encoding="utf-8"),
                 "## 28. Construction envelope",
@@ -1700,7 +1709,7 @@ class BootstrapDoctorTests(unittest.TestCase):
                 "`ffffffffffffffffffffffffffffffffffffffff`",
             )
             prd_path.write_text(rebind_gate_b_envelope(text), encoding="utf-8")
-            tasks_path = project / "TASKS.md"
+            tasks_path = project / "docs/project/TASKS.md"
             tasks_path.write_text(
                 set_table_value(
                     tasks_path.read_text(encoding="utf-8"),
@@ -1725,7 +1734,7 @@ class BootstrapDoctorTests(unittest.TestCase):
 
             paused_report = doctor.inspect_project(project)
 
-            tasks_path = project / "TASKS.md"
+            tasks_path = project / "docs/project/TASKS.md"
             tasks_text = tasks_path.read_text(encoding="utf-8")
             prefixed_evidence = tasks_text.replace(
                 "- Evidence: `NONE`", "- Evidence: `EV-0001`", 1
@@ -1741,7 +1750,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             wrong_attempt_report = doctor.inspect_project(project)
             tasks_path.write_text(tasks_text, encoding="utf-8")
 
-            verify_path = project / "VERIFY.md"
+            verify_path = project / "docs/project/VERIFY.md"
             verify_text = verify_path.read_text(encoding="utf-8")
             verify_path.write_text(
                 verify_text.replace("CP-0001", "CP-9999")

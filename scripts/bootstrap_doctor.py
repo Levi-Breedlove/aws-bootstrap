@@ -23,8 +23,12 @@ from typing import Any
 
 STATE_FILE = "bootstrap.yaml"
 MANIFEST_FILE = "bootstrap.manifest.json"
-PRD_FILE = "PRD.md"
-TASKS_FILE = "TASKS.md"
+PROJECT_DOCUMENT_DIRECTORY = "docs/project"
+BUGFIX_FILE = f"{PROJECT_DOCUMENT_DIRECTORY}/BUGFIX.md"
+PRD_FILE = f"{PROJECT_DOCUMENT_DIRECTORY}/PRD.md"
+RUNBOOK_FILE = f"{PROJECT_DOCUMENT_DIRECTORY}/RUNBOOK.md"
+TASKS_FILE = f"{PROJECT_DOCUMENT_DIRECTORY}/TASKS.md"
+VERIFY_FILE = f"{PROJECT_DOCUMENT_DIRECTORY}/VERIFY.md"
 PROMPT_FILE = "prompts/CODEX-PROMPTS.md"
 REQ_ID = re.compile(r"REQ-\d{4,}")
 DES_ID = re.compile(r"DES-\d{4,}")
@@ -75,14 +79,14 @@ MANDATORY_REQUIRED_FILES = {
     ".codex/agents/fastlane-evidence-reviewer.toml",
     ".codex/agents/fastlane-requirements-reviewer.toml",
     "AGENTS.md",
-    "BUGFIX.md",
+    BUGFIX_FILE,
     "LICENSE",
-    "PRD.md",
+    PRD_FILE,
     "README.md",
-    "RUNBOOK.md",
+    RUNBOOK_FILE,
     "SECURITY.md",
-    "TASKS.md",
-    "VERIFY.md",
+    TASKS_FILE,
+    VERIFY_FILE,
     "app/AGENTS.md",
     "bootstrap.manifest.json",
     "bootstrap.py",
@@ -257,7 +261,7 @@ CONTROL_HASH_FILES = {
     "scripts/bootstrap_doctor.py",
     "scripts/task_waves.py",
 }
-COORDINATOR_LEDGER_PATHS = {TASKS_FILE, "VERIFY.md", STATE_FILE}
+COORDINATOR_LEDGER_PATHS = {TASKS_FILE, VERIFY_FILE, STATE_FILE}
 AUTHORIZED_ID = re.compile(r"[A-Z][A-Z0-9_]*-\d+")
 ID_LIKE = re.compile(r"\b[A-Za-z][A-Za-z0-9_]*-\d+\b")
 GITHUB_CONSTRAINT = re.compile(
@@ -1474,7 +1478,7 @@ def validate_placeholders(ctx: Context) -> None:
         return
     excluded = {MANIFEST_FILE, "bootstrap.py", "scripts/bootstrap_doctor.py"}
     for relative, text in sorted(ctx.texts.items()):
-        if relative in excluded:
+        if relative in excluded or relative.startswith("tests/"):
             continue
         for token in sorted(CANONICAL_PLACEHOLDERS):
             if token in text:
@@ -3031,7 +3035,7 @@ def validate_tasks(
     if snapshot.get("Coordinator") != expected_coordinator:
         ctx.error("STATE_TASK_DRIFT", "Coordinator does not match bootstrap state", TASKS_FILE)
 
-    verify_text = ctx.texts.get("VERIFY.md") or safe_read_text(ctx, "VERIFY.md")
+    verify_text = ctx.texts.get(VERIFY_FILE) or safe_read_text(ctx, VERIFY_FILE)
     try:
         tasks, _by_id, ready = validate_task_records(text, snapshot, verify_text)
     except ValueError as exc:
@@ -3099,7 +3103,7 @@ def validate_tasks(
 
 
 def validate_release_decision(ctx: Context) -> str:
-    relative = "VERIFY.md"
+    relative = VERIFY_FILE
     text = ctx.texts.get(relative) or safe_read_text(ctx, relative)
     if text is None:
         return "NOT_READY"

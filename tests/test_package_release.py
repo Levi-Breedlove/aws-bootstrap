@@ -16,6 +16,13 @@ from unittest import mock
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "package_release.py"
+TEMPLATE_SOURCE_MODE = "{{SETUP_STATUS}}" in (
+    REPOSITORY_ROOT / "bootstrap.yaml"
+).read_text(encoding="utf-8")
+source_template_only = unittest.skipUnless(
+    TEMPLATE_SOURCE_MODE,
+    "maintainer source-integrity test is not applicable after project configuration",
+)
 SPEC = importlib.util.spec_from_file_location("package_release", SCRIPT_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError(f"Unable to load {SCRIPT_PATH}")
@@ -24,6 +31,17 @@ SPEC.loader.exec_module(package_release)
 
 
 class PackageReleaseTests(unittest.TestCase):
+    def test_active_project_documents_are_grouped_under_docs_project(self) -> None:
+        document_names = ("BUGFIX.md", "PRD.md", "RUNBOOK.md", "TASKS.md", "VERIFY.md")
+        manifest = json.loads(
+            (REPOSITORY_ROOT / "bootstrap.manifest.json").read_text(encoding="utf-8")
+        )
+        for name in document_names:
+            canonical = f"docs/project/{name}"
+            self.assertTrue((REPOSITORY_ROOT / canonical).is_file(), canonical)
+            self.assertIn(canonical, manifest["required_files"])
+            self.assertFalse((REPOSITORY_ROOT / name).exists(), name)
+
     def test_manifest_is_the_only_internal_version_source(self) -> None:
         manifest = json.loads(
             (REPOSITORY_ROOT / "bootstrap.manifest.json").read_text(
@@ -147,6 +165,7 @@ class PackageReleaseTests(unittest.TestCase):
             self.assertEqual(report["status"], "READY")
             self.assertEqual(report["next_prompt"], "INTAKE-10")
 
+    @source_template_only
     def test_manifest_hashes_are_current(self) -> None:
         manifest_check = subprocess.run(
             [sys.executable, "scripts/update_manifest.py", "--check"],

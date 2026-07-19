@@ -1,5 +1,7 @@
 # My AWS Project — Bugfix Specification
 
+Canonical path: `docs/project/BUGFIX.md`.
+
 Use this file for the active defect or regression. Archive or reset it after the fix is complete.
 
 ## 1. Summary
@@ -120,8 +122,8 @@ Do not present a hypothesis as confirmed root cause.
 - [ ] Relevant property-based tests pass
 - [ ] Security and failure paths are tested
 - [ ] Rollback path is understood
-- [ ] `VERIFY.md` is updated with produced evidence
-- [ ] `TASKS.md` and the GitHub Issue are synchronized
+- [ ] `docs/project/VERIFY.md` is updated with produced evidence
+- [ ] `docs/project/TASKS.md` and the GitHub Issue are synchronized
 
 ## 11. Task references
 

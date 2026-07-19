@@ -1,6 +1,6 @@
 # My AWS Project — Verification and Release Evidence
 
-`VERIFY.md` records observed proof, not plans or authorization. Gate A and Gate B
+`docs/project/VERIFY.md` records observed proof, not plans or authorization. Gate A and Gate B
 remain the only routine human gates. The checks below determine construction and
 release readiness inside the current approved envelope; they are not additional
 human gates.
@@ -164,7 +164,7 @@ or unknown state before continuing.
 
 This table proves which exact owner message was checked before an external
 mutation; it does not itself authorize an action or widen Gate B. The stable
-source must resolve to the complete verbatim receipt defined in RUNBOOK.md and
+source must resolve to the complete verbatim receipt defined in docs/project/RUNBOOK.md and
 the prompt pack.
 
 | Action | Authorization ID | Construction AUTH | Stable owner-message source | Observed at | Verbatim receipt SHA-256 | Preflight evidence | Identity and boundary match | Result |

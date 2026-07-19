@@ -22,12 +22,58 @@ class BootstrapDependencyTests(unittest.TestCase):
         report = dependencies.inspect_repository(REPOSITORY_ROOT)
         self.assertEqual(report["status"], "READY", report["diagnostics"])
         toolkit = report["aws_agent_toolkit"]
-        self.assertEqual(toolkit["marketplace"], "READY")
+        self.assertEqual(toolkit["marketplace"], "DECLARED_AND_PINNED")
         self.assertEqual(toolkit["installation_policy"], "INSTALLED_BY_DEFAULT")
         self.assertEqual(toolkit["aws_core_version"], "1.1.0")
         self.assertEqual(
             toolkit["commit"],
             "36f16570de2015c0f0ce94ba9e391bd703c9ffb7",
+        )
+        self.assertEqual(
+            toolkit["runtime_verification"],
+            {
+                "status": "NOT_CHECKED",
+                "management_command": "/plugins",
+                "plugin_invocation": "@AWS Core",
+                "required_capabilities": ["retrieve_skill", "search_documentation"],
+                "supported_surfaces": ["CHATGPT_DESKTOP_CODEX", "CODEX_CLI"],
+                "unsupported_surfaces": ["CODEX_IDE_EXTENSION"],
+                "automatic_client_installation": False,
+                "required_runtime_command": "uvx",
+                "runtime_package": "uv",
+                "automatic_runtime_installation": False,
+            },
+        )
+        self.assertEqual(
+            toolkit["hook_review"],
+            {
+                "status": "NOT_CHECKED",
+                "approval_required": True,
+                "management_command": "/hooks",
+                "trust_scope": "CURRENT_DEFINITION_HASH",
+                "expected_event": "PreToolUse",
+                "expected_matchers": [
+                    "Bash",
+                    "use_aws|mcp__aws.*|mcp__plugin_.*aws-mcp.*",
+                ],
+                "expected_command": (
+                    'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/secret-safety.py"'
+                ),
+                "expected_hooks_sha256": (
+                    "b1e46a5d755ca3d13e2cc0e5cc21f8bf26e6f4446424b82773ee2e0e90dfcd4b"
+                ),
+                "expected_script_sha256": (
+                    "01d517c5d45f09c010328114f970147848ac264179d96ed5a84aa51981e1341b"
+                ),
+                "required_runtime_command": "python3",
+                "purpose": "BLOCK_DIRECT_SECRETS_MANAGER_VALUE_FETCH",
+                "repository_hook_sources": [],
+                "repository_hook_status": "NONE_DECLARED",
+                "hooks_feature": "ENABLED_OR_DEFAULT",
+                "external_hook_inventory": "REQUIRED_AT_RUNTIME",
+                "automatic_hook_trust": False,
+                "dangerous_trust_bypass_allowed": False,
+            },
         )
         self.assertEqual(report["fastlane_skills"]["status"], "READY")
         self.assertEqual(report["project_agents"]["status"], "READY")
@@ -107,6 +153,35 @@ class BootstrapDependencyTests(unittest.TestCase):
         self.assertEqual(report["status"], "BLOCKED")
         self.assertIn(
             "FASTLANE_SKILL_INVALID",
+            {item["code"] for item in report["diagnostics"]},
+        )
+
+    def test_project_hook_sources_are_reported_for_runtime_conflict_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary) / "project"
+            shutil.copytree(REPOSITORY_ROOT, project)
+            path = project / ".codex" / "hooks.json"
+            path.write_text(
+                json.dumps({"hooks": {"PreToolUse": []}}), encoding="utf-8"
+            )
+            report = dependencies.inspect_repository(project)
+        hook_review = report["aws_agent_toolkit"]["hook_review"]
+        self.assertEqual(report["status"], "READY", report["diagnostics"])
+        self.assertEqual(hook_review["repository_hook_sources"], [".codex/hooks.json"])
+        self.assertEqual(
+            hook_review["repository_hook_status"], "ACTIVE_HOOK_REVIEW_REQUIRED"
+        )
+
+    def test_project_config_cannot_disable_required_hook_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary) / "project"
+            shutil.copytree(REPOSITORY_ROOT, project)
+            path = project / ".codex" / "config.toml"
+            path.write_text("[features]\nhooks = false\n", encoding="utf-8")
+            report = dependencies.inspect_repository(project)
+        self.assertEqual(report["status"], "BLOCKED")
+        self.assertIn(
+            "FASTLANE_HOOKS_DISABLED",
             {item["code"] for item in report["diagnostics"]},
         )
 

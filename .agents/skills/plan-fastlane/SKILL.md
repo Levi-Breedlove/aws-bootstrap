@@ -5,10 +5,12 @@ description: Turn a rough AWS project idea or brownfield change into owner-appro
 
 # Plan Fastlane
 
-1. Read the root `AGENTS.md`, current `PRD.md`, and only the canonical prompt
+1. Read the root `AGENTS.md`, current `docs/project/PRD.md`, and only the canonical prompt
    section named by the doctor.
-2. Run `python scripts/bootstrap_dependencies.py --root . --json` and confirm
-   the current session exposes AWS Core. Then run
+2. Run `python scripts/bootstrap_dependencies.py --root . --json` and require
+   the current task's explicit `@AWS Core` verification receipt with successful
+   `retrieve_skill` and `search_documentation` checks. A generic AWS
+   documentation connector is insufficient. Then run
    `python scripts/bootstrap_doctor.py --root . --json` before writing.
    Continue only through `INTAKE-10`, `REQ-10`, `INTAKE-20`, `DESIGN-10`, or
    `DESIGN-20` as returned.

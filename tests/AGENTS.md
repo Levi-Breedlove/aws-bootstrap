@@ -18,5 +18,5 @@ not create a false success. Never weaken an assertion merely to obtain a pass.
 - Use synthetic fixtures without real credentials, secrets, or personal data.
 - Make AWS tests safe, scoped, repeatable, and cost-aware.
 - Use mocks for local confidence, but do not treat mocks as deployed integration proof.
-- Record meaningful release evidence in `../VERIFY.md`.
+- Record meaningful release evidence in `../docs/project/VERIFY.md`.
 - Reference test suites or reports rather than listing every test case in Markdown.

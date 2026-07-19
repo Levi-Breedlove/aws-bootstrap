@@ -7,7 +7,7 @@ These instructions apply under `app/` and inherit the root `AGENTS.md`.
 Build only the approved application behavior. Keep access checks on the server,
 validate outside input, keep secrets out of code and logs, preserve approved
 interfaces, and prove the result with observable tests. The exact task boundary
-and completion evidence remain in `../TASKS.md` and `../VERIFY.md`.
+and completion evidence remain in `../docs/project/TASKS.md` and `../docs/project/VERIFY.md`.
 
 ## Agent reference — exact application rules
 
@@ -26,4 +26,4 @@ and completion evidence remain in `../TASKS.md` and `../VERIFY.md`.
 
 Run the application formatter, linter, type checker, tests, build, and relevant security checks before claiming completion.
 
-Do not repeat requirements or design here. Refer to `../PRD.md`. Execute work from `../TASKS.md`.
+Do not repeat requirements or design here. Refer to `../docs/project/PRD.md`. Execute work from `../docs/project/TASKS.md`.

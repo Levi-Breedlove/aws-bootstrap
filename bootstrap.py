@@ -35,12 +35,14 @@ NO_RENDER_PATHS = {
     "scripts/bootstrap_doctor.py",
     "scripts/task_waves.py",
 }
+NO_RENDER_PREFIXES = ("tests/",)
 CORE_CONTROL_PATHS = {
     "AGENTS.md",
-    "PRD.md",
-    "RUNBOOK.md",
-    "TASKS.md",
-    "VERIFY.md",
+    "docs/project/BUGFIX.md",
+    "docs/project/PRD.md",
+    "docs/project/RUNBOOK.md",
+    "docs/project/TASKS.md",
+    "docs/project/VERIFY.md",
     "bootstrap.manifest.json",
     "bootstrap.py",
     "bootstrap.yaml",
@@ -117,6 +119,14 @@ class AdoptionPlan:
 
 def sha256_bytes(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def should_render_path(relative: str) -> bool:
+    """Return whether project placeholders may be rendered in this file."""
+
+    return relative not in NO_RENDER_PATHS and not relative.startswith(
+        NO_RENDER_PREFIXES
+    )
 
 
 def canonical_adoption_plan_sha256(
@@ -535,7 +545,7 @@ def initialize_template_in_place(
     required = load_manifest_required_files(source)
     validate_template_control_hashes(source)
 
-    renderable = [relative for relative in required if relative not in NO_RENDER_PATHS]
+    renderable = [relative for relative in required if should_render_path(relative)]
     placeholder_bytes = [token.encode("utf-8") for token in PLACEHOLDERS]
     remaining = {
         relative
@@ -914,7 +924,7 @@ def copy_template(
         content = rendered_bytes(
             item,
             values,
-            render=relative not in NO_RENDER_PATHS,
+            render=should_render_path(relative),
         )
         template_digest = sha256_bytes(content)
         if destination.is_symlink() or (
@@ -1198,8 +1208,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     print()
     print("Next steps:")
     print("1. Run: python scripts/bootstrap_doctor.py --root .")
-    print("2. Paste BOOT-00 and START AWS CODEX BOOTSTRAP.")
-    print("3. Use START GUIDED INTAKE when BOOT-00 returns it.")
+    print("2. Open this repository in Codex and send: init template")
+    print("3. If prompted, use /plugins and then invoke @AWS Core to verify it.")
+    print("4. Use START GUIDED INTAKE only after BOOT-00 returns it.")
     return 0
 
 

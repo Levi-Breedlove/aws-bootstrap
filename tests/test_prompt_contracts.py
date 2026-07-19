@@ -43,16 +43,26 @@ CONTRACT_LABELS = [
     "Next",
 ]
 
+DEFAULT_PROJECT_DOC_MAX_BYTES = 32 * 1024
+RESERVED_GLOBAL_INSTRUCTION_HEADROOM_BYTES = 8 * 1024
+MAX_REPOSITORY_INSTRUCTION_CHAIN_BYTES = (
+    DEFAULT_PROJECT_DOC_MAX_BYTES - RESERVED_GLOBAL_INSTRUCTION_HEADROOM_BYTES
+)
+MAX_SKILL_DESCRIPTION_CHARACTERS = 320
+MAX_REPOSITORY_SKILL_INDEX_CHARACTERS = 1_200
+MAX_BOOT_PROMPT_BYTES = 32 * 1024
+MAX_PHASE_PROMPT_BYTES = 8 * 1024
+
 
 class PromptPackContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.prompts = PROMPT_PACK.read_text(encoding="utf-8")
-        cls.prd = (PROJECT_ROOT / "PRD.md").read_text(encoding="utf-8")
+        cls.prd = (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
         cls.agents = (PROJECT_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        cls.tasks = (PROJECT_ROOT / "TASKS.md").read_text(encoding="utf-8")
-        cls.runbook = (PROJECT_ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
-        cls.verify = (PROJECT_ROOT / "VERIFY.md").read_text(encoding="utf-8")
+        cls.tasks = (PROJECT_ROOT / "docs/project/TASKS.md").read_text(encoding="utf-8")
+        cls.runbook = (PROJECT_ROOT / "docs/project/RUNBOOK.md").read_text(encoding="utf-8")
+        cls.verify = (PROJECT_ROOT / "docs/project/VERIFY.md").read_text(encoding="utf-8")
         cls.security = (PROJECT_ROOT / "SECURITY.md").read_text(encoding="utf-8")
         cls.root_readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
 
@@ -64,6 +74,72 @@ class PromptPackContractTests(unittest.TestCase):
         match = pattern.search(self.prompts)
         self.assertIsNotNone(match, f"Missing section for {prompt_id}")
         return match.group(0) if match else ""
+
+    def test_repository_instruction_chains_leave_default_context_headroom(
+        self,
+    ) -> None:
+        agent_files = sorted(PROJECT_ROOT.rglob("AGENTS.md"))
+        self.assertGreater(len(agent_files), 0)
+
+        for agent_file in agent_files:
+            chain: list[Path] = []
+            directory = agent_file.parent
+            while True:
+                candidate = directory / "AGENTS.md"
+                if candidate.is_file():
+                    chain.append(candidate)
+                if directory == PROJECT_ROOT:
+                    break
+                self.assertIn(PROJECT_ROOT, directory.parents)
+                directory = directory.parent
+
+            chain_bytes = sum(len(path.read_bytes()) for path in chain)
+            self.assertLessEqual(
+                chain_bytes,
+                MAX_REPOSITORY_INSTRUCTION_CHAIN_BYTES,
+                (
+                    f"{agent_file.relative_to(PROJECT_ROOT)} instruction chain "
+                    f"uses {chain_bytes} bytes; keep at least "
+                    f"{RESERVED_GLOBAL_INSTRUCTION_HEADROOM_BYTES} bytes below "
+                    "Codex's default project_doc_max_bytes"
+                ),
+            )
+
+    def test_repository_skill_index_stays_compact(self) -> None:
+        descriptions: list[str] = []
+        for skill in sorted((PROJECT_ROOT / ".agents" / "skills").glob("*/SKILL.md")):
+            content = skill.read_text(encoding="utf-8")
+            match = re.search(r"(?m)^description:\s*(.+)$", content)
+            self.assertIsNotNone(match, skill)
+            description = match.group(1) if match else ""
+            self.assertLessEqual(
+                len(description),
+                MAX_SKILL_DESCRIPTION_CHARACTERS,
+                skill,
+            )
+            descriptions.append(description)
+
+        self.assertLessEqual(
+            sum(len(description) for description in descriptions),
+            MAX_REPOSITORY_SKILL_INDEX_CHARACTERS,
+        )
+
+    def test_individual_prompt_sections_stay_context_bounded(self) -> None:
+        for prompt_id in PROMPT_IDS:
+            section_bytes = len(self.prompt_section(prompt_id).encode("utf-8"))
+            limit = (
+                MAX_BOOT_PROMPT_BYTES
+                if prompt_id == "BOOT-00"
+                else MAX_PHASE_PROMPT_BYTES
+            )
+            self.assertLessEqual(
+                section_bytes,
+                limit,
+                (
+                    f"{prompt_id} uses {section_bytes} bytes; keep prompt "
+                    "instructions phase-scoped instead of loading the full pack"
+                ),
+            )
 
     def test_stable_prompt_ids_are_unique_and_ordered(self) -> None:
         positions: list[int] = []
@@ -134,12 +210,95 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn(phrase, self.agents)
         self.assertIn("Welcome to AWS Codex Fastlane", boot)
         self.assertIn("bootstrap_dependencies.py", boot)
-        self.assertIn("AWS CODEX FASTLANE — TOOLKIT SETUP REQUIRED", boot)
-        self.assertIn("aws-core plugin: RESTART REQUIRED", boot)
+        self.assertIn("AWS CODEX FASTLANE — SUPPORTED CODEX SURFACE REQUIRED", boot)
+        self.assertIn("Current Codex surface: IDE_EXTENSION", boot)
+        self.assertIn(
+            "AWS Core plugin management: UNAVAILABLE_ON_THIS_SURFACE", boot
+        )
+        self.assertIn(
+            "Next action: OPEN THIS REPOSITORY IN THE CHATGPT DESKTOP APP (CODEX) OR CODEX CLI",
+            boot,
+        )
+        self.assertIn("AWS CODEX FASTLANE — AWS CORE RUNTIME REQUIRED", boot)
+        self.assertIn("AWS Core runtime: UVX_MISSING", boot)
+        self.assertIn("Automatic runtime installation: NOT AUTHORIZED", boot)
+        self.assertIn("uvx --version", boot)
+        self.assertIn(
+            "https://docs.astral.sh/uv/getting-started/installation/", boot
+        )
+        self.assertIn("do not run `pipx install uv`", boot)
+        self.assertIn("AWS CODEX FASTLANE — AWS CORE HOOK RUNTIME REQUIRED", boot)
+        self.assertIn("AWS CODEX FASTLANE — AWS CORE HOOK REVIEW REQUIRED", boot)
+        self.assertIn("APPROVE AWS CORE HOOKS", boot)
+        self.assertIn("AWS CODEX FASTLANE — AWS CORE HOOKS APPROVED", boot)
+        self.assertIn("Trust: CURRENT_DEFINITION_HASH", boot)
+        self.assertIn("Active hook conflicts: NONE", boot)
+        self.assertIn("FASTLANE_SYNTHETIC_DO_NOT_USE", boot)
+        self.assertIn("FASTLANE_HOOK_ALLOW_PROBE", boot)
+        self.assertIn("Hook probes: PASS", boot)
+        self.assertIn("--dangerously-bypass-hook-trust", boot)
+        self.assertIn("AWS CODEX FASTLANE — AWS CORE SETUP REQUIRED", boot)
+        self.assertIn("AWS Toolkit marketplace: DECLARED_AND_PINNED", boot)
+        self.assertIn("aws-core plugin: MANAGEMENT_CHECK_REQUIRED", boot)
+        self.assertIn("Next action: OPEN `/plugins`", boot)
+        self.assertIn("@AWS Core\nVERIFY AWS CORE AND CONTINUE FASTLANE", boot)
+        self.assertIn("AWS CODEX FASTLANE — AWS CORE VERIFIED", boot)
+        self.assertIn("retrieve_skill: PASS", boot)
+        self.assertIn("search_documentation: PASS", boot)
         self.assertIn("AWS credentials: NOT CHECKED", boot)
         self.assertIn("AWS access: NOT USED", boot)
         self.assertIn("AWS authorization: NONE", boot)
-        self.assertIn("or model memory as proof that plugin capabilities loaded", boot)
+        self.assertRegex(boot, r"generic AWS\s+documentation connector")
+        self.assertIn("Do not probe for `pytest`", boot)
+        self.assertIn("Do not call `call_aws`", boot)
+        self.assertIn("`run_script`", boot)
+        self.assertIn("Do not download, launch, or install\nanother Codex client", boot)
+        self.assertNotIn("npx -y @openai/codex", boot)
+        self.assertIn("SUPPORTED CODEX SURFACE REQUIRED", launch_skill)
+        self.assertIn("Codex IDE extension", launch_skill)
+        self.assertIn("AWS CORE RUNTIME REQUIRED", launch_skill)
+        self.assertIn("uvx --version", launch_skill)
+        self.assertIn("Do not install a runtime automatically", launch_skill)
+        self.assertIn("AWS CORE HOOK RUNTIME REQUIRED", launch_skill)
+        self.assertIn("AWS CORE HOOK", launch_skill)
+        self.assertIn("--dangerously-bypass-hook-trust", launch_skill)
+        self.assertIn("Runtime installation requires a separate", self.agents)
+        self.assertIn("Only the owner may trust", self.agents)
+        self.assertNotIn("npx -y @openai/codex", launch_skill)
+        self.assertNotIn("AWS CODEX FASTLANE — TOOLKIT SETUP REQUIRED", boot)
+        self.assertLess(
+            boot.index("Complete the safe local initialization"),
+            boot.index("AWS CODEX FASTLANE — AWS CORE SETUP REQUIRED"),
+        )
+        self.assertLess(
+            boot.index("AWS CODEX FASTLANE — AWS CORE SETUP REQUIRED"),
+            boot.index("AWS CODEX FASTLANE — AWS CORE HOOK REVIEW REQUIRED"),
+        )
+        self.assertLess(
+            boot.index("AWS CODEX FASTLANE — AWS CORE HOOKS APPROVED"),
+            boot.index("AWS CODEX FASTLANE — AWS CORE VERIFIED"),
+        )
+
+    def test_aws_core_marketplace_fails_closed_on_the_immutable_pin(self) -> None:
+        boot = self.prompt_section("BOOT-00")
+        forbidden_live_fallback = (
+            "codex plugin marketplace add aws/agent-toolkit-for-aws"
+        )
+        for document in (boot, self.root_readme, self.agents):
+            self.assertNotIn(forbidden_live_fallback, document)
+
+        self.assertIn("PINNED_MARKETPLACE_UNAVAILABLE", self.root_readme)
+        self.assertIn("PINNED_MARKETPLACE_UNAVAILABLE", boot)
+        self.assertIn(".agents/plugins/marketplace.json", self.root_readme)
+        self.assertIn("moving upstream", self.root_readme)
+        self.assertIn("PINNED MARKETPLACE REQUIRED", boot)
+        self.assertIn(
+            "Expected AWS Core commit: "
+            "36f16570de2015c0f0ce94ba9e391bd703c9ffb7",
+            boot,
+        )
+        self.assertIn("Moving upstream fallback: PROHIBITED", boot)
+        self.assertIn(".agents/plugins/marketplace.json", boot)
 
     def test_aws_core_advises_both_gates_without_becoming_authority(self) -> None:
         requirements = self.prompt_section("REQ-10")
@@ -182,10 +341,10 @@ class PromptPackContractTests(unittest.TestCase):
         gate_b = self.prompt_section("DESIGN-20")
 
         self.assertIn("Gate A owner state to `PENDING_OWNER_APPROVAL`", requirements)
-        self.assertIn("TASKS.md's Active execution snapshot", requirements)
+        self.assertIn("docs/project/TASKS.md's Active execution snapshot", requirements)
         self.assertIn("Gate B state to\n`PENDING_OWNER_APPROVAL`", design)
         self.assertIn("maximum\nworkers, baseline, and protected dirty paths", design)
-        self.assertIn("TASKS.md Active execution snapshot", gate_b)
+        self.assertIn("docs/project/TASKS.md Active execution snapshot", gate_b)
         self.assertIn("APPROVED_FOR_CONSTRUCTION", gate_b)
         self.assertRegex(
             self.agents,
@@ -377,20 +536,68 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("AWS access: NOT USED", self.root_readme)
         self.assertIn("Fastlane skills: READY", self.root_readme)
         self.assertIn("Project agents: READY", self.root_readme)
-        self.assertIn("AWS Toolkit marketplace: READY", self.root_readme)
+        self.assertIn("AWS Toolkit marketplace: DECLARED_AND_PINNED", self.root_readme)
         self.assertIn("aws-core plugin: AVAILABLE", self.root_readme)
+        self.assertIn("AWS Core hooks: APPROVED_AND_VERIFIED", self.root_readme)
+        self.assertIn("AWS Core hook conflict review: PASS", self.root_readme)
+        self.assertIn("Next action: OPEN `/plugins`", self.root_readme)
+        self.assertIn(
+            "AWS CODEX FASTLANE — SUPPORTED CODEX SURFACE REQUIRED",
+            self.root_readme,
+        )
+        self.assertIn("Current Codex surface: IDE_EXTENSION", self.root_readme)
+        self.assertIn(
+            "plugins are not available in the Codex IDE extension",
+            self.root_readme,
+        )
+        self.assertIn(
+            "AWS CODEX FASTLANE — AWS CORE RUNTIME REQUIRED",
+            self.root_readme,
+        )
+        self.assertIn("AWS Core runtime: UVX_MISSING", self.root_readme)
+        self.assertIn(
+            "Automatic runtime installation: NOT AUTHORIZED",
+            self.root_readme,
+        )
+        self.assertIn(
+            "https://docs.aws.amazon.com/agent-toolkit/latest/userguide/quick-start.html",
+            self.root_readme,
+        )
+        self.assertIn(
+            "https://docs.astral.sh/uv/getting-started/installation/",
+            self.root_readme,
+        )
+        self.assertIn(
+            "AWS CODEX FASTLANE — AWS CORE HOOK REVIEW REQUIRED",
+            self.root_readme,
+        )
+        self.assertIn("APPROVE AWS CORE HOOKS", self.root_readme)
+        self.assertIn("Trust: CURRENT_DEFINITION_HASH", self.root_readme)
+        self.assertIn("Active hook conflicts: NONE", self.root_readme)
+        self.assertIn("Synthetic hook probes: PENDING", self.root_readme)
+        self.assertIn("Hook probes: PASS", self.root_readme)
+        self.assertIn("--dangerously-bypass-hook-trust", self.root_readme)
+        self.assertNotIn("npx -y @openai/codex", self.root_readme)
+        self.assertIn("@AWS Core", self.root_readme)
+        self.assertIn("VERIFY AWS CORE AND CONTINUE FASTLANE", self.root_readme)
+        self.assertIn("retrieve_skill: PASS", self.root_readme)
+        self.assertIn("search_documentation: PASS", self.root_readme)
         self.assertIn("## What is deterministic and what uses agent judgment", self.root_readme)
         for path in (
             "AGENTS.md",
-            "PRD.md",
-            "TASKS.md",
-            "VERIFY.md",
-            "RUNBOOK.md",
+            "docs/project/PRD.md",
+            "docs/project/TASKS.md",
+            "docs/project/VERIFY.md",
+            "docs/project/RUNBOOK.md",
             "bootstrap.manifest.json",
             ".agents/skills/",
             "scripts/",
         ):
             self.assertIn(path, self.root_readme)
+        self.assertIn(
+            "python scripts/update_manifest.py --check",
+            self.root_readme,
+        )
         self.assertFalse((REPOSITORY_ROOT / "my-project" / "README.md").exists())
 
     def test_boot_prompt_has_stable_template_first_contract(self) -> None:
@@ -413,6 +620,8 @@ class PromptPackContractTests(unittest.TestCase):
             "AWS authorization:",
         ):
             self.assertIn(field, boot)
+        self.assertIn("AWS Core hooks: APPROVED_AND_VERIFIED", boot)
+        self.assertIn("AWS Core hook conflict review: PASS", boot)
 
     def test_repo_scoped_skills_have_distinct_safe_trigger_contracts(self) -> None:
         implicit = {
