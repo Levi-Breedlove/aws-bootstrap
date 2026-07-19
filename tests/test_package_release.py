@@ -31,6 +31,41 @@ SPEC.loader.exec_module(package_release)
 
 
 class PackageReleaseTests(unittest.TestCase):
+    def test_ci_workflow_is_read_only_hosted_and_immutably_pinned(self) -> None:
+        workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+            encoding="utf-8"
+        )
+        checkout = (
+            "actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 "
+            "# v6.0.1"
+        )
+        setup_python = (
+            "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 "
+            "# v6.3.0"
+        )
+        action_uses = [
+            line.split("uses:", 1)[1].strip()
+            for line in workflow.splitlines()
+            if "uses:" in line
+        ]
+
+        self.assertEqual(
+            action_uses,
+            [checkout, setup_python, checkout, setup_python],
+        )
+        self.assertEqual(workflow.count("persist-credentials: false"), 2)
+        self.assertIn("permissions:\n  contents: read\n", workflow)
+        for forbidden in (
+            "self-hosted",
+            "secrets.",
+            "upload-artifact",
+            "pull_request_target",
+            "contents: write",
+            "actions: write",
+            "id-token: write",
+        ):
+            self.assertNotIn(forbidden, workflow)
+
     def test_active_project_documents_are_grouped_under_docs_project(self) -> None:
         document_names = ("BUGFIX.md", "PRD.md", "RUNBOOK.md", "TASKS.md", "VERIFY.md")
         manifest = json.loads(

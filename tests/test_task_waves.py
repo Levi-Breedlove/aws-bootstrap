@@ -353,8 +353,8 @@ class TaskWaveSafetyTests(unittest.TestCase):
 
             observed_state_path, _state = task_waves.read_bootstrap_state(tasks_path)
 
-            self.assertEqual(observed_state_path, state_path)
-            self.assertEqual(task_waves.project_root_for_tasks(tasks_path), root)
+            self.assertEqual(observed_state_path, state_path.resolve())
+            self.assertEqual(task_waves.project_root_for_tasks(tasks_path), root.resolve())
             self.assertEqual(
                 task_waves.coordinator_ledger_paths(tasks_path),
                 {

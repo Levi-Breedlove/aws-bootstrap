@@ -26,7 +26,7 @@
     ".github/ISSUE_TEMPLATE/bugfix.yml": "caf88324bf73a8bc97c823749b1486fa6861ec82ee2f25600f9ab8def7f47d3b",
     ".github/ISSUE_TEMPLATE/waf-risk.yml": "0d911d0ac9f71ee31df9d52b96a068e354e7fb86aabe8acad39b03d538dd50de",
     ".github/PULL_REQUEST_TEMPLATE.md": "c765bd55758d5710104c030282975848387be697c03c98602ba545f6441a9784",
-    ".github/workflows/ci.yml": "766c6c9a45114abb9a1ac688b4a83e10890d479d398f65fdfab8770198f0def7",
+    ".github/workflows/ci.yml": "0ed379ae7410752385c1388303dfd4846e32ebde886fd83ddb0269bfec163b53",
     ".gitignore": "3e4e34cb61ec59b2d82f6b68a62dd806662f705002e078050e74507f88134337",
     "AGENTS.md": "35b2cec0fbf4c325f083042a0e77a9580e7c8a1a58effffa57736d6a3c55c683",
     "LICENSE": "5293c851be403da449f4d6a2ba71702a8d81b29fa46bda45da2f627790b3cf68",
@@ -52,9 +52,9 @@
     "tests/test_bootstrap.py": "7e29f6895a6c8524d8644fb94a41bf7d38cde649bf37f7131c26c8b8a8ced3e8",
     "tests/test_bootstrap_dependencies.py": "3d7f77c981a5c22c01578c1b9353e139d5948d2c59624770beec0e432f15a4c8",
     "tests/test_bootstrap_doctor.py": "0057bda3ced9c44b9600295f93dcca001e539212a592312a3dc6b448aa8984b4",
-    "tests/test_package_release.py": "0f3e8b93d744f29d7e2399a0c24f67837f9b7549bbc2731d1b092896ed790dac",
+    "tests/test_package_release.py": "10d8220081d77b323d7aa799ab55ace52d78604db1e37f2d682546dbd2b3e561",
     "tests/test_prompt_contracts.py": "5d748e90264885c3c53f6b59b55bf1a11358ac67ec74bbf86211affaf7bd056e",
-    "tests/test_task_waves.py": "6c440c22c0384bb2226ff7492d7cb06a51380f28f9415f1a0a858e82f5a70345"
+    "tests/test_task_waves.py": "a6ec25f1a167b4a502354b75dcebfb0984875f788127a08e1401b4637e2c8376"
   },
   "required_files": [
     ".agents/plugins/marketplace.json",
