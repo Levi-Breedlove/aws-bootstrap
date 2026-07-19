@@ -19,7 +19,9 @@ description: Generate, execute, pause, or resume dependency-aware Fastlane tasks
 6. Execute only the current task write and command boundary. Route all AWS
    mutation to `AWS-20`; BUILD prompts never deploy directly.
 7. Validate the integrated diff and required checks after each task or wave.
-   Record only observed evidence in `VERIFY.md`, then run the doctor.
+   Use the read-only `fastlane-evidence-reviewer` for boundary and evidence
+   review when a wave or release claim is material. Record only observed
+   evidence in `VERIFY.md`, then run the doctor.
 8. Continue autonomously while work is ready and inside Gate B. Pause on a
    stale gate, unsafe interrupted run, exhausted attempt budget, boundary
    change, or missing external authority.

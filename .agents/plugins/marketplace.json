@@ -1,0 +1,22 @@
+{
+  "name": "aws-codex-fastlane-dependencies",
+  "interface": {
+    "displayName": "AWS Codex Fastlane Dependencies"
+  },
+  "plugins": [
+    {
+      "name": "aws-core",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/aws/agent-toolkit-for-aws.git",
+        "path": "./plugins/aws-core",
+        "sha": "36f16570de2015c0f0ce94ba9e391bd703c9ffb7"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Cloud"
+    }
+  ]
+}

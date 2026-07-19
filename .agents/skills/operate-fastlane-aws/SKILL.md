@@ -7,9 +7,12 @@ description: Perform the Fastlane AWS read-only preflight, exactly authorized de
 
 1. Read the root and `infrastructure/AGENTS.md`, current REQ/DES/AUTH records,
    `TASKS.md`, `VERIFY.md`, `RUNBOOK.md`, and the requested AWS prompt section.
-2. Run `python scripts/bootstrap_doctor.py --root . --json`. Stop unless the
+2. Run `python scripts/bootstrap_dependencies.py --root . --json` and confirm
+   this session exposes AWS Core. Then run
+   `python scripts/bootstrap_doctor.py --root . --json`. Stop unless the
    lifecycle and release state permit the requested AWS prompt.
-3. Use `aws-core` and current primary AWS documentation for service behavior,
+3. Use `aws-core`, the read-only `fastlane-aws-advisor` where useful, and
+   current primary AWS documentation for service behavior,
    Region availability, IAM, quotas, encryption, recovery, and cost. If the
    required capability is unavailable, stop and identify the missing check.
 4. Treat documentation access, credentials, connector access, and IAM

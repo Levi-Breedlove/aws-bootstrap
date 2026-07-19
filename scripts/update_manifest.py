@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "bootstrap.manifest.json"
 CONTROL_FILES = (
     "bootstrap.py",
+    "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
     "scripts/task_waves.py",
 )

@@ -210,6 +210,7 @@ class BootstrapSafetyTests(unittest.TestCase):
             (source / "scripts").mkdir(parents=True)
             controls = {
                 "bootstrap.py": b"bootstrap",
+                "scripts/bootstrap_dependencies.py": b"dependencies",
                 "scripts/bootstrap_doctor.py": b"doctor",
                 "scripts/task_waves.py": b"tasks",
             }
@@ -239,6 +240,27 @@ class BootstrapSafetyTests(unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "invalid control_sha256"):
                 bootstrap.validate_template_control_hashes(source)
+
+    def test_main_stops_before_setup_when_dependency_validation_fails(self) -> None:
+        with mock.patch.object(
+            bootstrap,
+            "validate_repository_dependencies",
+            side_effect=ValueError("pinned dependency mismatch"),
+        ) as dependency_check, mock.patch.object(
+            bootstrap, "initialize_template_in_place"
+        ) as initialize:
+            result = bootstrap.main(
+                [
+                    "--target",
+                    str(REPOSITORY_ROOT),
+                    "--project-name",
+                    "Dependency Stop",
+                    "--in-place-template-instance",
+                ]
+            )
+        self.assertEqual(result, 2)
+        dependency_check.assert_called_once_with(REPOSITORY_ROOT)
+        initialize.assert_not_called()
 
     def test_rejects_target_inside_source_before_creating_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
