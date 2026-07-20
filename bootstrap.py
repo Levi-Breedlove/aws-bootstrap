@@ -44,7 +44,7 @@ NO_RENDER_PATHS = {
     "bootstrap.manifest.json",
     "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
-    "scripts/uv_setup_assistant.py",
+    "scripts/setup_assistant.py",
     "scripts/task_waves.py",
 }
 NO_RENDER_PREFIXES = ("tests/",)
@@ -60,7 +60,7 @@ CORE_CONTROL_PATHS = {
     "bootstrap.yaml",
     "prompts/CODEX-PROMPTS.md",
     "scripts/bootstrap_doctor.py",
-    "scripts/uv_setup_assistant.py",
+    "scripts/setup_assistant.py",
     "scripts/task_waves.py",
 }
 ADOPTION_ACTIONS = {"PRESERVE", "ADOPT_TEMPLATE", "STAGE_FOR_MERGE"}
@@ -68,7 +68,7 @@ RUNTIME_CONTROL_PATHS = {
     "bootstrap.py",
     "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
-    "scripts/uv_setup_assistant.py",
+    "scripts/setup_assistant.py",
     "scripts/task_waves.py",
 }
 RFC3339_PATTERN = re.compile(
@@ -347,7 +347,7 @@ def validate_template_control_hashes(source: Path) -> None:
 
 
 def validate_repository_dependencies(source: Path) -> None:
-    """Fail before setup when pinned skills, agents, or AWS Core metadata drift."""
+    """Fail before setup when Fastlane assets or dependency policy drift."""
 
     # The validator is executable code. Bind every runtime control to the
     # manifest before starting that helper so drift cannot execute first and be

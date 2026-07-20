@@ -23,6 +23,18 @@ ARCHIVE_ROOT = "aws-codex-fastlane-bootstrap"
 DEFAULT_OUTPUT_DIRECTORY = "dist"
 FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 SEMVER_PATTERN = re.compile(r"\d+\.\d+\.\d+")
+REQUIRED_SETUP_ASSETS = {
+    "docs/DEPENDENCY-POLICY.md",
+    "docs/EXISTING-AWS-CORE.md",
+    "docs/SETUP.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/WORKFLOW.md",
+    "scripts/setup_assistant.py",
+}
+FORBIDDEN_LEGACY_SETUP_ASSETS = {
+    ".agents/plugins/marketplace.json",
+    "scripts/uv_setup_assistant.py",
+}
 
 
 class PackagingError(ValueError):
@@ -97,6 +109,20 @@ def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tup
     raw_files = manifest.get("required_files")
     if not isinstance(raw_files, list) or not raw_files:
         raise PackagingError("Manifest required_files must be a non-empty array")
+    if tuple(int(part) for part in version.split(".")) >= (1, 1, 0):
+        inventory = {item for item in raw_files if isinstance(item, str)}
+        missing_setup = sorted(REQUIRED_SETUP_ASSETS - inventory)
+        if missing_setup:
+            raise PackagingError(
+                "Manifest omits official AWS Core setup assets: "
+                + ", ".join(missing_setup)
+            )
+        forbidden_setup = sorted(FORBIDDEN_LEGACY_SETUP_ASSETS.intersection(inventory))
+        if forbidden_setup:
+            raise PackagingError(
+                "Manifest retains legacy pinned setup assets: "
+                + ", ".join(forbidden_setup)
+            )
 
     files: list[tuple[str, bytes]] = []
     seen: set[str] = set()

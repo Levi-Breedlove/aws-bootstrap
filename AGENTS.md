@@ -6,55 +6,52 @@ Build and operate **My AWS Project** according to the approved requirements and 
 
 ## Immediate template entrypoint
 
-When the owner says `init template`, `initialize template`, or `start Fastlane`,
-route immediately through the repo-scoped `launch-fastlane` skill and `BOOT-00`.
-Welcome the owner and explain that Fastlane turns an idea into owner-approved
-requirements and a technical PRD, then builds only inside Gate B. Setup does not
-access AWS. The short form means `THIS_REPOSITORY`; brownfield adoption requires
-an explicit target. Before project questions or writes, run:
+Route `init template`, `initialize template`, `start Fastlane`, and
+`continue setup` through the repo-scoped `launch-fastlane` skill and `BOOT-00`.
+The first three mean `THIS_REPOSITORY`; the last idempotently resumes at the
+first unresolved state. Use the friendly four-step greeting, one owner action
+per response, and plain language before the technical code. Brownfield adoption
+requires an explicit target. Before project questions or writes, run:
 
 ```
 python scripts/bootstrap_dependencies.py --root . --json
 ```
 
-It validates repo skills, read-only advisors, the immutable AWS Core pin, and
-hook contract. `DECLARED_AND_PINNED` is not live plugin proof. Discover repo
-assets in place; never copy them into a personal Codex directory.
+This validates repository assets and official-current dependency policy, not a
+plugin's installation, state, availability, or use. Never copy repo assets into
+a personal Codex directory.
 
-The IDE extension cannot manage plugins. Give instructions only: never install
-a Codex client, register a marketplace, change plugin state, or launch another
-session for the owner. Tell the owner to open ChatGPT desktop Codex or an
-interactive Codex CLI, open a terminal at this repository root, and run
-`codex plugin marketplace add .` themselves. Then tell them to launch or reopen
-this repository, enter `/plugins`, select **AWS Codex Fastlane Dependencies →
-AWS Core**, and restart Codex. Do not run those Codex commands.
+The IDE extension cannot manage plugins. Give instructions only; the owner uses
+interactive Codex CLI, ChatGPT web Work mode, or ChatGPT desktop Work/Codex. The sole accepted identity is
+`aws-core@agent-toolkit-for-aws`. Reuse, enable, or install it as observed; if
+its marketplace is absent, give the owner-run command
+`codex plugin marketplace add aws/agent-toolkit-for-aws`. Return
+`AWS_CORE_DUPLICATE_BLOCKED` for official plus old pinned copies and
+`AWS_CORE_SOURCE_UNVERIFIED` for an unknown source. Never install Codex,
+register a marketplace, change plugin state, or launch a session for the owner.
 
-Ask the owner to run `uvx --version` visibly; do not execute a PATH-discovered
-`uvx` as a setup probe. If missing, `scripts/uv_setup_assistant.py` may print one
-precise official owner-run package-manager command. Never execute that command,
-a package manager, an installer, or a runtime probe for the owner. Never read
-Codex credentials or persist local client, plugin, trust, identity, or setup
-state in the repository. After owner-managed runtime and plugin setup and
-restart, check `python3`, inventory all
-matching hooks, compare the exact pin, and stop on unknown or conflicting code.
-Only the owner may trust the current definition; never bypass hook trust. Run
-BOOT-00's inert deny and harmless allow probes before confirmation.
+The instruction-only `scripts/setup_assistant.py` explains owner-visible
+prerequisites. Never run an installer, package manager, login, marketplace
+command, or owner runtime probe; read Codex credentials; or persist client,
+plugin, trust, identity, or setup state. Inventory matching hooks and stop on
+unknown/conflicting sources. Only the owner may trust the current AWS Core
+definition. Never bypass trust or compare checkout hashes. Run BOOT-00's inert
+deny and harmless allow probes normally.
 
 The hook only blocks direct Secrets Manager value retrieval; it grants no
-authority. AWS Core is `AVAILABLE`, not automatic. After doctor and marketplace
-checks, instruct the owner to select it through `/plugins`, restart, review and
-trust the hook, and send:
+authority. After doctor, plugin-source, hook-trust, and probe checks, instruct
+the owner to send:
 
 ```text
 @AWS Core
 VERIFY AWS CORE AND CONTINUE FASTLANE
 ```
 
-Require live `retrieve_skill` and `search_documentation`; generic tools or
-memory are not proof. Setup never calls `call_aws`/`run_script`, configures
-credentials, or accesses AWS. Do not substitute the user-global AWS CLI wizard
-for the reviewed pin. BOOT-00 uses Python 3.11+ standard-library scripts; do not
-probe for `pytest` or run maintainer tests during initialization.
+Require visible live `retrieve_skill` and `search_documentation` calls through
+that identity; metadata, generic tools, cache, conversation, and memory are not
+proof. Record identity, skill, query, sources, and PASS/FAIL. Setup never calls
+`call_aws`/`run_script`, handles credentials, or accesses AWS. Do not probe for
+`pytest` or run maintainer tests during initialization.
 
 ## How to use this guide
 
@@ -213,12 +210,12 @@ Do not silently design around an unresolved contradiction.
 
 1. Read applicable `AGENTS.md` files and run/resume `BOOT-00`.
 2. Run the dependency checker, configure/resume the template, and run the
-   doctor. Static pins do not prove a live plugin or hook.
+   doctor. Static dependency metadata does not prove a live plugin or hook.
 3. When the current surface cannot manage plugins, give the owner the exact
    supported-surface, marketplace, plugin-selection, restart, and hook-review
    instructions. Never install or launch Codex, register the marketplace, or
-   change plugin state. The uv helper prints instructions only and may not
-   execute a command. On the supported surface, finish the owner-approved hook
+   change plugin state. The setup assistant prints instructions only and may
+   not execute a command. On the supported surface, finish the owner-approved hook
    review and explicit `@AWS Core`
    `retrieve_skill`/`search_documentation` handshake.
 4. Use INTAKE-10 and REQ-10; stop for Gate A.
@@ -320,12 +317,16 @@ security, gate, or AWS authorization rules and does not create extra documents.
 ## AWS evidence and research
 
 - Setup-ready requires explicit `@AWS Core` invocation and successful
-  `retrieve_skill` and `search_documentation` checks from the pinned plugin.
+  `retrieve_skill` and `search_documentation` checks from
+  `aws-core@agent-toolkit-for-aws`.
 - Use current primary AWS documentation through AWS Core for material service,
   Region, IAM, quota, networking, encryption, recovery, observability, and cost
   facts. Never substitute memory.
-- Gate A cannot be ready with a material feasibility fact unverified; Gate B
-  requires checks for its design boundary.
+- Gate A cannot be ready with a material feasibility fact unverified. DESIGN-10
+  must record fresh AWS Core evidence in `docs/project/VERIFY.md` for its design
+  boundary before Gate B can be ready. AWS-10 must record fresh operational,
+  deployment, IAM, and service-documentation evidence before AWS execution can
+  be proposed.
 - If AWS Core or a required capability fails, stop the affected gate/operation,
   record the gap, and route through BOOT-00 recovery.
 - Separate recommendations from repository facts and local from deployed

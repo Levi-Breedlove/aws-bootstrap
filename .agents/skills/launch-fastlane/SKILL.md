@@ -5,97 +5,82 @@ description: Welcome, initialize, configure, inspect, or resume an AWS Codex Fas
 
 # Launch Fastlane
 
-1. Read the root `AGENTS.md` and the `BOOT-00` section of
-   `prompts/CODEX-PROMPTS.md` completely.
-2. Welcome the owner and explain in two plain sentences that Fastlane turns an
-   idea into approved requirements and a technical PRD, then builds only inside
-   the Gate B boundary. Do not imply that setup authorizes AWS access.
-3. Resolve the requested repository and setup mode to canonical absolute paths.
-   Treat `init template` as `THIS_REPOSITORY`; use the existing Git repository
-   when present and the BOOT-00 safe local baseline behavior when it is absent.
-4. Run `python scripts/bootstrap_dependencies.py --root <root> --json`. Stop if
-   its top-level status, repository-scoped skills, or project agents are not
-   `READY`, or if the Agent Toolkit marketplace is not
-   `DECLARED_AND_PINNED`. This check validates repository files only; it cannot
-   prove that AWS Core is installed or callable. Preserve its exact expected
-   hook contract and repository-hook inventory for the later `/hooks` review.
-5. For `THIS_REPOSITORY`, ask at most one round containing project name and
-   preferred Region when they are not supplied. Preserve a real hard cost cap's
-   exact ISO currency and amount as
-   `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>` (for example,
-   `MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00`); otherwise initialize the canonical
-   `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED` posture without asking for a
-   dollar amount. Run
-   `bootstrap.py --in-place-template-instance` first with `--dry-run`, then
-   without it only when the template preconditions pass.
-6. For `ADOPT_EXISTING_REPOSITORY`, perform the exact BOOT-00 collision preview.
-   Never choose an adoption action for the owner or use `--force`.
-7. Apply the selected local Git mode exactly. Never add a remote or perform a
-   GitHub or AWS action during launch.
-8. Run `python scripts/bootstrap_doctor.py --root <root> --json`. Use its
-   classification, lifecycle, status, and `next_prompt`; do not infer a route
-   from conversation history. Do not probe for `pytest`, install Python
-   packages, or run the maintainer test suite during launch.
-9. Determine the current Codex surface from observed client context. AWS Core
-   plugins are supported in ChatGPT desktop Codex and Codex CLI, not the
-   Codex IDE extension. Provide instructions only. Tell the owner to open this
-   repository in ChatGPT desktop Codex or an interactive Codex CLI, open their
-   own terminal at the repository root, run `codex plugin marketplace add .`,
-   then launch or reopen the repository and use `/plugins`. Never install a
-   Codex client, run the marketplace command, modify plugin state, or launch a
-   session for the owner.
-10. On a supported surface, ask the owner to run `uvx --version` visibly in the
-    terminal they opened. Do not execute a PATH-discovered `uvx` binary as a
-    setup probe. If the owner reports that it is missing, run
-    `python scripts/uv_setup_assistant.py plan --root <root> --json`.
-    Explain its one owner-run package-manager command and official Astral link.
-    Never execute the command, a package manager, an installer, or a runtime
-    probe. The helper cannot install `uv` or Codex, register a marketplace,
-    launch a session, trust hooks, or access AWS. Tell the owner to run the
-    command themselves, restart the shell, and run `uvx --version` visibly.
-11. On a supported surface, if the pinned plugin is not installed, enabled, and
-    current, or if it cannot be distinguished from a generic AWS documentation
-    connector, return the BOOT-00 AWS Core setup receipt and walkthrough.
-    Direct the owner to `/plugins`, the `AWS Codex Fastlane Dependencies`
-    marketplace, and the explicitly `AVAILABLE` `AWS Core` install or update
-    action; then tell them to restart Codex and reopen this repository. Do not
-    substitute the user-global `aws configure agent-toolkit` wizard for the
-    reviewed Fastlane pin. A newer upstream revision produces
-    `AWS_CORE_UPDATE_REVIEW_REQUIRED`, not an automatic update.
-12. Before the live plugin handshake, run `python3 --version` because the pinned
-    AWS Core hook invokes that exact command. If unavailable, return the
-    BOOT-00 `AWS CORE HOOK RUNTIME REQUIRED` receipt and stop. Open the Hooks
-    page in Codex Settings, or `/hooks` in Codex CLI, and compare the plugin's
-    current `PreToolUse` hook with the exact event,
-    matchers, command, purpose, and expected file hashes reported by
-    `bootstrap_dependencies.py`. Inventory every other active hook that can
-    match Bash or AWS MCP tools. Stop on an unknown or conflicting hook. Never
-    trust a hook for the owner or use `--dangerously-bypass-hook-trust`.
-    Require the owner to trust the current AWS Core hook definition in Codex
-    and then run BOOT-00's inert synthetic deny probe and harmless allow probe.
-    Require the first to be blocked and the second to run; neither accesses
-    AWS. Only then present and accept the exact BOOT-00 hook confirmation. A
-    changed definition hash requires review again. After a passing
-    confirmation, print the stable AWS Core hook approval receipt and tell the
-    owner to send exactly:
+1. Read the root `AGENTS.md` and the complete `BOOT-00` contract in
+   `prompts/CODEX-PROMPTS.md`. Treat `init template`, `initialize template`,
+   `start Fastlane`, and `continue setup` as entrypoints to one idempotent
+   state machine. The first three begin with `THIS_REPOSITORY`; `continue setup`
+   resumes at the first unresolved state without repeating completed actions.
+2. Begin with BOOT-00's friendly four-step greeting. Each paused response must
+   explain the current step, observation, why it matters, exactly one owner
+   action, how to resume, and the safety posture. Put `Progress: Step n of 4`
+   before the technical state code. Use `reduce_setup` and
+   `render_setup_response` from `scripts/setup_assistant.py`; do not hand-build
+   a competing state transition or receipt.
+3. Resolve repository, setup mode, and target to canonical absolute paths.
+   Run `python scripts/bootstrap_dependencies.py --root <root> --json` before a
+   project question or write. Require its top-level status, repository skills,
+   project agents, and official-current AWS Core policy to be ready. Static
+   metadata is not evidence that AWS Core is installed, enabled, callable, or
+   used.
+4. For `THIS_REPOSITORY`, ask once for missing project name and preferred
+   Region. Preserve any owner-supplied hard cap exactly; otherwise use
+   `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. Dry-run in-place initialization,
+   initialize only after all safety checks pass, and run the doctor. For
+   brownfield adoption, perform BOOT-00's exact collision preview and require
+   the complete hash-bound owner decision map before any adoption write. Never
+   choose an adoption action, use `--force`, add a remote, or access GitHub/AWS.
+5. Use `scripts/setup_assistant.py` only for instruction-only prerequisite
+   status or guidance. Ask the owner to verify `uvx --version` visibly. The
+   owner installs tools, logs in, registers a
+   marketplace, changes plugin state, starts sessions, and trusts hooks. Never
+   inspect credentials or persist global Codex/plugin/trust state. Plugins must
+   be managed in interactive Codex CLI, ChatGPT web Work mode, or ChatGPT
+   desktop Work/Codex; the Codex IDE extension is unsupported.
+6. Accept only the official plugin identity
+   `aws-core@agent-toolkit-for-aws`. Resolve observed plugin state as follows:
+   - already enabled: reuse it and continue;
+   - installed but disabled: `AWS_CORE_ENABLE_REQUIRED`;
+   - official marketplace present but plugin absent:
+     `AWS_CORE_INSTALLATION_REQUIRED` and direct the owner to `/plugins`;
+   - official marketplace absent: `OFFICIAL_MARKETPLACE_REQUIRED` with owner-run
+     `codex plugin marketplace add aws/agent-toolkit-for-aws`;
+   - official and old Fastlane-pinned copies enabled:
+     `AWS_CORE_DUPLICATE_BLOCKED`, naming both sources;
+   - only an old pinned copy: ask the owner to disable it and install/enable the
+     official source; and
+   - unknown source: `AWS_CORE_SOURCE_UNVERIFIED`.
+   Never enable, disable, install, remove, or update a plugin for the owner.
+7. Before the live handshake, require the current official AWS Core
+   `PreToolUse` hook to be visible in `/hooks`, readable, sourced from the
+   official plugin, and trusted by the owner. Inventory all hooks matching Bash
+   or AWS MCP tools and stop on an unknown or conflicting source. Do not hash an
+   external checkout, require a multiline approval card, alter hook state, or
+   bypass trust. Never use `--dangerously-bypass-hook-trust`. Missing `python3`
+   returns `HOOK_RUNTIME_REQUIRED`; pending trust returns
+   `HOOK_REVIEW_REQUIRED`. Then run the BOOT-00 inert deny and harmless
+   allow probes through the normal tool path. The first must be blocked before
+   execution and the second must print the exact marker. Neither accesses AWS.
+8. After trusted hooks and passing probes, return
+   `AWS_CORE_HANDSHAKE_REQUIRED` and ask the owner to send exactly:
 
    ```text
    @AWS Core
    VERIFY AWS CORE AND CONTINUE FASTLANE
    ```
 
-   Stop before intake. Do not describe this as Gate A or Gate B.
-13. For that explicit verification command, require the AWS Core plugin to
-    expose and successfully exercise both `retrieve_skill` and
-    `search_documentation`. Use only unauthenticated skill retrieval and a
-    documentation query. A generic documentation namespace is insufficient;
-    do not call `call_aws`, `run_script`, configure credentials, or access an
-    AWS account. Print the stable AWS Core verification receipt, rerun the
-    static checker and doctor, and continue only when every check passes.
-14. Render the final BOOT-00 receipt only from observed command output, the
-    exact hook confirmation, explicit plugin handshake, and repository state.
-    End with the canonical prefilled `START GUIDED INTAKE` command only when
-    the doctor returns `INTAKE-10`.
+   Stop before intake; this is setup, not Gate A or Gate B.
+9. That explicit invocation must visibly exercise both official AWS Core
+   capabilities: `retrieve_skill` and `search_documentation`. Accept neither
+   installation metadata, a generic documentation connector, cached content,
+   earlier conversation, nor prose claims as proof. Report observed plugin
+   source and identity, retrieved skill, documentation query and returned
+   sources, and separate PASS/FAIL results. Do not call `call_aws`,
+   `run_script`, inspect/configure credentials, or access an AWS account.
+10. Rerun the dependency checker and doctor after the handshake. Return
+    `READY_FOR_INTAKE` only when repository/doctor checks, official source,
+    hook review, both probes, and both live capabilities pass. Otherwise render
+    the first unresolved state. End with `START GUIDED INTAKE` only when the
+    doctor routes to `INTAKE-10`.
 
 Stop on a doctor error, path overlap outside the explicit in-place mode,
 official source-repository protection, a dirty or modified template, a

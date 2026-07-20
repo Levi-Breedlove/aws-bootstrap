@@ -8,9 +8,10 @@ description: Turn a rough AWS project idea or brownfield change into owner-appro
 1. Read the root `AGENTS.md`, current `docs/project/PRD.md`, and only the canonical prompt
    section named by the doctor.
 2. Run `python scripts/bootstrap_dependencies.py --root . --json` and require
-   the current task's explicit `@AWS Core` verification receipt with successful
-   `retrieve_skill` and `search_documentation` checks. A generic AWS
-   documentation connector is insufficient. Then run
+   the current session's completed BOOT-00 verification for
+   `aws-core@agent-toolkit-for-aws`, including successful live `retrieve_skill`
+   and `search_documentation` calls. A generic AWS documentation connector,
+   installation record, or prose claim is insufficient. Then run
    `python scripts/bootstrap_doctor.py --root . --json` before writing.
    Continue only through `INTAKE-10`, `REQ-10`, `INTAKE-20`, `DESIGN-10`, or
    `DESIGN-20` as returned.
@@ -28,9 +29,15 @@ description: Turn a rough AWS project idea or brownfield change into owner-appro
    the read-only `fastlane-aws-advisor` when AWS feasibility or design facts
    are material. The coordinator remains the sole PRD and lifecycle writer.
 6. Use AWS Core and current primary AWS documentation when a service fact
-   affects requirements, a gate recommendation, or design. Record what was
-   verified and any unavailable fact. Do not require AWS credentials and do
-   not access an AWS account during planning.
+   affects requirements or a gate recommendation. For every `DESIGN-10` run,
+   make fresh live `retrieve_skill` and `search_documentation` calls through
+   `aws-core@agent-toolkit-for-aws` for the proposed architecture. Record in
+   `docs/project/VERIFY.md` the phase, capability, retrieved skill,
+   documentation topic/query, returned primary sources, decision influenced,
+   official source and invoked identity, observation time, current DES-revision
+   binding, and PASS/FAIL status. Missing, failed, generic, cached, or
+   stale evidence blocks Gate B readiness. Do not require AWS credentials or
+   access an AWS account during planning.
 7. For greenfield design, evaluate a secure managed serverless baseline first.
    Minimize total expected cost and idle resources, preserve required security
    and recovery controls, compare scaling breakpoints, and record measurable

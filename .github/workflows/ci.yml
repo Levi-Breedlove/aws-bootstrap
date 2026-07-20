@@ -31,6 +31,9 @@ jobs:
       - name: Run maintainer safety tests
         run: python -m unittest discover -s tests -v
 
+      - name: Render instruction-only setup status
+        run: python scripts/setup_assistant.py status --root . --json
+
       - name: Verify template manifest hashes
         run: python scripts/update_manifest.py --check
 
@@ -55,8 +58,31 @@ jobs:
         shell: pwsh
         run: python -m unittest discover -s tests -v
 
+      - name: Render Windows instruction-only setup status
+        shell: pwsh
+        run: python .\scripts\setup_assistant.py status --root . --json
+
       - name: Verify manifest and release package
         shell: pwsh
         run: |
           python .\scripts\update_manifest.py --check
           python .\scripts\package_release.py --check
+
+  macos-setup-smoke:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Run setup assistant tests and render status
+        run: |
+          python -m unittest discover -s tests -p 'test_setup_assistant.py' -v
+          python scripts/setup_assistant.py status --root . --json

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -362,6 +363,39 @@ def current_greenfield_state(state: dict[str, object], *, gate_b: bool = False) 
         lifecycle["gate_b"] = "APPROVED_FOR_CONSTRUCTION"
 
 
+def record_aws_core_evidence(
+    text: str,
+    phase: str,
+    status: str = "PASS",
+    *,
+    binding: str | None = None,
+) -> str:
+    if binding is None:
+        binding = {
+            "BOOT-00": "bootstrap:1.1.0",
+            "DESIGN-10": "DES-0001",
+            "AWS-10": "sha256:" + "a" * 64,
+        }[phase]
+    replacement = (
+        f"| `{phase}` | `aws/agent-toolkit-for-aws` | "
+        "`aws-core@agent-toolkit-for-aws` | "
+        "`retrieve_skill` + `search_documentation` | "
+        "`aws-architecture` | `Current AWS service and IAM guidance` | "
+        "`https://docs.aws.amazon.com/` | `DES-0001 architecture review` | "
+        f"`2026-07-20T12:00:00Z` | `{binding}` | `{status}` |"
+    )
+    updated, count = re.subn(
+        rf"^\| `{re.escape(phase)}` \|.*$",
+        replacement,
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count != 1:
+        raise AssertionError(f"Missing AWS Core evidence row for {phase}")
+    return updated
+
+
 def current_task_snapshot(
     text: str,
     *,
@@ -499,6 +533,12 @@ class BootstrapDoctorTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            verify_path = project / "docs/project/VERIFY.md"
+            verify_text = record_aws_core_evidence(
+                verify_path.read_text(encoding="utf-8"), "BOOT-00"
+            )
+            verify_text = record_aws_core_evidence(verify_text, "DESIGN-10")
+            verify_path.write_text(verify_text, encoding="utf-8")
 
     def initialize_task_plan(self, project: Path, task_text: str) -> None:
         state_path = project / "bootstrap.yaml"
@@ -600,7 +640,7 @@ class BootstrapDoctorTests(unittest.TestCase):
 
         self.assertTrue(report["ok"], report["diagnostics"])
         self.assertEqual(report["schema_version"], 1)
-        self.assertEqual(report["bootstrap_version"], "1.0.0")
+        self.assertEqual(report["bootstrap_version"], "1.1.0")
         self.assertEqual(report["classification"], "TEMPLATE_SOURCE")
         self.assertEqual(report["next_prompt"], "INTAKE-10")
         self.assertEqual(
@@ -1132,6 +1172,55 @@ class BootstrapDoctorTests(unittest.TestCase):
             report = doctor.inspect_project(project)
 
         self.assertIn("GATE_B_ENVELOPE", codes(report))
+
+    def test_gate_b_requires_fresh_design_aws_core_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            self.approve_project(project)
+            verify_path = project / "docs/project/VERIFY.md"
+            verify_path.write_text(
+                record_aws_core_evidence(
+                    verify_path.read_text(encoding="utf-8"),
+                    "DESIGN-10",
+                    "NOT_STARTED",
+                ),
+                encoding="utf-8",
+            )
+
+            report = doctor.inspect_project(project)
+
+        self.assertIn("AWS_CORE_EVIDENCE_REQUIRED", codes(report))
+        self.assertEqual(report["next_prompt"], "STOP")
+
+    def test_missing_aws_10_evidence_blocks_aws_execution_planning(self) -> None:
+        verify_text = (REPOSITORY_ROOT / "docs/project/VERIFY.md").read_text(
+            encoding="utf-8"
+        )
+        rows = doctor.parse_aws_core_evidence(verify_text)
+        binding = "sha256:" + "a" * 64
+        self.assertTrue(
+            doctor.aws_core_phase_evidence_issues(
+                rows, "AWS-10", expected_binding=binding
+            )
+        )
+
+        passed = record_aws_core_evidence(
+            verify_text, "AWS-10", binding=binding
+        )
+        passed_rows = doctor.parse_aws_core_evidence(passed)
+        self.assertEqual(
+            doctor.aws_core_phase_evidence_issues(
+                passed_rows, "AWS-10", expected_binding=binding
+            ),
+            [],
+        )
+        self.assertTrue(
+            doctor.aws_core_phase_evidence_issues(
+                passed_rows,
+                "AWS-10",
+                expected_binding="sha256:" + "b" * 64,
+            )
+        )
 
     def test_split_aws_rows_are_conditionally_bound(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

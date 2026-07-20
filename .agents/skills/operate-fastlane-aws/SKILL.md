@@ -8,15 +8,20 @@ description: Perform the Fastlane AWS read-only preflight, exactly authorized de
 1. Read the root and `infrastructure/AGENTS.md`, current REQ/DES/AUTH records,
    `docs/project/TASKS.md`, `docs/project/VERIFY.md`, `docs/project/RUNBOOK.md`, and the requested AWS prompt section.
 2. Run `python scripts/bootstrap_dependencies.py --root . --json` and require
-   the current task's explicit `@AWS Core` verification receipt with successful
-   `retrieve_skill` and `search_documentation` checks. A generic AWS
-   documentation connector is insufficient. Then run
+   the current official plugin identity `aws-core@agent-toolkit-for-aws`. Then run
    `python scripts/bootstrap_doctor.py --root . --json`. Stop unless the
    lifecycle and release state permit the requested AWS prompt.
-3. Use `aws-core`, the read-only `fastlane-aws-advisor` where useful, and
-   current primary AWS documentation for service behavior,
-   Region availability, IAM, quotas, encryption, recovery, and cost. If the
-   required capability is unavailable, stop and identify the missing check.
+3. At `AWS-10`, visibly make fresh live `retrieve_skill` and
+   `search_documentation` calls through the official plugin for current
+   operational, deployment, IAM, Region, quota, security, reliability, and cost
+   guidance. Record in `docs/project/VERIFY.md` the phase, capability,
+   retrieved skill, documentation topic/query, returned primary sources,
+   decision influenced, official source and invoked identity, observation time,
+   current immutable-artifact binding, and PASS/FAIL status. A generic
+   connector, installation record, cached result, prior phase receipt, or prose
+   claim is insufficient. Missing or failed evidence blocks AWS execution
+   planning. Use the read-only `fastlane-aws-advisor` where useful; it cannot
+   replace the official live calls.
 4. Treat documentation access, credentials, connector access, and IAM
    permissions as capabilities only. They never authorize an AWS change.
 5. Run `AWS-10` read-only first. Reconfirm the caller, account, role or profile,
@@ -27,7 +32,9 @@ description: Perform the Fastlane AWS read-only preflight, exactly authorized de
    a spending goal, and never weaken an approved security or recovery control
    for savings.
 7. Before `AWS-20`, prove the final infrastructure diff is completely contained
-   in that record. Serialize every mutation and checkpoint before and after it.
+   in that record and require the doctor's
+   `aws_core_evidence.aws_execution_planning` value to be `READY`. Serialize
+   every mutation and checkpoint before and after it.
 8. Route deployed observation through `AWS-30`. Record only evidence actually
    observed from the named environment.
 9. Require the separate exact teardown receipt for `AWS-50`; preserve retained
