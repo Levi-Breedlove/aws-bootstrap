@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -225,8 +226,8 @@ class PackageReleaseTests(unittest.TestCase):
             self.assertEqual(doctor.returncode, 0, doctor.stdout + doctor.stderr)
             report = json.loads(doctor.stdout)
             self.assertEqual(report["classification"], "ACTIVE_GREENFIELD")
-            self.assertEqual(report["status"], "READY")
-            self.assertEqual(report["next_prompt"], "INTAKE-10")
+            self.assertEqual(report["status"], "RESUME")
+            self.assertEqual(report["next_prompt"], "BOOT-00")
 
     @source_template_only
     def test_manifest_hashes_are_current(self) -> None:
@@ -304,6 +305,80 @@ class PackageReleaseTests(unittest.TestCase):
             ):
                 package_release.check_release(REPOSITORY_ROOT)
 
+    def test_check_cli_rejects_stale_manifest_hashes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repository"
+            shutil.copytree(
+                REPOSITORY_ROOT,
+                root,
+                ignore=shutil.ignore_patterns(
+                    ".git", "__pycache__", "*.pyc", "dist"
+                ),
+            )
+            refresh = subprocess.run(
+                [sys.executable, "scripts/update_manifest.py", "--write"],
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(refresh.returncode, 0, refresh.stdout + refresh.stderr)
+            readme = root / "README.md"
+            readme.write_text(
+                readme.read_text(encoding="utf-8") + "\nSynthetic stale hash.\n",
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, "scripts/package_release.py", "--check"],
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn(
+                "Manifest source hash mismatch: README.md",
+                result.stdout,
+            )
+
+    def test_check_cli_rejects_stale_control_hashes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "repository"
+            shutil.copytree(
+                REPOSITORY_ROOT,
+                root,
+                ignore=shutil.ignore_patterns(
+                    ".git", "__pycache__", "*.pyc", "dist"
+                ),
+            )
+            refresh = subprocess.run(
+                [sys.executable, "scripts/update_manifest.py", "--write"],
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(refresh.returncode, 0, refresh.stdout + refresh.stderr)
+            manifest_path = root / "bootstrap.manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["control_sha256"]["bootstrap.py"] = "0" * 64
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, "scripts/package_release.py", "--check"],
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn(
+                "Manifest control hash mismatch: bootstrap.py",
+                result.stdout,
+            )
+
     def test_custom_output_checksum_names_custom_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             archive_path = Path(temporary) / "custom-fastlane.zip"
@@ -377,16 +452,33 @@ class PackageReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(package_release.PackagingError, "semantic version"):
                 package_release.load_release_files(root)
 
-    def test_current_release_text_has_no_previous_major_reference(self) -> None:
-        forbidden = "2" + ".0.0"
+    def test_current_release_text_rejects_stale_versions_except_fixtures(self) -> None:
+        stale_versions = ("1" + ".0.0", "2" + ".0.0")
+        negative_fixture_marker = f'"bootstrap_version": "{stale_versions[0]}"'
         text_suffixes = {".md", ".json", ".yaml", ".yml", ".py", ".txt"}
+        allowed_negative_fixtures = 0
+        violations: list[str] = []
         for path in REPOSITORY_ROOT.rglob("*"):
             if not path.is_file() or ".git" in path.parts:
                 continue
             if path.suffix not in text_suffixes:
                 continue
             content = path.read_text(encoding="utf-8")
-            self.assertNotIn(forbidden, content, str(path.relative_to(REPOSITORY_ROOT)))
+            relative = path.relative_to(REPOSITORY_ROOT).as_posix()
+            for line_number, line in enumerate(content.splitlines(), start=1):
+                for version in stale_versions:
+                    if version not in line:
+                        continue
+                    if (
+                        relative == "tests/test_package_release.py"
+                        and version == stale_versions[0]
+                        and negative_fixture_marker in line
+                    ):
+                        allowed_negative_fixtures += 1
+                        continue
+                    violations.append(f"{relative}:{line_number}:{version}")
+        self.assertEqual(allowed_negative_fixtures, 2)
+        self.assertEqual(violations, [])
 
 
 if __name__ == "__main__":

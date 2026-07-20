@@ -32,12 +32,16 @@ description: Turn a rough AWS project idea or brownfield change into owner-appro
    affects requirements or a gate recommendation. For every `DESIGN-10` run,
    make fresh live `retrieve_skill` and `search_documentation` calls through
    `aws-core@agent-toolkit-for-aws` for the proposed architecture. Record in
-   `docs/project/VERIFY.md` the phase, capability, retrieved skill,
-   documentation topic/query, returned primary sources, decision influenced,
-   official source and invoked identity, observation time, current DES-revision
-   binding, and PASS/FAIL status. Missing, failed, generic, cached, or
-   stale evidence blocks Gate B readiness. Do not require AWS credentials or
-   access an AWS account during planning.
+   `docs/project/VERIFY.md` one independently attributed row for each
+   capability. Each row records source `aws/agent-toolkit-for-aws`, identity
+   `aws-core@agent-toolkit-for-aws`, observed current semantic version, actor
+   `CODEX_LIVE_TOOL_CALL`, capability input/output, decision influenced,
+   observation time, current DES-revision binding, PASS/FAIL,
+   `Credentials inspected` = `NO`, and `AWS account accessed` = `NO`; the
+   documentation row also records returned official AWS sources. Missing,
+   failed, generic, unattributed, cached, or stale evidence blocks Gate B
+   readiness. Do not require AWS credentials or access an AWS account during
+   planning, and do not pin evidence to the last-tested plugin version.
 7. For greenfield design, evaluate a secure managed serverless baseline first.
    Minimize total expected cost and idle resources, preserve required security
    and recovery controls, compare scaling breakpoints, and record measurable

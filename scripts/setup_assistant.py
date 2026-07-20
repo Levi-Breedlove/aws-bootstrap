@@ -32,6 +32,7 @@ CODEX_PLUGIN_GUIDE = "https://learn.chatgpt.com/docs/plugins"
 UV_GUIDE = "https://docs.astral.sh/uv/getting-started/installation/"
 PYTHON_GUIDE = "https://www.python.org/downloads/"
 GIT_GUIDE = "https://git-scm.com/downloads"
+BUBBLEWRAP_GUIDE = "https://github.com/containers/bubblewrap"
 AWS_PLUGIN_GUIDE = (
     "https://docs.aws.amazon.com/agent-toolkit/latest/userguide/plugins.html"
 )
@@ -43,6 +44,16 @@ DENY_PROBE = (
 )
 ALLOW_PROBE = "python3 -c \"print('FASTLANE_HOOK_ALLOW_PROBE')\""
 HANDSHAKE_COMMAND = "@AWS Core\nVERIFY AWS CORE AND CONTINUE FASTLANE"
+LIVE_TOOL_OBSERVER = "CODEX_LIVE_TOOL_CALL"
+EXPECTED_SKILL_REQUEST = "aws-serverless"
+EXPECTED_DOCUMENTATION_QUERY = (
+    "AWS Lambda security best practices for serverless applications, including "
+    "least-privilege IAM and input validation"
+)
+OFFICIAL_AWS_REFERENCE_PREFIXES = (
+    "https://docs.aws.amazon.com/",
+    "https://aws.amazon.com/",
+)
 
 SETUP_STATES = (
     "LOCAL_PREREQUISITES_REQUIRED",
@@ -50,10 +61,12 @@ SETUP_STATES = (
     "OFFICIAL_MARKETPLACE_REQUIRED",
     "AWS_CORE_INSTALLATION_REQUIRED",
     "AWS_CORE_ENABLE_REQUIRED",
+    "AWS_CORE_SESSION_RESTART_REQUIRED",
     "AWS_CORE_DUPLICATE_BLOCKED",
     "AWS_CORE_SOURCE_UNVERIFIED",
     "HOOK_RUNTIME_REQUIRED",
     "HOOK_REVIEW_REQUIRED",
+    "HOOK_TRUST_ATTESTATION_REQUIRED",
     "HOOK_PROBES_REQUIRED",
     "AWS_CORE_HANDSHAKE_REQUIRED",
     "AWS_CORE_VERIFICATION_BLOCKED",
@@ -67,11 +80,128 @@ SUPPORTED_SURFACES = {
     "CHATGPT_WEB_WORK",
 }
 
+DEFAULT_OWNER_ACTION_IDS = {
+    "LOCAL_PREREQUISITES_REQUIRED": "SATISFY_LOCAL_PREREQUISITE",
+    "CODEX_LOGIN_VERIFICATION_REQUIRED": "VERIFY_CODEX_LOGIN",
+    "OFFICIAL_MARKETPLACE_REQUIRED": "REGISTER_OFFICIAL_MARKETPLACE",
+    "AWS_CORE_INSTALLATION_REQUIRED": "INSTALL_OFFICIAL_AWS_CORE",
+    "AWS_CORE_ENABLE_REQUIRED": "ENABLE_OFFICIAL_AWS_CORE",
+    "AWS_CORE_SESSION_RESTART_REQUIRED": "START_NEW_CODEX_SESSION",
+    "AWS_CORE_DUPLICATE_BLOCKED": "DISABLE_LEGACY_AWS_CORE",
+    "AWS_CORE_SOURCE_UNVERIFIED": "RESOLVE_AWS_CORE_SOURCE",
+    "HOOK_RUNTIME_REQUIRED": "SATISFY_HOOK_RUNTIME",
+    "HOOK_REVIEW_REQUIRED": "REVIEW_OFFICIAL_AWS_CORE_HOOK",
+    "HOOK_TRUST_ATTESTATION_REQUIRED": "ATTEST_OFFICIAL_HOOK_TRUST",
+    "HOOK_PROBES_REQUIRED": "RUN_SAFE_HOOK_PROBES",
+    "AWS_CORE_HANDSHAKE_REQUIRED": "RUN_AWS_CORE_HANDSHAKE",
+    "AWS_CORE_VERIFICATION_BLOCKED": "RESOLVE_AWS_CORE_VERIFICATION",
+    "READY_FOR_INTAKE": "START_GUIDED_INTAKE",
+}
+
+BOOLEAN_OR_NULL_EVIDENCE_FIELDS = frozenset(
+    {
+        "dependencies_ready",
+        "doctor_passed",
+        "codex_logged_in",
+        "official_marketplace_registered",
+        "official_plugin_installed",
+        "official_plugin_enabled",
+        "official_plugin_loaded_in_session",
+        "official_plugin_source_verified",
+        "legacy_plugin_enabled",
+        "hook_visible",
+        "hook_source_official",
+        "matching_hooks_inventoried",
+        "hook_reviewed",
+        "hook_trust_attested_by_owner",
+        "deny_probe_passed",
+        "deny_probe_blocked_before_execution",
+        "allow_probe_passed",
+        "retrieve_skill_passed",
+        "search_documentation_passed",
+        "credentials_inspected",
+        "aws_account_accessed",
+    }
+)
+STRING_OR_NULL_EVIDENCE_FIELDS = frozenset(
+    {
+        "official_plugin_version",
+        "observer",
+        "observed_plugin_identity",
+        "python3_version",
+        "observed_marketplace_repository",
+        "observed_plugin_source",
+        "hook_plugin_identity",
+        "allow_probe_output",
+        "invoked_plugin_identity",
+        "retrieve_skill_plugin_identity",
+        "search_documentation_plugin_identity",
+        "retrieved_skill",
+        "requested_skill",
+        "documentation_query",
+    }
+)
+STRING_LIST_EVIDENCE_FIELDS = frozenset(
+    {"unknown_plugin_sources", "conflicting_hooks", "documentation_sources"}
+)
+SESSION_EVIDENCE_FIELDS = frozenset(
+    BOOLEAN_OR_NULL_EVIDENCE_FIELDS
+    | STRING_OR_NULL_EVIDENCE_FIELDS
+    | STRING_LIST_EVIDENCE_FIELDS
+)
+
 Which = Callable[[str], str | None]
+MAX_EVIDENCE_BYTES = 1_000_000
 
 
 class SetupError(RuntimeError):
     """Raised when the repository root is missing or unsafe."""
+
+
+def read_session_evidence(stream: Any) -> dict[str, Any]:
+    """Read strictly allowlisted, non-sensitive session evidence from stdin."""
+
+    payload = stream.read(MAX_EVIDENCE_BYTES + 1)
+    if not isinstance(payload, str) or not payload.strip():
+        raise SetupError("--evidence-stdin requires one JSON object on stdin")
+    if len(payload.encode("utf-8")) > MAX_EVIDENCE_BYTES:
+        raise SetupError("stdin evidence exceeds the 1 MB limit")
+    try:
+        parsed = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise SetupError("stdin evidence is not valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise SetupError("stdin evidence must be a JSON object")
+    unknown = sorted(set(parsed) - SESSION_EVIDENCE_FIELDS)
+    if unknown:
+        raise SetupError(
+            "stdin evidence contains unknown field(s): " + ", ".join(unknown)
+        )
+    for key, value in parsed.items():
+        if key in BOOLEAN_OR_NULL_EVIDENCE_FIELDS:
+            valid = value is None or isinstance(value, bool)
+        elif key in STRING_OR_NULL_EVIDENCE_FIELDS:
+            valid = value is None or isinstance(value, str)
+        else:
+            valid = (
+                isinstance(value, list)
+                and all(isinstance(item, str) and bool(item.strip()) for item in value)
+            )
+        if not valid:
+            raise SetupError(f"stdin evidence field {key!r} has an invalid type or value")
+    if "python3_version" in parsed:
+        python3_version = parsed["python3_version"]
+        if not isinstance(python3_version, str):
+            raise SetupError("stdin evidence field 'python3_version' must be X.Y or X.Y.Z")
+        parts = python3_version.strip().split(".")
+        if (
+            len(parts) not in {2, 3}
+            or any(not part or not part.isascii() or not part.isdigit() for part in parts)
+        ):
+            raise SetupError("stdin evidence field 'python3_version' must be X.Y or X.Y.Z")
+        parsed["python3_version"] = ".".join(parts)
+        parsed["python3_version_supported"] = tuple(map(int, parts[:2])) >= (3, 11)
+    return dict(parsed)
 
 
 def canonical_root(root: Path) -> Path:
@@ -158,8 +288,11 @@ def inspect_local_prerequisites(
         "fastlane_python_command": fastlane_python_command,
         "python_version_supported": version >= (3, 11),
         "python3_available": python3_on_path,
-        "python3_version_supported": (
-            version >= (3, 11) if fastlane_python_command == "python3" else None
+        # PATH presence does not prove the external command's version. The owner
+        # supplies the visibly observed version through --evidence-stdin.
+        "python3_version_supported": None,
+        "bwrap_available": external_executable_detected(
+            "bwrap", checked_root, which=which
         ),
         "uvx_available": external_executable_detected("uvx", checked_root, which=which),
         "codex_available": external_executable_detected(
@@ -182,7 +315,9 @@ def _progress(step: int, *, complete: bool = False) -> str:
 
 def _version_context(evidence: Mapping[str, Any]) -> dict[str, Any]:
     observed = evidence.get("official_plugin_version")
-    observed_version = observed if isinstance(observed, str) and observed else None
+    observed_version = (
+        observed.strip() if isinstance(observed, str) and observed.strip() else None
+    )
     return {
         "dependency_policy": "OFFICIAL_CURRENT",
         "marketplace": OFFICIAL_AWS_MARKETPLACE_NAME,
@@ -208,18 +343,21 @@ def _report(
     owner_command: str | None,
     verification: str,
     resume_with: str,
+    owner_action_id: str | None = None,
     complete: bool = False,
     details: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if state not in SETUP_STATES:
         raise ValueError(f"Unknown setup state: {state}")
+    action_id = owner_action_id or DEFAULT_OWNER_ACTION_IDS[state]
     result: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "mode": "INSTRUCTIONS_ONLY",
         "state": state,
         "progress_step": _progress(step, complete=complete),
         "observed": observed,
         "explanation": explanation,
+        "owner_action_id": action_id,
         "owner_action": owner_action,
         "owner_command": owner_command,
         "verification": verification,
@@ -249,15 +387,19 @@ def _handshake_details(evidence: Mapping[str, Any]) -> dict[str, Any]:
 
     sources = evidence.get("documentation_sources")
     return {
+        "observer": evidence.get("observer"),
         "observed_marketplace_repository": evidence.get(
             "observed_marketplace_repository"
         ),
+        "observed_plugin_identity": evidence.get("observed_plugin_identity"),
         "plugin_source": evidence.get("observed_plugin_source"),
+        "observed_plugin_version": evidence.get("official_plugin_version"),
         "invoked_plugin_identity": evidence.get("invoked_plugin_identity"),
         "retrieve_skill": status(evidence.get("retrieve_skill_passed")),
         "retrieve_skill_plugin_identity": evidence.get(
             "retrieve_skill_plugin_identity"
         ),
+        "requested_skill": evidence.get("requested_skill"),
         "retrieved_skill": evidence.get("retrieved_skill"),
         "search_documentation": status(
             evidence.get("search_documentation_passed")
@@ -267,7 +409,17 @@ def _handshake_details(evidence: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "documentation_query": evidence.get("documentation_query"),
         "documentation_sources": list(sources) if isinstance(sources, list) else [],
+        "credentials_inspected": evidence.get("credentials_inspected"),
+        "aws_account_accessed": evidence.get("aws_account_accessed"),
     }
+
+
+def _official_aws_reference(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and value == value.strip()
+        and any(value.startswith(prefix) for prefix in OFFICIAL_AWS_REFERENCE_PREFIXES)
+    )
 
 
 def _local_block(evidence: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -393,16 +545,24 @@ def _local_block(evidence: Mapping[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _plugin_sources(evidence: Mapping[str, Any]) -> tuple[bool, bool, list[str]]:
+def _plugin_sources(
+    evidence: Mapping[str, Any],
+) -> tuple[bool, bool, list[str], bool]:
     official = evidence.get("official_plugin_enabled") is True
-    legacy = evidence.get("legacy_plugin_enabled") is True
-    raw_unknown = evidence.get("unknown_plugin_sources", [])
+    raw_legacy = evidence.get("legacy_plugin_enabled")
+    legacy = raw_legacy is True
+    raw_unknown = evidence.get("unknown_plugin_sources")
     unknown = (
         sorted({item for item in raw_unknown if isinstance(item, str) and item})
-        if isinstance(raw_unknown, (list, tuple, set))
+        if isinstance(raw_unknown, list)
         else []
     )
-    return official, legacy, unknown
+    inventory_observed = (
+        isinstance(raw_legacy, bool)
+        and isinstance(raw_unknown, list)
+        and all(isinstance(item, str) and bool(item.strip()) for item in raw_unknown)
+    )
+    return official, legacy, unknown, inventory_observed
 
 
 def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
@@ -438,7 +598,12 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
             resume_with="continue setup",
         )
 
-    official_enabled, legacy_enabled, unknown_sources = _plugin_sources(evidence)
+    (
+        official_enabled,
+        legacy_enabled,
+        unknown_sources,
+        plugin_inventory_observed,
+    ) = _plugin_sources(evidence)
     if official_enabled and legacy_enabled:
         return _report(
             "AWS_CORE_DUPLICATE_BLOCKED",
@@ -449,10 +614,7 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
                 f"`{LEGACY_FASTLANE_AWS_CORE_IDENTITY}` are enabled."
             ),
             explanation="Duplicate AWS Core installations can load overlapping tools and hooks.",
-            owner_action=(
-                "Disable the legacy Fastlane AWS Core entry, keep the official entry, "
-                "and start a new session."
-            ),
+            owner_action="Disable the legacy Fastlane AWS Core entry in `/plugins`.",
             owner_command="/plugins",
             verification=f"Only `{OFFICIAL_AWS_CORE_IDENTITY}` remains enabled.",
             resume_with="continue setup",
@@ -474,7 +636,7 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
                 + "."
             ),
             explanation="Fastlane uses AWS Core exclusively from the official AWS Agent Toolkit.",
-            owner_action="Disable the unverified AWS Core source and start a new session.",
+            owner_action="Disable the unverified AWS Core source in `/plugins`.",
             owner_command="/plugins",
             verification=f"Only `{OFFICIAL_AWS_CORE_IDENTITY}` may be enabled.",
             resume_with="continue setup",
@@ -490,7 +652,7 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
                 f"`{LEGACY_FASTLANE_AWS_CORE_IDENTITY}` is enabled."
             ),
             explanation="The dependency policy now follows the official current AWS Agent Toolkit.",
-            owner_action="Disable the legacy entry and start a new session.",
+            owner_action="Disable the legacy entry in `/plugins`.",
             owner_command="/plugins",
             verification=f"The legacy source is disabled before `{OFFICIAL_AWS_CORE_IDENTITY}` is used.",
             resume_with="continue setup",
@@ -520,7 +682,7 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
             explanation="AWS Core provides the AWS skills, documentation tools, and safety hook used by Fastlane.",
             owner_action="Open `/plugins` and install AWS Core from AWS Agent Toolkit.",
             owner_command="/plugins",
-            verification=f"Confirm `{OFFICIAL_AWS_CORE_IDENTITY}` is installed, then start a new session.",
+            verification=f"Confirm `{OFFICIAL_AWS_CORE_IDENTITY}` is installed.",
             resume_with="continue setup",
         )
     if not official_enabled:
@@ -530,9 +692,36 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
             step=2,
             observed="Official AWS Core is installed but not verified as enabled in this session.",
             explanation="An installed but disabled plugin cannot provide live AWS Core capabilities.",
-            owner_action="Enable official AWS Core in `/plugins` and start a new session.",
+            owner_action="Enable official AWS Core in `/plugins`.",
             owner_command="/plugins",
             verification=f"Confirm `{OFFICIAL_AWS_CORE_IDENTITY}` is enabled.",
+            resume_with="continue setup",
+        )
+    observed_version = evidence.get("official_plugin_version")
+    if (
+        not plugin_inventory_observed
+        or not isinstance(observed_version, str)
+        or not observed_version.strip()
+    ):
+        return _report(
+            "AWS_CORE_SOURCE_UNVERIFIED",
+            evidence,
+            step=2,
+            observed=(
+                "The enabled AWS Core inventory or observed version is incomplete."
+            ),
+            explanation=(
+                "Fastlane must explicitly observe legacy and unknown-source inventory "
+                "and the current official plugin version before assessing its source."
+            ),
+            owner_action=(
+                "Inspect the enabled AWS Core entry and all AWS Core sources in `/plugins`."
+            ),
+            owner_command="/plugins",
+            verification=(
+                "Record the observed version, whether the legacy source is enabled, "
+                "and the complete unknown-source list."
+            ),
             resume_with="continue setup",
         )
     source_verified = (
@@ -541,6 +730,7 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
         == OFFICIAL_AWS_MARKETPLACE
         and evidence.get("observed_plugin_source")
         == OFFICIAL_AWS_MARKETPLACE_NAME
+        and evidence.get("observed_plugin_identity") == OFFICIAL_AWS_CORE_IDENTITY
     )
     if not source_verified:
         return _report(
@@ -552,6 +742,19 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
             owner_action="Inspect the enabled AWS Core entry in `/plugins` and verify its marketplace.",
             owner_command="/plugins",
             verification=f"The observed identity is exactly `{OFFICIAL_AWS_CORE_IDENTITY}`.",
+            resume_with="continue setup",
+        )
+
+    if evidence.get("official_plugin_loaded_in_session") is not True:
+        return _report(
+            "AWS_CORE_SESSION_RESTART_REQUIRED",
+            evidence,
+            step=2,
+            observed="Official AWS Core is enabled but was not loaded in this session.",
+            explanation="Plugin state changes become available only in a new Codex session.",
+            owner_action="Start a new Codex session in this repository.",
+            owner_command=None,
+            verification=f"The new session exposes `{OFFICIAL_AWS_CORE_IDENTITY}`.",
             resume_with="continue setup",
         )
 
@@ -577,6 +780,25 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
             owner_command="python3 --version",
             verification="Python 3.11 or newer responds to the exact `python3` command.",
             resume_with="continue setup",
+        )
+
+    if (
+        str(evidence.get("system", "")).upper() == "LINUX"
+        and evidence.get("bwrap_available") is not True
+    ):
+        return _report(
+            "HOOK_RUNTIME_REQUIRED",
+            evidence,
+            step=3,
+            observed="Bubblewrap was not detected for the Linux or WSL Codex sandbox.",
+            explanation="Linux and WSL use Bubblewrap to preserve the expected sandbox boundary.",
+            owner_action=(
+                "Install Bubblewrap with the approved package source for this Linux distribution."
+            ),
+            owner_command=None,
+            verification="Run `bwrap --version` visibly.",
+            resume_with="continue setup",
+            owner_action_id="INSTALL_BUBBLEWRAP",
         )
 
     conflicts = evidence.get("conflicting_hooks", [])
@@ -613,17 +835,16 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
             verification=f"The hook source is `{OFFICIAL_AWS_CORE_IDENTITY}`.",
             resume_with="continue setup",
         )
-    hook_review_complete = all(
+    hook_definition_reviewed = all(
         evidence.get(key) is True
         for key in (
             "hook_visible",
             "hook_source_official",
             "matching_hooks_inventoried",
             "hook_reviewed",
-            "hook_trusted",
         )
     ) and evidence.get("hook_plugin_identity") == OFFICIAL_AWS_CORE_IDENTITY
-    if not hook_review_complete:
+    if not hook_definition_reviewed:
         return _report(
             "HOOK_REVIEW_REQUIRED",
             evidence,
@@ -633,9 +854,38 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
                 "The owner must inspect the current definition and every matching hook; "
                 "Fastlane never trusts hooks automatically."
             ),
-            owner_action="Open `/hooks` and review and trust the current official AWS Core hook.",
+            owner_action="Review the current official AWS Core hook in `/hooks`.",
             owner_command="/hooks",
-            verification="The official source, current trust, and matching-hook inventory are all observed.",
+            verification=(
+                "The displayed hook identity, definition, and complete matching-hook "
+                "inventory are reviewed."
+            ),
+            resume_with="continue setup",
+        )
+    if evidence.get("hook_trust_attested_by_owner") is not True:
+        return _report(
+            "HOOK_TRUST_ATTESTATION_REQUIRED",
+            evidence,
+            step=3,
+            observed=(
+                "The official AWS Core hook was reviewed, but owner trust attestation "
+                "was not supplied."
+            ),
+            explanation=(
+                "Only the owner can trust the currently displayed hook definition; "
+                "Fastlane cannot observe or infer a private trust record."
+            ),
+            owner_action=(
+                "Personally trust the reviewed hook, then provide the exact owner "
+                "attestation below."
+            ),
+            owner_command=(
+                "I REVIEWED AND TRUST THE CURRENT OFFICIAL AWS CORE HOOK"
+            ),
+            verification=(
+                "The owner attests to the displayed official plugin identity and "
+                "matching-hook inventory."
+            ),
             resume_with="continue setup",
         )
 
@@ -695,6 +945,33 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
 
     retrieve = evidence.get("retrieve_skill_passed")
     search = evidence.get("search_documentation_passed")
+    if (
+        evidence.get("credentials_inspected") is True
+        or evidence.get("aws_account_accessed") is True
+    ):
+        return _report(
+            "AWS_CORE_VERIFICATION_BLOCKED",
+            evidence,
+            step=4,
+            observed=(
+                "The setup handshake inspected credentials or accessed an AWS account."
+            ),
+            explanation=(
+                "BOOT-00 verification is documentation-only and must not use credentials "
+                "or AWS account access."
+            ),
+            owner_action=(
+                "Stop and repeat the handshake using only unauthenticated AWS Core "
+                "skill retrieval and documentation search."
+            ),
+            owner_command=HANDSHAKE_COMMAND,
+            verification=(
+                "Both capabilities pass with credentials_inspected=false and "
+                "aws_account_accessed=false."
+            ),
+            resume_with=HANDSHAKE_COMMAND,
+            details=_handshake_details(evidence),
+        )
     if retrieve is False or search is False:
         failed = []
         if retrieve is False:
@@ -746,24 +1023,41 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
             details=_handshake_details(evidence),
         )
     retrieved_skill = evidence.get("retrieved_skill")
+    requested_skill = evidence.get("requested_skill")
     documentation_query = evidence.get("documentation_query")
     documentation_sources = evidence.get("documentation_sources")
     complete_metadata = (
-        isinstance(retrieved_skill, str)
+        evidence.get("observer") == LIVE_TOOL_OBSERVER
+        and evidence.get("observed_marketplace_repository")
+        == OFFICIAL_AWS_MARKETPLACE
+        and evidence.get("observed_plugin_identity") == OFFICIAL_AWS_CORE_IDENTITY
+        and evidence.get("observed_plugin_source") == OFFICIAL_AWS_MARKETPLACE_NAME
+        and isinstance(evidence.get("official_plugin_version"), str)
+        and bool(str(evidence.get("official_plugin_version")).strip())
+        and requested_skill == EXPECTED_SKILL_REQUEST
+        and isinstance(retrieved_skill, str)
         and bool(retrieved_skill.strip())
-        and isinstance(documentation_query, str)
-        and bool(documentation_query.strip())
+        and documentation_query == EXPECTED_DOCUMENTATION_QUERY
         and isinstance(documentation_sources, list)
         and bool(documentation_sources)
-        and all(isinstance(item, str) and item for item in documentation_sources)
+        and all(_official_aws_reference(item) for item in documentation_sources)
+        and evidence.get("credentials_inspected") is False
+        and evidence.get("aws_account_accessed") is False
     )
     if not complete_metadata:
         return _report(
             "AWS_CORE_VERIFICATION_BLOCKED",
             evidence,
             step=4,
-            observed="AWS Core calls passed, but their attributable evidence is incomplete.",
-            explanation="A claim of success without the skill, query, and documentation sources is not proof of use.",
+            observed=(
+                "AWS Core calls passed, but their attributable setup evidence is "
+                "incomplete or outside the approved handshake."
+            ),
+            explanation=(
+                "The live observer, official plugin provenance, requested skill, "
+                "canonical result, exact query, official AWS references, and explicit "
+                "no-credentials/no-account-access confirmations are all required."
+            ),
             owner_action="Repeat the explicit handshake and include the required non-sensitive evidence.",
             owner_command=HANDSHAKE_COMMAND,
             verification="The result names the skill, query, sources, plugin identity, and PASS status for both calls.",
@@ -899,8 +1193,6 @@ def render_setup_response(report: Mapping[str, Any]) -> str:
             "",
             f"How I’ll verify it: {report['verification']}",
             "",
-            f"Then send: {report['resume_with']}",
-            "",
             "AWS credentials were not configured or checked. No AWS account was accessed, "
             "and setup did not authorize AWS operations.",
             "",
@@ -970,6 +1262,21 @@ def build_guide(root: Path, *, system: str | None = None) -> dict[str, Any]:
                 "guide": PYTHON_GUIDE,
                 "verify": ["python --version", "python3 --version"],
             },
+            *(
+                [
+                    {
+                        "name": "WSL2/Linux Codex sandbox",
+                        "guide": BUBBLEWRAP_GUIDE,
+                        "owner_action": (
+                            "In WSL2 or Linux run sudo apt update, then "
+                            "sudo apt install bubblewrap."
+                        ),
+                        "verify": ["command -v bwrap", "bwrap --version"],
+                    }
+                ]
+                if system_name.startswith("WINDOWS") or system_name == "LINUX"
+                else []
+            ),
             {
                 "name": "Astral uv",
                 "guide": UV_GUIDE,
@@ -1063,6 +1370,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     status.add_argument("--root", type=Path, default=Path.cwd())
     status.add_argument("--surface")
     status.add_argument("--json", action="store_true")
+    status.add_argument(
+        "--evidence-stdin",
+        action="store_true",
+        help="Merge strictly allowlisted current-session evidence from stdin",
+    )
 
     guide = subparsers.add_parser("guide", help="Print chronological owner-run guidance")
     guide.add_argument("--root", type=Path, default=Path.cwd())
@@ -1073,6 +1385,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(render_guide(build_guide(args.root)))
             return 0
         evidence = inspect_local_prerequisites(args.root, surface=args.surface)
+        if args.evidence_stdin:
+            evidence.update(read_session_evidence(sys.stdin))
         report = reduce_setup(evidence)
         report["local_checks"] = {
             key: evidence[key]
@@ -1082,6 +1396,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "python_version_supported",
                 "python3_available",
                 "python3_version_supported",
+                "bwrap_available",
                 "uvx_available",
                 "codex_available",
                 "supported_surface",

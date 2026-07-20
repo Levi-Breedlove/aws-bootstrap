@@ -31,6 +31,7 @@ provided. The assistant does not install anything or inspect credential stores.
 | `uvx` is not recognized | uv is missing or PATH was not refreshed | Install uv from Astral's guide, reopen the shell, run `uvx --version` |
 | Python is older than 3.11 | Unsupported project runtime | Install Python 3.11+ and reopen the terminal |
 | `HOOK_RUNTIME_REQUIRED` on Windows | Native Windows does not expose `python3` | Use WSL2; do not create an alias, shim, or modified plugin |
+| `HOOK_RUNTIME_REQUIRED` on Linux or WSL2 | `python3` 3.11+ was not explicitly evidenced, or Bubblewrap is missing | Run `python3 --version` and `bwrap --version`; install Bubblewrap yourself from the approved distribution package source if absent |
 | `OFFICIAL_MARKETPLACE_REQUIRED` | AWS Agent Toolkit is not registered | Run the official marketplace command below |
 | `AWS_CORE_INSTALLATION_REQUIRED` | Marketplace exists but AWS Core is absent | Install AWS Core yourself in `/plugins` and start a new session |
 | `AWS_CORE_ENABLE_REQUIRED` | Official AWS Core is installed but disabled | Enable it yourself and start a new session |

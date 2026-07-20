@@ -420,8 +420,9 @@ paths; bootstrap manifest and source hashes; bootstrap dry-run; doctor and
 dependency-check JSON; Git state; applicable AGENTS.md files; project source
 records; the instruction-only setup-assistant result; current Codex surface;
 owner-visible prerequisite results; observed plugin identities and state;
-current `/hooks` inventory and trust state; hook-probe results; live official
-AWS Core capability results; and current lifecycle records.
+current `/hooks` definition/source and matching-hook inventory; the owner's
+bound review-and-trust attestation; hook-probe results; live official AWS Core
+capability results; and current lifecycle records.
 
 **Permitted writes:** For an untouched `THIS_REPOSITORY`, only manifest-allowed
 placeholder rendering after a successful dry-run, clean source-integrity and
@@ -434,8 +435,8 @@ and an unresolved collision are prohibited. An ACTIVE target is resumed rather
 than regenerated. `INIT_AND_BASELINE_COMMIT` may initialize local Git and make
 one reviewed baseline commit only when Git author identity and every baseline
 precondition already pass. After a live handshake, BOOT-00 may update only the
-`BOOT-00` row in docs/project/VERIFY.md's `AWS Core evidence` table. Never add a
-remote.
+two `BOOT-00` capability rows in docs/project/VERIFY.md's `AWS Core evidence`
+table. Never add a remote.
 
 Codex installation/login, prerequisite installation, marketplace registration,
 plugin state, session launch, and hook trust are owner-run. BOOT-00 explains one
@@ -461,7 +462,8 @@ maintainer-source, hash, symlink, dirty-template, collision, adoption-record,
 partial-write, dependency, doctor, or source-of-truth failure; unsupported
 surface; missing prerequisite; duplicate or unverifiable AWS Core source;
 automatic client/plugin/trust action; missing `python3`; unreadable, disabled,
-unknown, conflicting, or untrusted matching hook; failed synthetic probe;
+unknown, or conflicting matching hook; absent or invalidated owner hook-review
+attestation; failed synthetic probe;
 missing explicit AWS Core invocation; failed/wrong-source live capability; or
 any credential/account access during setup.
 
@@ -666,15 +668,20 @@ explain the supported WSL2 fallback. Do not create a shim, alias, wrapper, or
 modified plugin copy.
 
 In `/hooks`, require the current AWS Core `PreToolUse` hook to be visible,
-readable, sourced from `aws-core@agent-toolkit-for-aws`, and trusted by the
-owner. Inventory every other active hook that can match Bash or AWS MCP tools.
-Unknown, unreadable, disabled, untrusted, or behaviorally conflicting sources
-block setup. Do not compare raw external files or line-ending-sensitive hashes,
-trust the hook automatically, alter any hook, or bypass trust. Return
-`HOOK_REVIEW_REQUIRED` until the current definition is trusted.
-Never use `--dangerously-bypass-hook-trust`.
+readable, and sourced from `aws-core@agent-toolkit-for-aws`. Inventory every
+other active hook that can match Bash or AWS MCP tools. Unknown, unreadable,
+disabled, or behaviorally conflicting sources block setup. Only the owner may
+review and trust a hook; never inspect a trust store or claim persisted trust
+was machine-observed. Return `HOOK_REVIEW_REQUIRED` with the current observable
+official source/definition and matching-hook inventory, ask the owner to review
+and trust that definition, and ask them to send exactly `continue setup`. That
+reply is the owner's attestation for only the currently displayed official
+definition and conflict-free inventory; any change requires renewed review.
+Do not persist local paths, session details, hook-trust state, or trust-database
+data. Do not alter a hook or bypass trust. Never use
+`--dangerously-bypass-hook-trust`.
 
-After trust is observed, run through the normal tool path:
+After that bound owner attestation, run through the normal tool path:
 
 python3 -c "if False: client.get_secret_value(SecretId='FASTLANE_SYNTHETIC_DO_NOT_USE')"
 python3 -c "print('FASTLANE_HOOK_ALLOW_PROBE')"
@@ -683,7 +690,8 @@ The unreachable first command must be denied before execution. The second must
 run and print exactly `FASTLANE_HOOK_ALLOW_PROBE`. Neither uses credentials,
 network, secrets, or AWS. Return `HOOK_PROBES_REQUIRED` until both pass, or a
 blocked result naming the observed mismatch. Do not require a multiline owner
-approval card. When trust and probes pass, `continue setup` advances.
+approval card. When the bound owner attestation and probes pass,
+`continue setup` advances.
 
 ### Step 4 — Observable AWS Core use
 
@@ -693,22 +701,29 @@ Return `AWS_CORE_HANDSHAKE_REQUIRED` and ask the owner to send exactly:
 VERIFY AWS CORE AND CONTINUE FASTLANE
 
 Only that explicit invocation authorizes the two setup calls. Through
-`aws-core@agent-toolkit-for-aws`, visibly call `retrieve_skill` for one relevant
-AWS skill and `search_documentation` for one current AWS documentation topic.
+`aws-core@agent-toolkit-for-aws`, visibly call `retrieve_skill` requesting
+exactly `aws-serverless` and record its nonempty canonical returned identifier.
+Then call `search_documentation` with exactly this query:
+`AWS Lambda security best practices for serverless applications, including least-privilege IAM and input validation`.
 Do not accept plugin metadata, a generic AWS documentation connector, model
 memory, cached files, prior conversation, a prose claim, or only one capability.
 Do not call `call_aws`, `run_script`, an account API, or credential tools.
 
-Record the phase, observed plugin source/identity, retrieved skill,
-documentation query/topic, returned primary source references, decision
-influenced, ISO 8601 observation time, Fastlane-version evidence binding, and
-separate PASS/FAIL results in `docs/project/VERIFY.md` without machine-private
-or credential data. If either call fails or comes from the wrong source, return
+Record two independently attributable rows in `docs/project/VERIFY.md`, one for
+`retrieve_skill` and one for `search_documentation`. Each records source
+`aws/agent-toolkit-for-aws`, identity `aws-core@agent-toolkit-for-aws`, the
+observed current semantic plugin version, actor `CODEX_LIVE_TOOL_CALL`,
+capability input/output, decision influenced, ISO 8601 time, Fastlane-version
+binding, PASS/FAIL, `Credentials inspected` = `NO`, and
+`AWS account accessed` = `NO`. The documentation row records returned official
+AWS references. A newer official version is valid; do not pin evidence to
+`1.1.0`. If either call fails or any field is wrong, return
 `AWS_CORE_VERIFICATION_BLOCKED` and stop.
 
 Report these observed fields explicitly:
 
-Retrieved skill: <identifier and PASS|FAIL>
+Requested skill: aws-serverless
+Returned skill identifier: <canonical identifier and PASS|FAIL>
 Documentation query: <query and PASS|FAIL>
 Source references: <returned primary AWS documentation>
 
@@ -747,13 +762,18 @@ Lifecycle: <doctor lifecycle_state>
 Doctor: <PASS|FAIL>
 Next prompt: <doctor next_prompt>
 Git baseline: <doctor git_baseline>
-AWS Core hooks: APPROVED_AND_VERIFIED
+AWS Core hooks: OWNER_ATTESTED_AND_PROBES_VERIFIED
 AWS Core hook conflict review: PASS
 Observed plugin source: aws/agent-toolkit-for-aws
 Invoked plugin identity: aws-core@agent-toolkit-for-aws
-Retrieved skill: <identifier> — PASS
+Observed plugin version: <current semantic version>
+Observation actor: CODEX_LIVE_TOOL_CALL
+Requested skill: aws-serverless
+Returned skill identifier: <canonical identifier> — PASS
 Documentation query: <query> — PASS
 Documentation sources: <returned primary AWS references>
+Credentials inspected: NO
+AWS account accessed: NO
 AWS access: <doctor AWS access>
 Gate A: <derived state>
 Gate B: <derived state>
@@ -1078,14 +1098,13 @@ model memory is not fresh design evidence. Ask the read-only
 `fastlane-aws-advisor` to review the results where useful; it cannot replace the
 calls or approve Gate B. The coordinator remains the only writer.
 
-Fill the `DESIGN-10` row under `## AWS Core evidence` in
-docs/project/VERIFY.md with the phase, both capabilities, retrieved skill,
-documentation topic, returned primary source references, design decision
-influenced, official source and invoked identity, ISO 8601 observation time,
-current DES-revision binding, and observed PASS/FAIL status. Record verified
-facts and sources in the design as well. Do not store credentials, local plugin paths, usernames,
-trust data, or machine-private information. Gate B cannot become ready unless
-this row is fresh, official-source, and successful for the current DES revision.
+Fill two `DESIGN-10` capability rows in docs/project/VERIFY.md. Record observation actor
+`CODEX_LIVE_TOOL_CALL`, exact source/identity, observed current semantic
+version, capability input/output, decision, ISO 8601 time, current DES binding,
+PASS/FAIL, `Credentials inspected` = `NO`, and `AWS account accessed` = `NO`.
+The documentation row includes returned official AWS references. Record facts
+and sources in the design; store no credentials or private machine data. Gate B
+requires both rows fresh, official, attributed, successful, and DES-bound.
 
 Complete only the design needed to build safely:
 - context, boundaries, components, interfaces, and data flow;
@@ -1696,14 +1715,17 @@ service, Region, quota, security, reliability, and cost decisions. BOOT-00 or
 DESIGN-10 evidence, a generic connector, plugin metadata, cached content, and
 model memory are insufficient for AWS-10.
 
-Fill the `AWS-10` row under `## AWS Core evidence` in docs/project/VERIFY.md
-with the phase, both capabilities, retrieved skill, documentation topic,
-returned primary source references, decision influenced, official source and
-invoked identity, ISO 8601 observation time, current immutable-artifact binding,
-and observed PASS/FAIL status. Missing, failed, stale, or wrong-binding evidence
-keeps the doctor's AWS execution-planning state `BLOCKED` and blocks any AWS
-execution proposal. Do not record credentials, local plugin paths, usernames,
-trust data, or private machine information.
+Fill the two `AWS-10` capability rows under `## AWS Core evidence` in
+docs/project/VERIFY.md. Record each live observation's observation actor,
+official source and invoked identity, observed current semantic plugin version,
+capability input/output, decision influenced, ISO 8601 observation time,
+current immutable-artifact binding, PASS/FAIL, `Credentials inspected` =
+`NO`, and `AWS account accessed` = `NO`. The actor is
+`CODEX_LIVE_TOOL_CALL` and the `search_documentation` row records returned
+official AWS references. Missing, failed, stale, unattributed, or wrong-binding
+evidence keeps the doctor's AWS execution-planning state `BLOCKED` and blocks
+any AWS execution proposal. Do not record credentials, local plugin paths,
+usernames, trust data, or private machine information.
 
 Confirm without exposing secrets:
 - caller identity, allowlisted profile/role, account, Region, and environment;

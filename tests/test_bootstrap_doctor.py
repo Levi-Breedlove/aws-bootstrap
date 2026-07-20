@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 import re
@@ -369,6 +370,8 @@ def record_aws_core_evidence(
     status: str = "PASS",
     *,
     binding: str | None = None,
+    actor: str = "CODEX_LIVE_TOOL_CALL",
+    plugin_version: str = "1.2.0",
 ) -> str:
     if binding is None:
         binding = {
@@ -376,23 +379,77 @@ def record_aws_core_evidence(
             "DESIGN-10": "DES-0001",
             "AWS-10": "sha256:" + "a" * 64,
         }[phase]
+    for capability in doctor.AWS_CORE_REQUIRED_CAPABILITIES:
+        text = record_aws_core_capability_evidence(
+            text,
+            phase,
+            capability,
+            status,
+            binding=binding,
+            actor=actor,
+            plugin_version=plugin_version,
+        )
+    return text
+
+
+def record_aws_core_capability_evidence(
+    text: str,
+    phase: str,
+    capability: str,
+    status: str = "PASS",
+    *,
+    binding: str,
+    actor: str = "CODEX_LIVE_TOOL_CALL",
+    plugin_source: str = "aws/agent-toolkit-for-aws",
+    invoked_identity: str = "aws-core@agent-toolkit-for-aws",
+    plugin_version: str = "1.2.0",
+    requested_skill: str | None = None,
+    returned_skill_identifier: str | None = None,
+    documentation_query: str | None = None,
+    source_references: str | None = None,
+    credentials_inspected: str = "NO",
+    aws_account_accessed: str = "NO",
+) -> str:
+    if capability == "retrieve_skill":
+        requested_skill = requested_skill or (
+            doctor.AWS_CORE_BOOT_REQUESTED_SKILL
+            if phase == "BOOT-00"
+            else "aws-architecture"
+        )
+        returned_skill_identifier = returned_skill_identifier or requested_skill
+        documentation_query = "—"
+        source_references = "—"
+    else:
+        requested_skill = "—"
+        returned_skill_identifier = "—"
+        documentation_query = documentation_query or (
+            doctor.AWS_CORE_BOOT_DOCUMENTATION_QUERY
+            if phase == "BOOT-00"
+            else "Current AWS service and IAM guidance"
+        )
+        source_references = source_references or (
+            "https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html"
+        )
     replacement = (
-        f"| `{phase}` | `aws/agent-toolkit-for-aws` | "
-        "`aws-core@agent-toolkit-for-aws` | "
-        "`retrieve_skill` + `search_documentation` | "
-        "`aws-architecture` | `Current AWS service and IAM guidance` | "
-        "`https://docs.aws.amazon.com/` | `DES-0001 architecture review` | "
-        f"`2026-07-20T12:00:00Z` | `{binding}` | `{status}` |"
+        f"| `{phase}` | `{plugin_source}` | `{invoked_identity}` | "
+        f"`{plugin_version}` | `{capability}` | `{actor}` | "
+        f"`{requested_skill}` | `{returned_skill_identifier}` | "
+        f"`{documentation_query}` | `{source_references}` | "
+        f"`DES-0001 architecture review` | `{credentials_inspected}` | "
+        f"`{aws_account_accessed}` | `2026-07-20T12:00:00Z` | "
+        f"`{binding}` | `{status}` |"
     )
     updated, count = re.subn(
-        rf"^\| `{re.escape(phase)}` \|.*$",
+        rf"^\| `{re.escape(phase)}` \|.*\| `{re.escape(capability)}` \|.*$",
         replacement,
         text,
         count=1,
         flags=re.MULTILINE,
     )
     if count != 1:
-        raise AssertionError(f"Missing AWS Core evidence row for {phase}")
+        raise AssertionError(
+            f"Missing AWS Core evidence row for {phase} {capability}"
+        )
     return updated
 
 
@@ -497,6 +554,13 @@ class BootstrapDoctorTests(unittest.TestCase):
             rendered = bootstrap_runtime.rendered_bytes(path, values, render=True)
             if rendered != path.read_bytes():
                 path.write_bytes(rendered)
+        verify_path = project / "docs/project/VERIFY.md"
+        verify_path.write_text(
+            record_aws_core_evidence(
+                verify_path.read_text(encoding="utf-8"), "BOOT-00"
+            ),
+            encoding="utf-8",
+        )
         return project
 
     def approve_project(self, project: Path, *, gate_b: bool = True) -> None:
@@ -1191,6 +1255,191 @@ class BootstrapDoctorTests(unittest.TestCase):
 
         self.assertIn("AWS_CORE_EVIDENCE_REQUIRED", codes(report))
         self.assertEqual(report["next_prompt"], "STOP")
+
+    def test_boot_00_evidence_routes_back_to_setup_before_intake(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            verify_path = project / "docs/project/VERIFY.md"
+            verify_path.write_text(
+                record_aws_core_evidence(
+                    verify_path.read_text(encoding="utf-8"),
+                    "BOOT-00",
+                    "NOT_STARTED",
+                ),
+                encoding="utf-8",
+            )
+            manifest_path = project / "bootstrap.manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["control_sha256"] = {
+                relative: hashlib.sha256((project / relative).read_bytes()).hexdigest()
+                for relative in doctor.CONTROL_HASH_FILES
+            }
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            report = doctor.inspect_project(project)
+
+        self.assertIn("AWS_CORE_BOOT00_EVIDENCE_REQUIRED", codes(report))
+        self.assertEqual(report["lifecycle_state"], "AWS_CORE_SETUP_REQUIRED")
+        self.assertEqual(report["next_prompt"], "BOOT-00")
+        self.assertNotEqual(report["next_prompt"], "INTAKE-10")
+
+    def test_aws_core_capabilities_require_independent_attribution(self) -> None:
+        verify_text = (REPOSITORY_ROOT / "docs/project/VERIFY.md").read_text(
+            encoding="utf-8"
+        )
+        binding = "DES-0001"
+        passed = record_aws_core_evidence(
+            verify_text, "DESIGN-10", binding=binding
+        )
+        passed_rows = doctor.parse_aws_core_evidence(passed)
+        self.assertEqual(
+            doctor.aws_core_phase_evidence_issues(
+                passed_rows, "DESIGN-10", expected_binding=binding
+            ),
+            [],
+        )
+
+        unattributed = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "retrieve_skill",
+            binding=binding,
+            actor="Codex",
+        )
+        unattributed_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(unattributed),
+            "DESIGN-10",
+            expected_binding=binding,
+        )
+        self.assertTrue(
+            any("Observation actor" in issue for issue in unattributed_issues)
+        )
+
+        generic = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "search_documentation",
+            binding=binding,
+            plugin_source="generic-aws-docs",
+        )
+        generic_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(generic),
+            "DESIGN-10",
+            expected_binding=binding,
+        )
+        self.assertTrue(any("plugin source" in issue for issue in generic_issues))
+
+        one_failed = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "search_documentation",
+            "FAILED",
+            binding=binding,
+        )
+        failed_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(one_failed),
+            "DESIGN-10",
+            expected_binding=binding,
+        )
+        self.assertTrue(
+            any(
+                "DESIGN-10 search_documentation requires fresh PASS" in issue
+                for issue in failed_issues
+            )
+        )
+
+    def test_boot_00_requires_exact_safe_live_call_evidence(self) -> None:
+        verify_text = (REPOSITORY_ROOT / "docs/project/VERIFY.md").read_text(
+            encoding="utf-8"
+        )
+        binding = "bootstrap:1.1.0"
+        passed = record_aws_core_evidence(
+            verify_text,
+            "BOOT-00",
+            binding=binding,
+            plugin_version="1.2.0",
+        )
+        self.assertEqual(
+            doctor.aws_core_phase_evidence_issues(
+                doctor.parse_aws_core_evidence(passed),
+                "BOOT-00",
+                expected_binding=binding,
+            ),
+            [],
+        )
+
+        invalid_cases = (
+            (
+                "retrieve_skill",
+                {"requested_skill": "aws-architecture"},
+                "Requested skill",
+            ),
+            (
+                "retrieve_skill",
+                {"returned_skill_identifier": "not a canonical identifier"},
+                "Returned skill identifier",
+            ),
+            (
+                "search_documentation",
+                {"documentation_query": "generic Lambda security"},
+                "Documentation query",
+            ),
+            (
+                "search_documentation",
+                {"source_references": "https://example.test/aws"},
+                "official AWS documentation",
+            ),
+            (
+                "retrieve_skill",
+                {"plugin_version": "1.1"},
+                "Observed plugin version",
+            ),
+            (
+                "retrieve_skill",
+                {"credentials_inspected": "YES"},
+                "Credentials inspected must be NO",
+            ),
+            (
+                "search_documentation",
+                {"aws_account_accessed": "YES"},
+                "AWS account accessed must be NO",
+            ),
+        )
+        for capability, overrides, expected_issue in invalid_cases:
+            with self.subTest(capability=capability, expected=expected_issue):
+                invalid = record_aws_core_capability_evidence(
+                    passed,
+                    "BOOT-00",
+                    capability,
+                    binding=binding,
+                    **overrides,
+                )
+                issues = doctor.aws_core_phase_evidence_issues(
+                    doctor.parse_aws_core_evidence(invalid),
+                    "BOOT-00",
+                    expected_binding=binding,
+                )
+                self.assertTrue(
+                    any(expected_issue in issue for issue in issues),
+                    issues,
+                )
+
+        mismatched_version = record_aws_core_capability_evidence(
+            passed,
+            "BOOT-00",
+            "search_documentation",
+            binding=binding,
+            plugin_version="2.1.0",
+        )
+        mismatch_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(mismatched_version),
+            "BOOT-00",
+            expected_binding=binding,
+        )
+        self.assertIn(
+            "BOOT-00 capability rows must record one observed plugin version",
+            mismatch_issues,
+        )
 
     def test_missing_aws_10_evidence_blocks_aws_execution_planning(self) -> None:
         verify_text = (REPOSITORY_ROOT / "docs/project/VERIFY.md").read_text(

@@ -78,25 +78,41 @@ This ledger proves observed use of the official
 `aws-core@agent-toolkit-for-aws` plugin; installation metadata, generic AWS
 connectors, cached content, prior conversation, and prose claims are not proof.
 BOOT-00, DESIGN-10, and AWS-10 each require fresh successful observations of
-both `retrieve_skill` and `search_documentation`. A failed, missing, stale, or
-wrong-source DESIGN-10 row blocks Gate B readiness. The same condition at
-AWS-10 blocks AWS execution planning.
+both `retrieve_skill` and `search_documentation`, with one independently
+attributed result row for each capability. A failed, missing, stale,
+wrong-source, or unattributed BOOT-00 row blocks intake; the same condition at
+DESIGN-10 blocks Gate B readiness and at AWS-10 blocks AWS execution planning.
 
 Every completed row must come from observed live calls through
-`aws-core@agent-toolkit-for-aws`; record the observed identity and source in the
-supporting durable observation. Do not record credentials, local plugin/cache
-paths, usernames, trust-database data, secrets, or private machine information.
-Source references identify returned public primary documentation without
-copying sensitive content. Every passing row records the official marketplace
-repository, invoked plugin identity, an ISO 8601 observation time, and a current
-binding: the Fastlane version for BOOT-00, current DES revision for DESIGN-10,
-or the Active evidence scope artifact for AWS-10.
+`aws-core@agent-toolkit-for-aws` and source `aws/agent-toolkit-for-aws`. Every
+passing row uses observation actor `CODEX_LIVE_TOOL_CALL`, records the observed
+current semantic plugin version without pinning it to the last-tested version,
+and records `Credentials inspected` and `AWS account accessed` as exactly
+`NO`. Both rows for a phase use the same observed version.
 
-| Phase | Plugin source | Invoked plugin identity | Capability | Retrieved skill | Documentation topic | Source references | Design decision influenced | Observed at | Evidence binding | Observed status |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `BOOT-00` | TODO | TODO | `retrieve_skill` + `search_documentation` | TODO | TODO | TODO | Setup capability handshake | TODO | TODO | `NOT_STARTED` |
-| `DESIGN-10` | TODO | TODO | `retrieve_skill` + `search_documentation` | TODO | TODO | TODO | TODO | TODO | TODO | `NOT_STARTED` |
-| `AWS-10` | TODO | TODO | `retrieve_skill` + `search_documentation` | TODO | TODO | TODO | TODO | TODO | TODO | `NOT_STARTED` |
+BOOT-00 requests skill `aws-serverless` and records the nonempty canonical
+identifier returned by `retrieve_skill`. Its `search_documentation` query is
+exactly `AWS Lambda security best practices for serverless applications,
+including least-privilege IAM and input validation` and its source references
+include returned official AWS documentation. Other phases also record the
+requested and returned skill identifiers or documentation query and returned
+official AWS references, as applicable.
+
+Do not record credentials, local plugin/cache paths, usernames, session
+identifiers, hook-trust state or trust-database data, secrets, or private
+machine information. Every passing row also records an ISO 8601 observation
+time and a current binding: `bootstrap:<Fastlane version>` for BOOT-00, the
+current DES revision for DESIGN-10, or the Active evidence scope artifact for
+AWS-10.
+
+| Phase | Plugin source | Invoked plugin identity | Observed plugin version | Capability | Observation actor | Requested skill | Returned skill identifier | Documentation query | Source references | Design decision influenced | Credentials inspected | AWS account accessed | Observed at | Evidence binding | Observed status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `BOOT-00` | TODO | TODO | TODO | `retrieve_skill` | TODO | `aws-serverless` | TODO | — | — | Setup capability handshake | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+| `BOOT-00` | TODO | TODO | TODO | `search_documentation` | TODO | — | — | `AWS Lambda security best practices for serverless applications, including least-privilege IAM and input validation` | TODO | Setup capability handshake | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+| `DESIGN-10` | TODO | TODO | TODO | `retrieve_skill` | TODO | TODO | TODO | — | — | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+| `DESIGN-10` | TODO | TODO | TODO | `search_documentation` | TODO | — | — | TODO | TODO | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+| `AWS-10` | TODO | TODO | TODO | `retrieve_skill` | TODO | TODO | TODO | — | — | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+| `AWS-10` | TODO | TODO | TODO | `search_documentation` | TODO | — | — | TODO | TODO | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
 
 ## Task completion evidence
 

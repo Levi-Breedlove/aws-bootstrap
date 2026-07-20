@@ -10,6 +10,7 @@ software, signs in, changes plugin state, trusts hooks, or configures AWS for yo
 - Python 3.11 or newer
 - `python` for Fastlane commands and the literal `python3` command required by
   the current AWS Core safety hook
+- Bubblewrap (`bwrap`) when Codex runs on Linux or inside WSL2
 - Astral `uv`, including `uvx`
 - Codex CLI or another Codex surface that supports plugins
 - AWS Core from the official AWS Agent Toolkit marketplace
@@ -71,6 +72,7 @@ Restart Windows if prompted. Open Ubuntu and install the Linux prerequisites:
 ```bash
 sudo apt update
 sudo apt install -y git python3 python3-venv python-is-python3 curl
+sudo apt install bubblewrap
 curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
 ```
@@ -81,6 +83,8 @@ Close and reopen the WSL shell, then verify:
 git --version
 python --version
 python3 --version
+command -v bwrap
+bwrap --version
 uvx --version
 codex --version
 ```
@@ -128,6 +132,7 @@ On Debian or Ubuntu:
 ```bash
 sudo apt update
 sudo apt install -y git python3 python3-venv python-is-python3 curl
+sudo apt install bubblewrap
 curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
 ```
@@ -135,7 +140,7 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 On Fedora, use the equivalent distribution packages:
 
 ```bash
-sudo dnf install git python3 python-unversioned-command curl
+sudo dnf install git python3 python-unversioned-command bubblewrap curl
 curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
 ```
@@ -146,6 +151,8 @@ Open a new shell and verify:
 git --version
 python --version
 python3 --version
+command -v bwrap
+bwrap --version
 uvx --version
 codex --version
 ```
@@ -194,6 +201,18 @@ python scripts/setup_assistant.py guide --root .
 On macOS or Linux where `python` is intentionally absent, replace `python` with
 `python3`. The assistant reports status and prints owner-run instructions. It
 does not install, launch, sign in, register, trust, or access AWS.
+
+The active Codex session may supply its current non-sensitive observations as
+one JSON object on standard input:
+
+```text
+echo '{"python3_version":"3.12.1"}' | python scripts/setup_assistant.py status --root . --evidence-stdin --json
+```
+
+Only documented setup-evidence fields are accepted. Unknown fields, invalid
+types, and malformed Python versions fail closed. The assistant does not write
+the evidence to disk; `hook_trust_attested_by_owner` records only the owner's
+explicit statement after reviewing and trusting the current official hook.
 
 Resolve `LOCAL_PREREQUISITES_REQUIRED`, `CODEX_LOGIN_VERIFICATION_REQUIRED`, or
 `HOOK_RUNTIME_REQUIRED` before continuing.

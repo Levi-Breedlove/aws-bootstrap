@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +27,7 @@ REQUIRED_FIELDS = {
     "progress_step",
     "observed",
     "explanation",
+    "owner_action_id",
     "owner_action",
     "owner_command",
     "verification",
@@ -53,7 +57,7 @@ class SetupAssistantTests(unittest.TestCase):
         self.tools = self.root.parent / "local tools"
         self.tools.mkdir()
         self.executables: dict[str, Path] = {}
-        for name in ("git", "python", "python3", "uvx", "codex"):
+        for name in ("git", "python", "python3", "bwrap", "uvx", "codex"):
             candidate = self.tools / name
             candidate.write_text("fixture", encoding="utf-8")
             self.executables[name] = candidate
@@ -72,6 +76,7 @@ class SetupAssistantTests(unittest.TestCase):
             "python_version_supported": True,
             "python3_available": True,
             "python3_version_supported": True,
+            "bwrap_available": True,
             "uvx_available": True,
             "codex_available": True,
             "surface": "CODEX_CLI",
@@ -80,9 +85,11 @@ class SetupAssistantTests(unittest.TestCase):
             "official_marketplace_registered": True,
             "official_plugin_installed": True,
             "official_plugin_enabled": True,
+            "official_plugin_loaded_in_session": True,
             "official_plugin_source_verified": True,
             "observed_marketplace_repository": "aws/agent-toolkit-for-aws",
             "observed_plugin_source": "agent-toolkit-for-aws",
+            "observed_plugin_identity": "aws-core@agent-toolkit-for-aws",
             "legacy_plugin_enabled": False,
             "unknown_plugin_sources": [],
             "official_plugin_version": "1.1.0",
@@ -92,19 +99,26 @@ class SetupAssistantTests(unittest.TestCase):
             "matching_hooks_inventoried": True,
             "conflicting_hooks": [],
             "hook_reviewed": True,
-            "hook_trusted": True,
+            "hook_trust_attested_by_owner": True,
             "deny_probe_passed": True,
             "deny_probe_blocked_before_execution": True,
             "allow_probe_passed": True,
             "allow_probe_output": "FASTLANE_HOOK_ALLOW_PROBE",
             "retrieve_skill_passed": True,
             "search_documentation_passed": True,
+            "observer": "CODEX_LIVE_TOOL_CALL",
             "invoked_plugin_identity": "aws-core@agent-toolkit-for-aws",
             "retrieve_skill_plugin_identity": "aws-core@agent-toolkit-for-aws",
             "search_documentation_plugin_identity": "aws-core@agent-toolkit-for-aws",
+            "requested_skill": "aws-serverless",
             "retrieved_skill": "aws-serverless-application",
-            "documentation_query": "AWS Lambda current service guidance",
+            "documentation_query": (
+                "AWS Lambda security best practices for serverless applications, "
+                "including least-privilege IAM and input validation"
+            ),
             "documentation_sources": ["https://docs.aws.amazon.com/lambda/"],
+            "credentials_inspected": False,
+            "aws_account_accessed": False,
         }
 
     def assert_state(self, evidence: dict[str, object], expected: str) -> dict[str, object]:
@@ -116,6 +130,41 @@ class SetupAssistantTests(unittest.TestCase):
         self.assertEqual(report["repository_writes"], "NONE")
         self.assertFalse(report["user_state_persisted_in_repository"])
         return report
+
+    def public_cli_report(self, evidence: dict[str, object]) -> dict[str, object]:
+        local = {
+            key: value
+            for key, value in evidence.items()
+            if key not in setup.SESSION_EVIDENCE_FIELDS
+        }
+        session = {
+            key: value
+            for key, value in evidence.items()
+            if key in setup.SESSION_EVIDENCE_FIELDS
+        }
+        output = io.StringIO()
+        with (
+            mock.patch.object(
+                setup,
+                "inspect_local_prerequisites",
+                return_value=local,
+            ),
+            mock.patch.object(sys, "stdin", io.StringIO(json.dumps(session))),
+            redirect_stdout(output),
+        ):
+            result = setup.main(
+                [
+                    "status",
+                    "--root",
+                    str(self.root),
+                    "--surface",
+                    "CODEX_CLI",
+                    "--evidence-stdin",
+                    "--json",
+                ]
+            )
+        self.assertEqual(result, 0)
+        return json.loads(output.getvalue())
 
     def test_local_inspection_detects_commands_without_executing_or_exposing_paths(self) -> None:
         evidence = setup.inspect_local_prerequisites(
@@ -130,11 +179,13 @@ class SetupAssistantTests(unittest.TestCase):
             "python_available",
             "python_version_supported",
             "python3_available",
+            "bwrap_available",
             "uvx_available",
             "codex_available",
             "supported_surface",
         ):
             self.assertTrue(evidence[key])
+        self.assertIsNone(evidence["python3_version_supported"])
         serialized = json.dumps(evidence, sort_keys=True)
         self.assertNotIn(str(self.root), serialized)
         self.assertNotIn(str(self.tools), serialized)
@@ -149,6 +200,34 @@ class SetupAssistantTests(unittest.TestCase):
         )
         self.assertFalse(evidence["uvx_available"])
 
+    def test_stdin_evidence_is_strictly_allowlisted_and_typed(self) -> None:
+        accepted = setup.read_session_evidence(
+            io.StringIO(
+                json.dumps(
+                    {
+                        "dependencies_ready": True,
+                        "python3_version": "3.11.7",
+                        "hook_trust_attested_by_owner": True,
+                        "documentation_sources": ["https://docs.aws.amazon.com/"],
+                    }
+                )
+            )
+        )
+        self.assertTrue(accepted["dependencies_ready"])
+        self.assertTrue(accepted["python3_version_supported"])
+        with self.assertRaises(setup.SetupError):
+            setup.read_session_evidence(io.StringIO('{"repository_ready": true}'))
+        with self.assertRaises(setup.SetupError):
+            setup.read_session_evidence(io.StringIO('{"doctor_passed": "yes"}'))
+        with self.assertRaises(setup.SetupError):
+            setup.read_session_evidence(io.StringIO('{"hook_trusted": true}'))
+        for invalid_version in ("3", "3.11.1.2", "Python 3.12", "3.x"):
+            with self.subTest(invalid_version=invalid_version):
+                with self.assertRaises(setup.SetupError):
+                    setup.read_session_evidence(
+                        io.StringIO(json.dumps({"python3_version": invalid_version}))
+                    )
+
     def test_python3_is_supported_as_fastlane_interpreter_off_windows(self) -> None:
         self.executables.pop("python")
         evidence = setup.inspect_local_prerequisites(
@@ -159,6 +238,24 @@ class SetupAssistantTests(unittest.TestCase):
         )
         self.assertTrue(evidence["python_available"])
         self.assertEqual(evidence["fastlane_python_command"], "python3")
+
+    def test_python3_version_remains_unverified_when_python_is_also_present(self) -> None:
+        evidence = setup.inspect_local_prerequisites(
+            self.root,
+            which=self.which,
+            python_version=(3, 12),
+            system="Linux",
+        )
+        self.assertEqual(evidence["fastlane_python_command"], "python")
+        self.assertTrue(evidence["python3_available"])
+        self.assertIsNone(evidence["python3_version_supported"])
+
+    def test_explicit_old_python3_version_blocks_hook_runtime(self) -> None:
+        evidence = self.ready_evidence()
+        evidence.update(
+            setup.read_session_evidence(io.StringIO('{"python3_version": "3.10.14"}'))
+        )
+        self.assert_state(evidence, "HOOK_RUNTIME_REQUIRED")
 
     def test_native_windows_still_requires_python_and_python3_separately(self) -> None:
         self.executables.pop("python")
@@ -196,12 +293,22 @@ class SetupAssistantTests(unittest.TestCase):
     def test_registered_marketplace_without_plugin_requests_installation(self) -> None:
         evidence = self.ready_evidence()
         evidence.update(official_plugin_installed=False, official_plugin_enabled=False)
-        self.assert_state(evidence, "AWS_CORE_INSTALLATION_REQUIRED")
+        report = self.assert_state(evidence, "AWS_CORE_INSTALLATION_REQUIRED")
+        combined = f"{report['owner_action']} {report['verification']}".casefold()
+        self.assertNotIn("restart", combined)
+        self.assertNotIn("new session", combined)
 
     def test_official_plugin_disabled_requests_enable(self) -> None:
         evidence = self.ready_evidence()
         evidence["official_plugin_enabled"] = False
         self.assert_state(evidence, "AWS_CORE_ENABLE_REQUIRED")
+
+    def test_enabled_plugin_not_loaded_requests_only_a_new_session(self) -> None:
+        evidence = self.ready_evidence()
+        evidence["official_plugin_loaded_in_session"] = False
+        report = self.assert_state(evidence, "AWS_CORE_SESSION_RESTART_REQUIRED")
+        self.assertEqual(report["owner_action_id"], "START_NEW_CODEX_SESSION")
+        self.assertNotIn("continue setup", report["owner_action"].casefold())
 
     def test_official_plugin_enabled_is_reused(self) -> None:
         evidence = self.ready_evidence()
@@ -240,6 +347,20 @@ class SetupAssistantTests(unittest.TestCase):
     def test_official_source_requires_observed_marketplace_identity(self) -> None:
         evidence = self.ready_evidence()
         evidence["observed_marketplace_repository"] = "unreviewed/toolkit"
+        self.assert_state(evidence, "AWS_CORE_SOURCE_UNVERIFIED")
+
+    def test_official_source_inventory_and_version_must_be_observed(self) -> None:
+        for missing in (
+            "legacy_plugin_enabled",
+            "unknown_plugin_sources",
+            "official_plugin_version",
+        ):
+            with self.subTest(missing=missing):
+                evidence = self.ready_evidence()
+                evidence.pop(missing)
+                self.assert_state(evidence, "AWS_CORE_SOURCE_UNVERIFIED")
+        evidence = self.ready_evidence()
+        evidence["observed_plugin_identity"] = "aws-core@unknown"
         self.assert_state(evidence, "AWS_CORE_SOURCE_UNVERIFIED")
 
     def test_newer_official_version_does_not_block(self) -> None:
@@ -304,10 +425,11 @@ class SetupAssistantTests(unittest.TestCase):
         self.assertIsNone(report["owner_command"])
         self.assertIn("ChatGPT", report["owner_action"])
 
-    def test_hook_trust_pending_requests_review(self) -> None:
+    def test_hook_trust_pending_has_its_own_attestation_state(self) -> None:
         evidence = self.ready_evidence()
-        evidence["hook_trusted"] = False
-        self.assert_state(evidence, "HOOK_REVIEW_REQUIRED")
+        evidence["hook_trust_attested_by_owner"] = False
+        report = self.assert_state(evidence, "HOOK_TRUST_ATTESTATION_REQUIRED")
+        self.assertEqual(report["owner_action_id"], "ATTEST_OFFICIAL_HOOK_TRUST")
 
     def test_conflicting_hooks_block(self) -> None:
         evidence = self.ready_evidence()
@@ -321,6 +443,7 @@ class SetupAssistantTests(unittest.TestCase):
         self.assertEqual(pending["owner_command"], "continue setup")
         rendered = setup.render_setup_response(pending)
         self.assertIn("Current step: Reviewing and testing", rendered)
+        self.assertNotIn("Then send:", rendered)
         self.assertTrue(
             rendered.rstrip().endswith(
                 "Technical status: HOOK_PROBES_REQUIRED"
@@ -369,6 +492,31 @@ class SetupAssistantTests(unittest.TestCase):
         evidence["documentation_sources"] = []
         self.assert_state(evidence, "AWS_CORE_VERIFICATION_BLOCKED")
 
+    def test_handshake_requires_exact_live_observer_skill_query_and_sources(self) -> None:
+        invalid_values = {
+            "observer": "MODEL_MEMORY",
+            "requested_skill": "aws-cdk",
+            "documentation_query": "similar but not exact",
+            "documentation_sources": ["https://example.com/not-aws"],
+            "credentials_inspected": None,
+            "aws_account_accessed": None,
+        }
+        for field, value in invalid_values.items():
+            with self.subTest(field=field):
+                evidence = self.ready_evidence()
+                evidence[field] = value
+                self.assert_state(evidence, "AWS_CORE_VERIFICATION_BLOCKED")
+
+    def test_handshake_blocks_credential_inspection_or_aws_account_access(self) -> None:
+        for field in ("credentials_inspected", "aws_account_accessed"):
+            with self.subTest(field=field):
+                evidence = self.ready_evidence()
+                evidence[field] = True
+                report = self.assert_state(
+                    evidence, "AWS_CORE_VERIFICATION_BLOCKED"
+                )
+                self.assertIn("credentials", report["explanation"].casefold())
+
     def test_each_capability_must_be_attributed_to_invoked_official_plugin(self) -> None:
         evidence = self.ready_evidence()
         evidence["search_documentation_plugin_identity"] = "aws-core@unknown"
@@ -403,8 +551,9 @@ class SetupAssistantTests(unittest.TestCase):
             official_marketplace_registered=False,
             official_plugin_installed=False,
             official_plugin_enabled=False,
+            official_plugin_loaded_in_session=False,
             hook_reviewed=False,
-            hook_trusted=False,
+            hook_trust_attested_by_owner=False,
             deny_probe_passed=None,
             deny_probe_blocked_before_execution=None,
             allow_probe_passed=None,
@@ -428,8 +577,12 @@ class SetupAssistantTests(unittest.TestCase):
         evidence["official_plugin_installed"] = True
         observe("AWS_CORE_ENABLE_REQUIRED")
         evidence["official_plugin_enabled"] = True
+        observe("AWS_CORE_SESSION_RESTART_REQUIRED")
+        evidence["official_plugin_loaded_in_session"] = True
         observe("HOOK_REVIEW_REQUIRED")
-        evidence.update(hook_reviewed=True, hook_trusted=True)
+        evidence["hook_reviewed"] = True
+        observe("HOOK_TRUST_ATTESTATION_REQUIRED")
+        evidence["hook_trust_attested_by_owner"] = True
         observe("HOOK_PROBES_REQUIRED")
         evidence.update(
             deny_probe_passed=True,
@@ -443,7 +596,7 @@ class SetupAssistantTests(unittest.TestCase):
             search_documentation_passed=True,
         )
         observe("READY_FOR_INTAKE")
-        self.assertEqual(len(expected_states), 7)
+        self.assertEqual(len(expected_states), 9)
         rendered = setup.render_setup_response(setup.reduce_setup(evidence))
         self.assertIn("AWS credentials were not configured or checked", rendered)
         self.assertIn("No AWS account was accessed", rendered)
@@ -475,6 +628,10 @@ class SetupAssistantTests(unittest.TestCase):
                     changed(official_plugin_installed=False, official_plugin_enabled=False),
                 ),
                 ("AWS_CORE_ENABLE_REQUIRED", changed(official_plugin_enabled=False)),
+                (
+                    "AWS_CORE_SESSION_RESTART_REQUIRED",
+                    changed(official_plugin_loaded_in_session=False),
+                ),
                 ("AWS_CORE_DUPLICATE_BLOCKED", changed(legacy_plugin_enabled=True)),
                 (
                     "AWS_CORE_SOURCE_UNVERIFIED",
@@ -482,6 +639,10 @@ class SetupAssistantTests(unittest.TestCase):
                 ),
                 ("HOOK_RUNTIME_REQUIRED", changed(python3_available=False)),
                 ("HOOK_REVIEW_REQUIRED", changed(hook_reviewed=False)),
+                (
+                    "HOOK_TRUST_ATTESTATION_REQUIRED",
+                    changed(hook_trust_attested_by_owner=False),
+                ),
                 ("HOOK_PROBES_REQUIRED", changed(deny_probe_passed=None)),
                 (
                     "AWS_CORE_HANDSHAKE_REQUIRED",
@@ -498,6 +659,13 @@ class SetupAssistantTests(unittest.TestCase):
         for state, evidence in cases:
             with self.subTest(state=state):
                 self.assert_state(evidence, state)
+                cli_report = self.public_cli_report(evidence)
+                self.assertEqual(cli_report["state"], state)
+                self.assertIsInstance(cli_report["owner_action_id"], str)
+                self.assertTrue(cli_report["owner_action_id"].strip())
+                self.assertIsInstance(cli_report["owner_action"], str)
+                self.assertTrue(cli_report["owner_action"].strip())
+                self.assertNotIn("owner_actions", cli_report)
 
     def test_guide_is_chronological_instructions_only(self) -> None:
         guide = setup.build_guide(self.root, system="Windows")
@@ -509,7 +677,18 @@ class SetupAssistantTests(unittest.TestCase):
         self.assertIn("codex login status", serialized)
         self.assertIn(setup.MARKETPLACE_COMMAND, serialized)
         self.assertIn("WSL2", serialized)
+        self.assertIn("sudo apt update", serialized)
+        self.assertIn("sudo apt install bubblewrap", serialized)
+        self.assertIn("command -v bwrap", serialized)
+        self.assertIn("bwrap --version", serialized)
         self.assertNotIn(str(self.root), serialized)
+
+    def test_setup_guide_verifies_bubblewrap_on_wsl_and_linux(self) -> None:
+        setup_guide = (REPOSITORY_ROOT / "docs" / "SETUP.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertGreaterEqual(setup_guide.count("command -v bwrap"), 2)
+        self.assertGreaterEqual(setup_guide.count("bwrap --version"), 2)
 
     def test_helper_has_no_external_execution_or_file_write_surface(self) -> None:
         source = SCRIPT_PATH.read_text(encoding="utf-8")

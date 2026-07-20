@@ -249,7 +249,18 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("@AWS Core\nVERIFY AWS CORE AND CONTINUE FASTLANE", boot)
         self.assertIn("retrieve_skill", boot)
         self.assertIn("search_documentation", boot)
-        self.assertIn("Retrieved skill", boot)
+        self.assertIn("requesting\nexactly `aws-serverless`", boot)
+        self.assertIn(
+            "AWS Lambda security best practices for serverless applications, "
+            "including least-privilege IAM and input validation",
+            boot,
+        )
+        self.assertIn("CODEX_LIVE_TOOL_CALL", boot)
+        self.assertIn("Credentials inspected` = `NO", boot)
+        self.assertIn("AWS account accessed` = `NO", boot)
+        self.assertIn("A newer official version is valid", boot)
+        self.assertIn("Requested skill", boot)
+        self.assertIn("Returned skill identifier", boot)
         self.assertIn("Documentation query", boot)
         self.assertIn("AWS credentials", boot)
         self.assertIn("AWS account", boot)
@@ -264,6 +275,13 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("HOOK_RUNTIME_REQUIRED", launch_skill)
         self.assertIn("HOOK_REVIEW_REQUIRED", launch_skill)
         self.assertIn("--dangerously-bypass-hook-trust", launch_skill)
+        self.assertIn("owner's attestation", boot)
+        self.assertIn("persisted trust\nwas machine-observed", boot)
+        self.assertIn("hook-trust state", boot)
+        self.assertIn("bound only to that current definition and inventory", launch_skill)
+        self.assertIn("requesting exactly `aws-serverless`", launch_skill)
+        self.assertIn("CODEX_LIVE_TOOL_CALL", launch_skill)
+        self.assertIn("A newer\n   official version remains valid", launch_skill)
         self.assertIn("Only the owner may trust", self.agents)
         self.assertNotIn("npx -y @openai/codex", launch_skill)
         self.assertNotIn("CLI handoff", self.bootstrap_source)
@@ -316,20 +334,39 @@ class PromptPackContractTests(unittest.TestCase):
             "Phase",
             "Plugin source",
             "Invoked plugin identity",
+            "Observed plugin version",
             "Capability",
-            "Retrieved skill",
-            "Documentation topic",
+            "Observation actor",
+            "Requested skill",
+            "Returned skill identifier",
+            "Documentation query",
             "Source references",
             "Design decision influenced",
+            "Credentials inspected",
+            "AWS account accessed",
             "Observed at",
             "Evidence binding",
             "Observed status",
         ):
             self.assertIn(heading, verify)
+        for phase in ("BOOT-00", "DESIGN-10", "AWS-10"):
+            self.assertEqual(verify.count(f"| `{phase}` |"), 2)
+        self.assertEqual(verify.count("| `retrieve_skill` |"), 3)
+        self.assertEqual(verify.count("| `search_documentation` |"), 3)
+        self.assertIn("unattributed BOOT-00 row blocks intake", verify)
         operate_skill = (
             PROJECT_ROOT / ".agents/skills/operate-fastlane-aws/SKILL.md"
         ).read_text(encoding="utf-8")
         self.assertIn("aws_core_evidence.aws_execution_planning", operate_skill)
+        self.assertIn("observation actor", operate_skill)
+        self.assertIn("CODEX_LIVE_TOOL_CALL", operate_skill)
+        self.assertIn("Credentials inspected` = `NO", operate_skill)
+        self.assertIn("AWS account accessed` = `NO", operate_skill)
+        self.assertIn("observation actor", self.prompt_section("DESIGN-10"))
+        self.assertIn("observation actor", self.prompt_section("AWS-10"))
+        self.assertIn("missing\n    BOOT-00 evidence must route back to `BOOT-00`", (
+            PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8"))
 
     def test_receipts_require_complete_normalized_block_equality(self) -> None:
         self.assertIn("equal to this complete", self.prompts)
@@ -585,7 +622,7 @@ class PromptPackContractTests(unittest.TestCase):
             "AWS authorization:",
         ):
             self.assertIn(field, boot)
-        self.assertIn("AWS Core hooks: APPROVED_AND_VERIFIED", boot)
+        self.assertIn("AWS Core hooks: OWNER_ATTESTED_AND_PROBES_VERIFIED", boot)
         self.assertIn("AWS Core hook conflict review: PASS", boot)
 
     def test_repo_scoped_skills_have_distinct_safe_trigger_contracts(self) -> None:

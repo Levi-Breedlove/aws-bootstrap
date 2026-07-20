@@ -52,15 +52,21 @@ description: Welcome, initialize, configure, inspect, or resume an AWS Codex Fas
    Never enable, disable, install, remove, or update a plugin for the owner.
 7. Before the live handshake, require the current official AWS Core
    `PreToolUse` hook to be visible in `/hooks`, readable, sourced from the
-   official plugin, and trusted by the owner. Inventory all hooks matching Bash
-   or AWS MCP tools and stop on an unknown or conflicting source. Do not hash an
-   external checkout, require a multiline approval card, alter hook state, or
-   bypass trust. Never use `--dangerously-bypass-hook-trust`. Missing `python3`
-   returns `HOOK_RUNTIME_REQUIRED`; pending trust returns
-   `HOOK_REVIEW_REQUIRED`. Then run the BOOT-00 inert deny and harmless
-   allow probes through the normal tool path. The first must be blocked before
-   execution and the second must print the exact marker. Neither accesses AWS.
-8. After trusted hooks and passing probes, return
+   official plugin, and accompanied by a conflict-free inventory of all hooks
+   matching Bash or AWS MCP tools. Only the owner reviews and trusts it. Return
+   `HOOK_REVIEW_REQUIRED` with the currently visible official definition/source
+   and matching-hook inventory, ask the owner to review and trust it, then ask
+   for exactly `continue setup`. Treat that reply as the owner's attestation
+   bound only to that current definition and inventory; renew it after any
+   change. Never claim persisted trust was machine-observed or persist local
+   paths, session details, hook-trust state, or trust-database data. Do not hash
+   an external checkout, require a multiline approval card, alter hook state,
+   or bypass trust. Never use `--dangerously-bypass-hook-trust`. Missing
+   `python3` returns `HOOK_RUNTIME_REQUIRED`. After the attestation, run the
+   BOOT-00 inert deny and harmless allow probes through the normal tool path.
+   The first must be blocked before execution and the second must print the
+   exact marker. Neither accesses AWS.
+8. After owner-attested hook review and passing probes, return
    `AWS_CORE_HANDSHAKE_REQUIRED` and ask the owner to send exactly:
 
    ```text
@@ -70,17 +76,25 @@ description: Welcome, initialize, configure, inspect, or resume an AWS Codex Fas
 
    Stop before intake; this is setup, not Gate A or Gate B.
 9. That explicit invocation must visibly exercise both official AWS Core
-   capabilities: `retrieve_skill` and `search_documentation`. Accept neither
-   installation metadata, a generic documentation connector, cached content,
-   earlier conversation, nor prose claims as proof. Report observed plugin
-   source and identity, retrieved skill, documentation query and returned
-   sources, and separate PASS/FAIL results. Do not call `call_aws`,
-   `run_script`, inspect/configure credentials, or access an AWS account.
+   capabilities. Call `retrieve_skill` requesting exactly `aws-serverless` and
+   record its nonempty canonical returned identifier. Call
+   `search_documentation` with exactly `AWS Lambda security best practices for
+   serverless applications, including least-privilege IAM and input
+   validation` and record returned official AWS references. Accept neither
+   installation metadata, a generic connector, cached content, earlier
+   conversation, nor prose claims. Each capability row records source
+   `aws/agent-toolkit-for-aws`, identity `aws-core@agent-toolkit-for-aws`,
+   observed current semantic version, actor `CODEX_LIVE_TOOL_CALL`, input and
+   output, time, Fastlane-version binding, PASS/FAIL,
+   `Credentials inspected` = `NO`, and `AWS account accessed` = `NO`. A newer
+   official version remains valid. Do not call `call_aws`, `run_script`,
+   inspect/configure credentials, or access an AWS account.
 10. Rerun the dependency checker and doctor after the handshake. Return
     `READY_FOR_INTAKE` only when repository/doctor checks, official source,
-    hook review, both probes, and both live capabilities pass. Otherwise render
-    the first unresolved state. End with `START GUIDED INTAKE` only when the
-    doctor routes to `INTAKE-10`.
+    owner-attested hook review, both probes, and both complete attributable live
+    capability rows pass. Otherwise render the first unresolved state. End with
+    `START GUIDED INTAKE` only when the doctor routes to `INTAKE-10`; missing
+    BOOT-00 evidence must route back to `BOOT-00`.
 
 Stop on a doctor error, path overlap outside the explicit in-place mode,
 official source-repository protection, a dirty or modified template, a

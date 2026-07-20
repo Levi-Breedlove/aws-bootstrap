@@ -14,14 +14,20 @@ description: Perform the Fastlane AWS read-only preflight, exactly authorized de
 3. At `AWS-10`, visibly make fresh live `retrieve_skill` and
    `search_documentation` calls through the official plugin for current
    operational, deployment, IAM, Region, quota, security, reliability, and cost
-   guidance. Record in `docs/project/VERIFY.md` the phase, capability,
-   retrieved skill, documentation topic/query, returned primary sources,
-   decision influenced, official source and invoked identity, observation time,
-   current immutable-artifact binding, and PASS/FAIL status. A generic
-   connector, installation record, cached result, prior phase receipt, or prose
-   claim is insufficient. Missing or failed evidence blocks AWS execution
-   planning. Use the read-only `fastlane-aws-advisor` where useful; it cannot
-   replace the official live calls.
+   guidance. Record in `docs/project/VERIFY.md` one independently attributed
+   row for each capability. Each row records source
+   `aws/agent-toolkit-for-aws`, identity `aws-core@agent-toolkit-for-aws`,
+   observed current semantic version, observation actor
+   `CODEX_LIVE_TOOL_CALL`, capability input/output, decision influenced,
+   observation time, current
+   immutable-artifact binding, PASS/FAIL, `Credentials inspected` = `NO`, and
+   `AWS account accessed` = `NO`; the documentation row also records returned
+   official AWS sources. A generic connector, unattributed row, installation
+   record, cached result, prior phase receipt, or prose claim is insufficient.
+   Missing or failed evidence blocks AWS execution planning. Do not pin
+   evidence to the last-tested plugin version. Use the read-only
+   `fastlane-aws-advisor` where useful; it cannot replace the official live
+   calls.
 4. Treat documentation access, credentials, connector access, and IAM
    permissions as capabilities only. They never authorize an AWS change.
 5. Run `AWS-10` read-only first. Reconfirm the caller, account, role or profile,
