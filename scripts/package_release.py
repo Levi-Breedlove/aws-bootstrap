@@ -23,6 +23,26 @@ ARCHIVE_ROOT = "aws-codex-fastlane-bootstrap"
 DEFAULT_OUTPUT_DIRECTORY = "dist"
 FIXED_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 SEMVER_PATTERN = re.compile(r"\d+\.\d+\.\d+")
+SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+REQUIRED_SETUP_ASSETS = {
+    "docs/DEPENDENCY-POLICY.md",
+    "docs/EXISTING-AWS-CORE.md",
+    "docs/SETUP.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/WORKFLOW.md",
+    "scripts/setup_assistant.py",
+}
+FORBIDDEN_LEGACY_SETUP_ASSETS = {
+    ".agents/plugins/marketplace.json",
+    "scripts/uv_setup_assistant.py",
+}
+REQUIRED_CONTROL_FILES = {
+    "bootstrap.py",
+    "scripts/bootstrap_dependencies.py",
+    "scripts/bootstrap_doctor.py",
+    "scripts/setup_assistant.py",
+    "scripts/task_waves.py",
+}
 
 
 class PackagingError(ValueError):
@@ -72,6 +92,55 @@ def has_symlink_component(root: Path, relative: str) -> bool:
     return False
 
 
+def validate_manifest_hashes(
+    manifest: dict[str, object],
+    files: list[tuple[str, bytes]],
+) -> None:
+    """Require exact, current source and control hashes in the manifest."""
+
+    contents = dict(files)
+    expected_sources = set(contents) - {MANIFEST_FILE}
+    missing_controls = sorted(REQUIRED_CONTROL_FILES - set(contents))
+    if missing_controls:
+        raise PackagingError(
+            "Manifest omits required control files: " + ", ".join(missing_controls)
+        )
+
+    def require_hashes(field: str, expected_paths: set[str]) -> dict[str, object]:
+        hashes = manifest.get(field)
+        if not isinstance(hashes, dict):
+            raise PackagingError(f"Manifest {field} must be an object")
+        actual_paths = set(hashes)
+        if actual_paths != expected_paths:
+            missing = sorted(expected_paths - actual_paths)
+            unexpected = sorted(actual_paths - expected_paths)
+            details = []
+            if missing:
+                details.append("missing " + ", ".join(missing))
+            if unexpected:
+                details.append("unexpected " + ", ".join(unexpected))
+            raise PackagingError(
+                f"Manifest {field} inventory is incorrect: " + "; ".join(details)
+            )
+        for relative in sorted(expected_paths):
+            stored = hashes[relative]
+            if not isinstance(stored, str) or SHA256_PATTERN.fullmatch(stored) is None:
+                raise PackagingError(f"Manifest {field} hash is invalid: {relative}")
+            actual = hashlib.sha256(contents[relative]).hexdigest()
+            if stored != actual:
+                label = "source" if field == "source_sha256" else "control"
+                raise PackagingError(f"Manifest {label} hash mismatch: {relative}")
+        return hashes
+
+    source_hashes = require_hashes("source_sha256", expected_sources)
+    control_hashes = require_hashes("control_sha256", REQUIRED_CONTROL_FILES)
+    for relative in sorted(REQUIRED_CONTROL_FILES):
+        if control_hashes[relative] != source_hashes[relative]:
+            raise PackagingError(
+                f"Manifest source and control hashes disagree: {relative}"
+            )
+
+
 def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tuple[str, bytes]]]:
     """Load the manifest version and exact release file bytes."""
 
@@ -97,6 +166,20 @@ def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tup
     raw_files = manifest.get("required_files")
     if not isinstance(raw_files, list) or not raw_files:
         raise PackagingError("Manifest required_files must be a non-empty array")
+    if tuple(int(part) for part in version.split(".")) >= (1, 1, 0):
+        inventory = {item for item in raw_files if isinstance(item, str)}
+        missing_setup = sorted(REQUIRED_SETUP_ASSETS - inventory)
+        if missing_setup:
+            raise PackagingError(
+                "Manifest omits official AWS Core setup assets: "
+                + ", ".join(missing_setup)
+            )
+        forbidden_setup = sorted(FORBIDDEN_LEGACY_SETUP_ASSETS.intersection(inventory))
+        if forbidden_setup:
+            raise PackagingError(
+                "Manifest retains retired repository-local marketplace assets: "
+                + ", ".join(forbidden_setup)
+            )
 
     files: list[tuple[str, bytes]] = []
     seen: set[str] = set()
@@ -114,6 +197,7 @@ def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tup
 
     if [path for path, _ in files] != sorted(seen):
         raise PackagingError("Manifest required_files must be sorted canonically")
+    validate_manifest_hashes(manifest, files)
     return version, files
 
 

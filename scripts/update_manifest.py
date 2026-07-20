@@ -17,7 +17,7 @@ CONTROL_FILES = (
     "bootstrap.py",
     "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
-    "scripts/uv_setup_assistant.py",
+    "scripts/setup_assistant.py",
     "scripts/task_waves.py",
 )
 

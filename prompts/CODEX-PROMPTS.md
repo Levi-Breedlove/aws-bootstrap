@@ -1,6 +1,6 @@
 # AWS Codex Fastlane Prompt Pack
 
-**Pack version:** 1.0.0
+**Pack version:** 1.1.0
 
 This pack turns a rough idea or an existing repository into a reviewed,
 executable AWS delivery plan, then lets Codex run the approved work for long
@@ -50,8 +50,9 @@ BOOT-00 expands that shorthand to **START AWS CODEX FASTLANE**, `Setup:
 THIS_REPOSITORY`, and the safely detected local-Git choice. For brownfield
 adoption, use
 `Setup: ADOPT_EXISTING_REPOSITORY` and an exact absolute target. BOOT-00 safely
-initializes or resumes the project, explains the workflow, and returns a
-prefilled **START GUIDED INTAKE** command. Paste that command to begin.
+initializes or resumes the project, explains the workflow, and immediately
+begins the doctor-selected prompt. A new project proceeds directly into its
+first guided-intake questions.
 
 For an initialized repository, use the prompt matching the current state. Do
 not skip a missing Gate A or Gate B.
@@ -284,14 +285,17 @@ aws-core plugin from Agent Toolkit for AWS:
 - [AWS MCP Server tools](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/understanding-mcp-server-tools.html)
 - [Multi-profile support](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/multi-account-access.html)
 
-The repo marketplace pins `aws-core` version `1.1.0` at Agent Toolkit commit
-`36f16570de2015c0f0ce94ba9e391bd703c9ffb7`. Use AWS Core skills, current AWS
-primary documentation, regional-availability checks, and its AWS API tools
-before relying on model memory. The plugin is a knowledge and tool layer; it
-does not replace docs/project/PRD.md, the human gates, IAM, or an AWS authorization record.
-If AWS Core is unavailable in the current session, BOOT-00 dependency recovery
-is required before Fastlane claims setup readiness or makes a gate-ready AWS
-recommendation. AWS operations remain blocked.
+Fastlane uses only the current official plugin identity
+`aws-core@agent-toolkit-for-aws` from `aws/agent-toolkit-for-aws`. Do not pin an
+AWS Core version or commit. Use AWS Core skills and current primary AWS
+documentation before relying on model memory whenever material AWS facts affect
+requirements, architecture, Gate B readiness, release planning, deployment,
+operations, or teardown. The plugin is a research and tool layer; it does not
+replace `docs/project/PRD.md`, the human gates, IAM, or an AWS authorization
+record. Its absence never blocks BOOT-00, intake, or ordinary Gate A discovery.
+When current AWS facts are required at DESIGN-10 or an AWS operating prompt,
+pause only that affected step and provide one concise official setup action.
+AWS operations remain blocked without the required evidence and authorization.
 
 Before any AWS mutation, the active authorization must state all of:
 
@@ -314,17 +318,17 @@ Missing, stale, or conflicting values make the mutation BLOCKED. Read-only
 discovery must precede mutation. Prefer a read-only profile by default and the
 least-privileged write profile only for an authorized operation.
 
-Fastlane ships `.agents/plugins/marketplace.json` with an
-`AVAILABLE` request for that exact official revision. Repository
-trust and managed platform policy still apply. A newly installed plugin is not
-available to an already-running conversation. BOOT-00 first completes local
-setup, then checks the client surface. On the ChatGPT desktop app's Codex
-experience or Codex CLI, it directs the owner to manage AWS Core with
-`/plugins`, restart Codex when prompted, and send `@AWS Core` plus `VERIFY AWS
-CORE AND CONTINUE FASTLANE`. The Codex IDE extension cannot manage plugins and
-must receive precise owner-run supported-surface instructions instead. Never infer plugin
-availability from files or a generic documentation connector; require
-successful AWS Core `retrieve_skill` and `search_documentation` checks.
+Repository trust and managed platform policy still apply. A newly installed or
+enabled plugin may require a new Codex session. Reuse an existing official copy
+instead of requesting another installation. If setup is needed for AWS design,
+use `/plugins`; register a missing marketplace only with the owner-run command
+`codex plugin marketplace add aws/agent-toolkit-for-aws`, restart, and resume
+with `CONTINUE AWS DESIGN`. Never use the retired repository-local marketplace.
+Fastlane does not inspect private plugin state, compare hook hashes, request
+screenshots, run synthetic hook probes, or create a hook-trust receipt. For
+material decisions, require attributable live AWS Core `retrieve_skill` and
+`search_documentation` results rather than generic connectors, cached prose, or
+model memory.
 
 BOOT-00 does not configure AWS credentials. When an explicitly invoked AWS
 operating prompt later needs account access, follow the current Agent Toolkit
@@ -401,585 +405,188 @@ Do not claim an action, test, merge, deployment, or observation without evidence
 
 ## BOOT-00 — Bootstrap Launchpad
 
-**Preconditions:** The user sent the plain-language shorthand `init template`,
-`initialize template`, or `start Fastlane`; sent `START AWS CODEX FASTLANE`
-with `Setup: THIS_REPOSITORY` or `Setup: ADOPT_EXISTING_REPOSITORY` plus an exact
-local-Git setup choice; or explicitly invoked `@AWS Core` with `VERIFY AWS CORE
-AND CONTINUE FASTLANE` after the setup walkthrough and hook approval. BOOT-00
-also accepts the exact `APPROVE AWS CORE HOOKS` confirmation generated during
-that walkthrough. The short form means
-`THIS_REPOSITORY`, uses existing Git when present, and uses safe local baseline
-behavior when Git is absent. The legacy `START AWS CODEX BOOTSTRAP`
-external-target form remains valid for scripted copies. The template files and
-manifest are available.
+**Purpose:** Welcome the owner, safely initialize or resume the repository, and
+route directly to the doctor-selected lifecycle prompt. BOOT-00 is intentionally
+small. AWS Core supports later AWS research; it is not a prerequisite for
+project intake or Gate A.
 
-**Authoritative inputs:** Resolved repository and optional adoption-target paths;
-bootstrap manifest and source hashes; bootstrap.py dry-run; bootstrap.yaml
-mirror; bootstrap doctor JSON; Git state and origin; AGENTS.md files; existing
-docs/project/PRD.md, docs/project/BUGFIX.md, docs/project/TASKS.md, docs/project/VERIFY.md, and docs/project/RUNBOOK.md; Python, prompt-pack,
-placeholder and skill checks; `bootstrap_dependencies.py` JSON; the pinned
-Agent Toolkit marketplace; project-agent files; and current-session AWS Core
-capability observation plus the observed Codex client surface and `uvx`
-launcher availability; `python3` hook-runtime availability; Codex `/hooks`
-inventory and trust state; and the exact pinned AWS Core hook contract reported
-by `bootstrap_dependencies.py`; and the current instruction-only JSON result
-from `uv_setup_assistant.py`, including its manifest-controlled tree, owner-run
-command, and explicit no-execution receipt.
+**Preconditions:** The owner sent an accepted start or resume command and the
+repository or explicit adoption target is locally accessible.
 
-**Permitted writes:** For `THIS_REPOSITORY`, only allowlisted placeholder
-rendering by `bootstrap.py --in-place-template-instance` after the tree matches
-the versioned manifest, every source hash matches, no symlink or dirty user file
-exists, and the repository is not the official maintainer source. For an
-external new target, only manifest-allowlisted files inside the explicit
-collision-free target. For brownfield collisions, only a user-confirmed,
-complete, hash-bound adoption map may authorize exact `ADOPT_TEMPLATE` paths;
-`PRESERVE` does not change the target and `STAGE_FOR_MERGE` writes only to its
-separate explicit staging target. Blanket overwrite is prohibited. ACTIVE
-targets are inspected and resumed without regeneration. When and only when
-local-Git setup is `INIT_AND_BASELINE_COMMIT`, an absent local repository may
-be initialized and the reviewed bootstrap state committed as its baseline
-using existing Git author identity. No remote may be added.
-Codex client installation, uv installation, marketplace registration, plugin
-selection, session launch, and hook trust are owner-run steps that Fastlane
-only explains. Fastlane never executes the uv command or treats instructions as
-authority for a package-manager, plugin, hook, session, or AWS action.
+**Accepted commands:** `init template`, `initialize template`, `start
+Fastlane`, `continue setup`, the expanded `START AWS CODEX FASTLANE`
+command, and the legacy external-target form `START AWS CODEX BOOTSTRAP`.
 
-**GitHub mode:** NONE. Local Git initialization and one baseline commit are not
-GitHub actions and are allowed only by the setup choice above. No remote,
-fetch, push, hosted repository, issue, pull request, or other GitHub write.
+**Authoritative inputs:** Canonical repository and optional adoption-target
+paths; manifest and source hashes; bootstrap dry-run; dependency-check and
+doctor JSON; applicable `AGENTS.md` files; Git state; project source records;
+and only plugin identity that is visibly available in the current Codex
+session.
 
-**AWS mode:** NONE during local initialization. DOCS_ONLY during the explicit
-`@AWS Core` verification command: one unauthenticated skill-retrieval check and
-one documentation search only. Never call `call_aws`, `run_script`, or an
-account API during BOOT-00.
+**Permitted writes:** For an untouched in-place template, only allowlisted
+placeholder rendering after successful source-integrity, path, dirty-file, and
+dry-run checks. For a new external target, only manifest-allowlisted files
+inside the exact collision-free target. Brownfield collisions require the
+existing complete hash-bound adoption record. Never use `--force`, follow a
+symlink escape, overwrite an unresolved collision, or regenerate an active
+project. BOOT-00 does not write AWS Core evidence.
 
-**Required authorization:** The exact start command authorizes only safe local
-initialization or inspection for its named or safely derived setup method,
-repository-local dependency validation, and the marketplace's exact pinned
-`AVAILABLE` AWS Core request. It does not authorize Fastlane to execute a uv
-installation command. The exact `@AWS Core` verification command additionally authorizes only the two
-unauthenticated plugin checks named above. The exact `APPROVE AWS CORE HOOKS`
-confirmation is accepted only after the owner has trusted the reviewed current
-hook-definition hash and conflict/probe checks pass. None of these commands
-authorize requirements, tasks, implementation, remotes, GitHub writes, AWS
-credentials, AWS account access, automatic hook trust, or a trust bypass.
+**GitHub mode:** NONE. Local Git setup is not GitHub authorization.
 
-**Stop conditions:** Missing or ambiguous setup; unsafe repository root; ordinary
-external source/target equality or containment; a modified or dirty in-place
-template; official maintainer-source detection; source-hash mismatch; symlink
-escape; dry-run failure; collision or overwrite risk; unresolved
-source-of-truth conflict; partial write; expected-file, skill, placeholder, or
-doctor failure; partial core-contract adoption; unconfirmed adoption plan;
-adoption-plan digest or target-root drift; dependency-check failure; altered
-AWS Toolkit pin; an attempted automatic uv/package-manager/runtime execution;
-unverified owner-run marketplace registration; an unsupported Codex surface;
-missing explicit `@AWS Core` invocation; missing owner-verified `uvx`; or failed
-`retrieve_skill` or `search_documentation` verification; missing `python3` for
-the pinned hook command; an unreviewed or changed AWS Core hook; an unknown or
-conflicting active hook; disabled hooks; or any attempted automatic trust or
-`--dangerously-bypass-hook-trust` use.
+**AWS mode:** NONE. BOOT-00 does not inspect credentials, access an AWS account,
+or invoke AWS account APIs.
 
-**Receipt:** After local initialization and doctor validation, a stable
-`OWNER_SETUP_INSTRUCTIONS_REQUIRED` receipt when the current surface cannot
-manage plugins; a `UV_INSTALL_INSTRUCTIONS_REQUIRED` or
-`UV_DETECTED_OWNER_VERIFICATION_REQUIRED` receipt when `uvx` is not
-owner-verified; or a stable AWS Core setup walkthrough
-when the pinned plugin is not yet verified; then a stable hook-runtime,
-hook-review, or hook-approval receipt as observed. After
-the exact `@AWS Core` command, a stable live-verification receipt. Only then may
-BOOT-00 emit the stable doctor-derived READY, RESUME, or BLOCKED receipt containing
-classification, lifecycle, doctor result, next prompt, Git baseline, Fastlane
-skills, project agents, AWS Toolkit marketplace declaration, AWS Core, AWS MCP,
-AWS credential, AWS access, Gate A, Gate B, evidence, and AWS authorization
-state, followed by a standard work receipt.
+**Required authorization:** The start command permits only safe local
+initialization or inspection. It does not approve requirements, design,
+construction, GitHub activity, plugin changes, hook trust, AWS access, or AWS
+mutation.
 
-**Next:** State-derived: INTAKE-10, REQ-10, INTAKE-20, DESIGN-10, DESIGN-20,
-TASK-10, BUILD-10, BUILD-20, RELEASE-10, or STOP.
+**Stop conditions:** Unsafe or ambiguous roots; source/target containment;
+maintainer-source, manifest, hash, symlink, dirty-template, collision,
+adoption-record, partial-write, dependency, doctor, or source-of-truth failure.
+Missing AWS Core is not a BOOT-00 stop condition.
+
+**Receipt:** Exact welcome, compact setup result, and the first questions from
+the doctor-selected prompt.
+
+**Next:** The exact doctor route. For a new project this is normally
+`INTAKE-10`; begin its questions immediately without asking the owner to send
+another command.
 
 ~~~text
 [BOOT-00]
-Process this initiation command:
+Process this command:
 
 START AWS CODEX FASTLANE
 Setup: <THIS_REPOSITORY|ADOPT_EXISTING_REPOSITORY>
 Target path: <required only for ADOPT_EXISTING_REPOSITORY>
 Local Git setup: <INIT_AND_BASELINE_COMMIT|USE_EXISTING>
 
-The messages `init template`, `initialize template`, and `start Fastlane` are
-canonical shorthand for `Setup: THIS_REPOSITORY`. Select `USE_EXISTING` when a
-local Git repository exists. Otherwise select `INIT_AND_BASELINE_COMMIT` and
-stop without a commit if Git author identity or another baseline precondition
-is missing. Shorthand never selects brownfield adoption or a remote action.
-
-Act as the AWS Codex Fastlane installer and launchpad. For THIS_REPOSITORY, use
-the repository containing this prompt as both the template instance and project
-root. For ADOPT_EXISTING_REPOSITORY, resolve the exact absolute target without
-an unresolved variable, glob, home shortcut, or command substitution. Refuse a
-filesystem root, home directory, Git metadata path, or symlink escape.
-
-Begin with this welcome, adapting only the project name when it is already
-known:
-
-Welcome to AWS Codex Fastlane. This template turns a rough AWS idea into
-owner-approved requirements and a technical PRD, then lets Codex build inside
-the exact boundary approved at Gate B. Setup checks tools and repository state
-only; it does not access or change AWS.
-
-Before asking project questions or writing files, run this static repository
-check:
-
-python scripts/bootstrap_dependencies.py --root <repository root> --json
-
-Require `status`, `fastlane_skills.status`, and `project_agents.status` to equal
-`READY`, and require `aws_agent_toolkit.marketplace` to equal
-`DECLARED_AND_PINNED`. Require `aws_agent_toolkit.installation_policy` to equal
-`AVAILABLE`, `aws_agent_toolkit.setup_mode` to equal `INSTRUCTIONS_ONLY`, and
-`aws_agent_toolkit.uv_setup.status` to equal
-`UV_SETUP_ASSISTANCE_AVAILABLE`. This proves repository assets, the immutable
-available plugin request, and the narrow uv helper only. It does not prove that
-AWS Core is installed, updated, loaded, or callable. If the checker is BLOCKED,
-print a BLOCKED receipt with the observed values and stop before any write.
-
-Do not inspect plugin availability yet. Complete the safe local initialization
-or resume flow and doctor validation below first. Do not probe for `pytest`,
-install Python packages, or run the maintainer test suite during BOOT-00.
-Fastlane local setup uses only Python 3.11+ standard-library scripts. The
-separate AWS Core `uvx` prerequisite is checked only after safe local setup,
-doctor validation, and supported-surface detection.
-
-Ask no more than these two setup questions, and ask only for values the user
-did not already supply:
-1. What should the project be called?
-2. Which AWS Region should planning prefer?
-
-Recommend `us-west-2` when the owner is unsure. If the owner supplied a genuine
-hard cost cap, preserve its exact ISO currency and amount as
-`MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; for example,
-an owner-provided USD 20.00 cap becomes
-`MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00`.
-Otherwise use
-`MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. Do not ask for or invent a monthly
-number during BOOT-00, and never treat a budget as a spending target. These are
-planning inputs, not AWS authorization.
-
-Inspect before writing and classify exactly one:
-- TEMPLATE_SOURCE: this is the reusable source, not an initialized target;
-- UNCONFIGURED_TEMPLATE: an untouched GitHub-template or release-ZIP instance;
-- NEW_TARGET: explicit absent or empty target safe to initialize;
-- ACTIVE_GREENFIELD: initialized target without an existing production system;
-- ACTIVE_BROWNFIELD: existing project or system being overlaid or resumed;
-- BLOCKED: target safety, collision, integrity, or authority is unresolved.
-
-For UNCONFIGURED_TEMPLATE, first run the in-place command with `--dry-run`, then
-run it without `--dry-run` only when the manifest, source hashes, Git protection,
-symlink checks, and collision checks pass:
-
-python bootstrap.py --target <repository root> --project-name <name> --region <region> --cost-posture "<MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED or exact owner value MINIMIZE_TOTAL_COST; HARD_CAP: ISO_CURRENCY OWNER_AMOUNT>" --in-place-template-instance --dry-run
-python bootstrap.py --target <repository root> --project-name <name> --region <region> --cost-posture "<MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED or exact owner value MINIMIZE_TOTAL_COST; HARD_CAP: ISO_CURRENCY OWNER_AMOUNT>" --in-place-template-instance
-
-Only the allowlisted placeholders may change. The full update is atomic and
-must pass the doctor; a failure rolls back every changed file.
-
-For NEW_TARGET, run bootstrap.py dry-run and collision checks first. If clean,
-initialize only the manifest-allowlisted files at the explicit target. Never use `--force`.
-Ordinary external source/target equality or containment remains
-prohibited.
-
-For an uninitialized brownfield target, produce an overlay preview with
-rendered-template and target SHA-256 digests. You may propose a decision map,
-but START AWS CODEX FASTLANE does not
-authorize you to choose `ADOPT_TEMPLATE` for the owner. Make no target change
-until every collision has exactly one hash-bound decision: `PRESERVE`,
-`ADOPT_TEMPLATE`, or `STAGE_FOR_MERGE` at a separate, explicit, non-overlapping
-staging target. Before applying any `ADOPT_TEMPLATE` decision, require the user
-to return the exact generated confirmation card containing both canonical
-roots, complete ordered decision payload, human owner, time, source, and
-`plan_sha256`. Compute `plan_sha256` from canonical JSON containing
-`schema_version`, canonical `source_root`, canonical `target_root`, and the
-ordered full decisions; each decision contains path, action, expected target
-SHA-256, and expected rendered-template SHA-256. It never hashes decisions
-alone. Bind application to that receipt and reject a paraphrase, omitted path
-or digest, different order, root, schema, or changed hash. Generate the card in
-this shape, with one canonical decision line for every collision and no
-placeholders:
-
-CONFIRM BOOTSTRAP ADOPTION PLAN
-schema_version: 1
-source_root: <canonical absolute template source>
-target_root: <canonical absolute target>
-authorized_by: <human owner>
-authorized_at: <RFC 3339 timestamp with timezone>
-authorization_source: OWNER_CONFIRMATION
-plan_sha256: <64 lowercase hex characters>
-Decisions:
-<relative path> | <action> | <expected target SHA-256> | <expected rendered-template SHA-256>
-
-Compute the plan digest from the UTF-8 canonical JSON encoding of the complete
-plan object—schema version, roots, and ordered decisions—using `sort_keys=true`
-and compact separators. Authorization metadata is stored alongside the hash but
-is not part of its canonical input. The
-observed time and exact owner-message source must agree with the authorization
-object. Never invent the authorized identity, time, or source.
-
-Abort the whole preflight on an omitted/unknown/duplicate path, digest
-drift, unsafe path, symlink, or root mismatch. Preserving or staging a core
-control file is PARTIAL_ADOPTION until doctor validation succeeds. This is a
-one-time collision authorization, not Gate A or Gate B. Never silently merge or
-overwrite. For
-ACTIVE_GREENFIELD or ACTIVE_BROWNFIELD with a coherent bootstrap, resume it
-without regeneration.
-
-Apply the local-Git choice exactly. `INIT_AND_BASELINE_COMMIT` may run local
-`git init` only when `.git` is absent, validate the configured bootstrap, and
-commit that exact reviewed state as the baseline using already configured
-author identity. `USE_EXISTING` requires an existing local repository and
-records its current commit plus any protected dirty paths. Never add a remote,
-create a hosted repository, fetch, or push.
-
-After initialization or resume, verify:
-- expected bootstrap files and applicable nested AGENTS.md files;
-- no unresolved project placeholders outside documented examples;
-- prompt-pack title/version and all canonical prompt IDs;
-- Git and Python availability and whether the target is already a Git repo;
-- repo-scoped Fastlane skill files and distinct trigger policies;
-- the three read-only project-agent files and their no-model/no-MCP override
-  contract;
-- the exact pinned Agent Toolkit marketplace through
-  `bootstrap_dependencies.py`;
-- source-of-truth file coherence.
-
-Run `python scripts/bootstrap_doctor.py --root <target>` after initialization and on
-resume. The doctor is read-only. Unsafe, contradictory, or unreconciled
-interrupted state routes to STOP. A coherent `STALE` gate routes to its
-requirements or design repair prompt below while construction remains stopped.
-
-Before presenting plugin-management steps, determine the observed Codex client
-surface. AWS Core plugins are supported in the ChatGPT desktop app's Codex
-experience and Codex CLI. They are not available in the Codex IDE extension.
-Fastlane is instruction-only for Codex setup: never install a Codex client,
-register a marketplace, change plugin state, or launch another session. If the
-current surface cannot manage plugins, print this stable receipt:
-
-AWS CODEX FASTLANE — OWNER SETUP INSTRUCTIONS REQUIRED
-
-Repository: <canonical path>
-Current surface: <observed surface>
-Required surface: CHATGPT_DESKTOP_CODEX_OR_INTERACTIVE_CODEX_CLI
-Codex installation: OWNER_MANAGED
-Marketplace registration: OWNER_MANAGED
-Plugin selection: OWNER_MANAGED
-Session launch: OWNER_MANAGED
-AWS credentials: NOT CHECKED
-AWS access: NOT USED
-AWS authorization: NONE
-Next action: OPEN A SUPPORTED CODEX SURFACE AND FOLLOW THE COMMANDS BELOW
-
-Then tell the owner to use the
-[official Codex instructions](https://learn.chatgpt.com/docs/developer-commands?surface=cli)
-if they need to install or update Codex. Do not run that installation. In a
-terminal the owner opened at the canonical repository root, tell them to run:
-
-codex plugin marketplace add .
-codex -C . --sandbox workspace-write --ask-for-approval on-request
-
-Explain each command before the owner runs it: the first registers only this
-repository's pinned marketplace in that owner's local Codex profile; the second
-opens an interactive session at this repository with normal on-request
-approvals. Fastlane never runs either command, reads the Codex credential store,
-or writes client paths, versions, plugin state, trust, credentials, usernames,
-or setup history to the repository or `bootstrap.yaml`.
-
-Ask the owner to run `uvx --version` visibly in the terminal they opened. AWS
-Core launches its MCP server through `uvx`, which is supplied by Astral `uv`.
-Do not execute a PATH-discovered `uvx` binary as a setup probe. If the owner
-reports that `uvx` is missing, run:
-
-python scripts/uv_setup_assistant.py plan --root <repository root> --json
-
-The helper may offer WinGet's `astral-sh.uv` package on Windows, Homebrew on
-macOS, or an already-installed `pipx` elsewhere. It never executes its printed
-command, bootstraps a package manager, uses plain `pip`, pipes a downloaded
-script into a shell, installs Codex, changes plugin state, or launches a
-session. Return `UV_INSTALL_INSTRUCTIONS_REQUIRED`, display the command as an
-argument array, and link the
-[Astral guide](https://docs.astral.sh/uv/getting-started/installation/). Tell
-the owner to run the command themselves in a visible terminal, restart it, and
-run `uvx --version` visibly. Runtime setup is a tool prerequisite, not Gate A,
-Gate B, AWS authentication, or AWS authority.
-
-On a supported surface with `uvx` available, inspect plugin-management state.
-When the pinned plugin is not installed, enabled, and current, print exactly
-this stable receipt:
-
-AWS CODEX FASTLANE — AWS CORE SETUP REQUIRED
-
-Local setup: COMPLETE
-Doctor: PASS
-Fastlane skills: READY
-Project agents: READY
-AWS Toolkit marketplace: DECLARED_AND_PINNED
-aws-core plugin: AVAILABLE_NOT_INSTALLED
-AWS MCP: NOT CONNECTED
-AWS credentials: NOT CHECKED
-AWS access: NOT USED
-AWS authorization: NONE
-Next action: OPEN `/plugins`
-
-Then give this walkthrough:
-1. Enter `/plugins` in Codex.
-2. Open `AWS Codex Fastlane Dependencies`.
-3. Select the explicitly `AVAILABLE` AWS Core `1.1.0` entry pinned to
-   `36f16570de2015c0f0ce94ba9e391bd703c9ffb7` and approve its install.
-4. Restart Codex if prompted and reopen this repository in a new task.
-5. Send exactly:
-
-init template
-
-If the repository marketplace is not visible after the repository is trusted
-and reopened on a supported surface, print exactly:
-
-AWS CODEX FASTLANE — PINNED MARKETPLACE REQUIRED
-
-Marketplace status: PINNED_MARKETPLACE_UNAVAILABLE
-Repository marketplace: NOT_VISIBLE
-Expected declaration: .agents/plugins/marketplace.json
-Expected AWS Core commit: 36f16570de2015c0f0ce94ba9e391bd703c9ffb7
-Moving upstream fallback: PROHIBITED
-AWS credentials: NOT CHECKED
-AWS access: NOT USED
-AWS authorization: NONE
-Next action: FROM THIS REPOSITORY RUN `codex plugin marketplace add .`, THEN REOPEN IT
-
-Do not register moving `aws/agent-toolkit-for-aws` upstream or another
-marketplace as a fallback, because it does not prove the immutable revision
-approved by Fastlane. The general `aws configure agent-toolkit` wizard is also
-not a substitute because it installs user-global current content. If the
-pinned entry remains unavailable, stop before plugin installation and intake.
-A separately approved read-only upstream comparison may return
-`AWS_CORE_UPDATE_REVIEW_REQUIRED`; it never changes the pin. Updating the pin
-requires reviewing the complete plugin subtree, MCP launcher, hooks, skills,
-hashes, tests, and manifest. This tool-availability pause is not Gate A or Gate
-B.
-
-When the pinned plugin is installed and current after restart, review its hooks
-before the live AWS Core handshake. Require the static dependency report's
-`hook_review` object to match the pinned `PreToolUse` event, both expected
-matchers, exact command, purpose, and expected `hooks.json` and
-`secret-safety.py` SHA-256 values. The pinned hook blocks direct AWS Secrets
-Manager value retrieval before Bash and matching AWS MCP tools. It adds a
-restriction; it never grants tool access, gate approval, AWS authorization, or
-permission expansion.
-
-Run `python3 --version` as a read-only check because the current pinned hook
-invokes that exact command. If unavailable, print exactly:
-
-AWS CODEX FASTLANE — AWS CORE HOOK RUNTIME REQUIRED
-
-Local setup: COMPLETE
-Doctor: PASS
-AWS Core: INSTALLED_AND_CURRENT
-AWS Core hook runtime: PYTHON3_MISSING
-AWS Core hooks: NOT_TRUSTED
-Automatic runtime installation: NOT AUTHORIZED
-AWS credentials: NOT CHECKED
-AWS access: NOT USED
-AWS authorization: NONE
-Next action: PROVIDE `python3` ON THIS SUPPORTED SURFACE, THEN START A NEW CODEX SESSION
-
-Do not install Python, create an alias or wrapper, edit the installed plugin,
-or weaken the hook. Stop before hook trust, plugin verification, and intake.
-
-When `python3` is available, open the Hooks page in Codex Settings, or `/hooks`
-in Codex CLI, and inspect every active hook source.
-Codex runs all matching hook sources, and matching command hooks can start
-concurrently; higher-precedence config does not replace another hook. Compare
-every hook that can match Bash or AWS MCP tools with the pinned AWS Core hook.
-Classify each as `COMPATIBLE` or `CONFLICTING` from its actual definition and
-behavior. Treat an unreadable, unknown, modified, disabled, or untrusted source
-as conflicting until resolved. The stock Fastlane template declares no
-project-local hooks; if the dependency report names a repository hook source,
-include it in this review instead of assuming compatibility.
-
-If the AWS Core hook definition differs from the pinned contract, any matching
-hook conflicts, or hooks are disabled, print `AWS CODEX FASTLANE — AWS CORE
-HOOK REVIEW BLOCKED`, name every observed mismatch or conflict, keep AWS access
-`NOT USED`, and stop. Do not use `--dangerously-bypass-hook-trust`, automatically
-trust a hook, disable a conflicting hook, or alter user/system/plugin hook state.
-
-When the definitions are readable and no conflict remains, print exactly:
-
-AWS CODEX FASTLANE — AWS CORE HOOK REVIEW REQUIRED
-
-Local setup: COMPLETE
-Doctor: PASS
-AWS Core: INSTALLED_AND_CURRENT
-Expected hook: PRETOOLUSE_SECRET_SAFETY
-Hook purpose: BLOCK_DIRECT_SECRETS_MANAGER_VALUE_FETCH
-Hook runtime: PASS
-Repository hook sources: <NONE_DECLARED|reviewed comma-separated paths>
-Active hook conflict review: PASS
-AWS Core hook trust: PENDING_OWNER_APPROVAL
-Synthetic hook probes: PENDING
-Automatic hook trust: NOT AUTHORIZED
-AWS credentials: NOT CHECKED
-AWS access: NOT USED
-AWS authorization: NONE
-Next action: OPEN CODEX SETTINGS > HOOKS (OR `/hooks` IN CLI) AND REVIEW THE CURRENT AWS CORE HOOK
-
-Explain that Codex binds trust to the current hook-definition hash, so an
-updated or changed hook will require review again. After the owner trusts the
-current definition in Codex Settings or `/hooks` and Codex reports it trusted, run these two
-local probes through the normal Bash tool path:
-
-python3 -c "if False: client.get_secret_value(SecretId='FASTLANE_SYNTHETIC_DO_NOT_USE')"
-python3 -c "print('FASTLANE_HOOK_ALLOW_PROBE')"
-
-The first command contains an unreachable SDK-call shape and performs no AWS
-operation even if the hook fails. Require the current AWS Core hook to deny it
-before execution. Require the second command to run and print exactly
-`FASTLANE_HOOK_ALLOW_PROBE`. These probes use no credentials, network, secret,
-or AWS account. If the deny probe executes, the allow probe is blocked, either
-probe produces an unexpected result, or another hook changes the outcome,
-print `AWS CODEX FASTLANE — AWS CORE HOOK VERIFICATION BLOCKED`, record the
-observed result, and stop.
-
-Only after both probes pass, give the owner this complete confirmation card
-with the observed repository-hook value filled and no placeholders:
-
-APPROVE AWS CORE HOOKS
-Plugin: AWS Core
-Version: 1.1.0
-Commit: 36f16570de2015c0f0ce94ba9e391bd703c9ffb7
-Hook purpose: BLOCK_DIRECT_SECRETS_MANAGER_VALUE_FETCH
-Repository hook sources: <filled observed value>
-Active hook conflicts: NONE
-Trust: CURRENT_DEFINITION_HASH
-Hook probes: PASS
-
-Accept the confirmation only after the owner has reviewed and trusted the AWS
-Core hook in Codex Settings or `/hooks`, Codex reports the current definition as trusted, and the
-two synthetic probes pass, and the owner returns the generated block exactly.
-Reject a paraphrase, missing or extra non-blank line, changed value, non-human
-approver, stale hook definition, different active-hook inventory, or missing
-probe evidence. This is a setup trust checkpoint, not Gate A, Gate B, or AWS
-mutation authorization.
-
-After exact confirmation and observed trust, print exactly:
-
-AWS CODEX FASTLANE — AWS CORE HOOKS APPROVED
-
-Approved marketplace pin: AWS Core 1.1.0
-Hook: PRETOOLUSE_SECRET_SAFETY
-Hook trust: CURRENT_DEFINITION_HASH
-Hook runtime: PASS
-Repository hook sources: <filled observed value>
-Active hook conflict review: PASS
-Synthetic deny probe: PASS
-Synthetic allow probe: PASS
-AWS credentials: NOT CHECKED
-AWS access: NOT USED
-AWS authorization: NONE
-Next action: INVOKE `@AWS Core`
-
-Then tell the owner to send exactly:
-
-@AWS Core
-VERIFY AWS CORE AND CONTINUE FASTLANE
-
-After hook approval, require a live AWS Core handshake before intake. Unless
-the current task was explicitly invoked with that exact `@AWS Core` command,
-stop.
-
-For the explicit verification command, distinguish AWS Core from a generic AWS
-documentation connector. Require the invoked plugin to expose and successfully
-exercise both `retrieve_skill` and `search_documentation`: retrieve one
-relevant AWS Core skill without executing an AWS operation, then perform one
-current AWS documentation search. Do not accept only `search_documentation`, a
-generic AWS documentation namespace, plugin metadata, cached files, command
-output, prior conversation, or model memory. Do not call `call_aws`,
-`run_script`, configure credentials, or access an AWS account.
-
-If either required capability is absent or fails, print `AWS CODEX FASTLANE —
-AWS CORE VERIFICATION BLOCKED`, name the failed check, keep AWS access `NOT
-USED`, and stop. When both pass, print exactly this stable receipt before
-continuing:
-
-AWS CODEX FASTLANE — AWS CORE VERIFIED
-
-Approved marketplace pin: AWS Core 1.1.0
-Plugin invocation: PASS
-retrieve_skill: PASS
-search_documentation: PASS
-AWS credentials: NOT CHECKED
-AWS access: NOT USED
-Next action: CONTINUE BOOT-00
-
-Rerun `bootstrap_dependencies.py` and the doctor after the live handshake. The
-static marketplace value remains `DECLARED_AND_PINNED`; the successful
-handshake is the separate runtime proof.
-
-Determine lifecycle state from the current PRD revisions and derived gates,
-docs/project/TASKS.md, and release evidence. Route to exactly one next prompt:
-- no material requirements: INTAKE-10;
-- intake exists but requirements need analysis: REQ-10;
-- Gate A is STALE: INTAKE-10 when owner facts are missing, otherwise REQ-10;
-- Gate A awaits a current owner receipt: INTAKE-20;
-- Gate A approved and design incomplete: DESIGN-10;
-- Gate A is current and Gate B is STALE: DESIGN-10;
-- Gate B awaits a current owner receipt: DESIGN-20;
-- Gate B approved and Task-plan state is UNINITIALIZED or STALE: TASK-10;
-- one named task requested or only one task is READY: BUILD-10;
-- multiple eligible tasks and autonomous execution is authorized: BUILD-20;
-- authorized tasks are terminal: RELEASE-10;
-- conflicting state, an unsafe interrupted run, or no authorized action: STOP.
-
-Do not write requirements, design, tasks, application code, or infrastructure.
-Outside the exact local-Git setup choice, do not initialize or change Git.
-Never create GitHub objects, access an AWS account, or mutate AWS. The two
-unauthenticated plugin-verification checks above are the only AWS Core calls
-permitted by BOOT-00.
-
-Print this stable machine-derived header before any natural-language
-explanation. Use READY, RESUME, or BLOCKED from doctor state; do not infer or
-rewrite these values:
-
-AWS CODEX FASTLANE — <READY|RESUME|BLOCKED>
-
-Classification: <doctor classification>
-Lifecycle: <doctor lifecycle_state>
-Doctor: <PASS|FAIL>
-Next prompt: <doctor next_prompt>
-Git baseline: <doctor git_baseline>
-Fastlane skills: <bootstrap_dependencies fastlane_skills.status>
-Project agents: <bootstrap_dependencies project_agents.status>
-AWS Toolkit marketplace: <bootstrap_dependencies aws_agent_toolkit.marketplace>
-aws-core plugin: AVAILABLE
-AWS Core hooks: APPROVED_AND_VERIFIED
-AWS Core hook conflict review: PASS
-AWS MCP: CONNECTED_FOR_SKILLS_AND_DOCUMENTATION
-AWS credentials: NOT CHECKED
-AWS access: <doctor aws_access with underscores rendered as spaces>
-Gate A: <derived Gate A state>
-Gate B: <derived Gate B state>
-Evidence: <derived evidence state>
-AWS authorization: <NONE|exact current authorization ID>
-
-Then print target, files changed or NONE, collisions or NONE, and checks.
-Explain the two routine human gates, that autonomous work begins only inside
-Gate B's boundary, and the next three steps in plain language. Return the
-standard work receipt. Only when the state-derived next prompt is INTAKE-10,
-end with this prefilled command exactly:
-
-START GUIDED INTAKE
-Project path: <resolved target path>
-Project mode: <greenfield|brownfield|I'm not sure—recommend one>
-Delivery profile: <quick-mvp|standard|high-risk|I'm not sure—recommend one>
-Idea or requested change: <one plain-language sentence>
+Treat `init template`, `initialize template`, and `start Fastlane` as
+`THIS_REPOSITORY`. Treat `continue setup` as an idempotent recheck of a
+previous local blocker.
+
+1. Before custom prose, run:
+
+   python scripts/setup_assistant.py welcome
+
+   Reproduce stdout exactly.
+
+2. Run:
+
+   python scripts/bootstrap_dependencies.py --root <repository root> --json
+
+   This validates repository assets and the official-current AWS Core policy.
+   It does not prove plugin installation or grant AWS access. Do not run
+   maintainers' tests or probe for pytest during project initialization.
+
+3. Inspect the repository before writing. If it is unconfigured, ask once for
+   no more than these three values:
+
+   - project name;
+   - preferred AWS Region; and
+   - development budget posture.
+
+   Accept either a finite owner cap with ISO currency or "minimize cost; no hard
+   cap." Preserve an owner cap exactly as
+   `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; otherwise
+   use `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. A budget is a ceiling, not
+   a spending target or AWS authorization. Recommend `us-west-2` only when the
+   owner is unsure.
+
+4. Classify the target as TEMPLATE_SOURCE, UNCONFIGURED_TEMPLATE, NEW_TARGET,
+   ACTIVE_GREENFIELD, ACTIVE_BROWNFIELD, or BLOCKED. For an unconfigured
+   template, run the existing in-place initializer dry-run first and apply only
+   if every check passes:
+
+   python bootstrap.py --target <repository root> --project-name <name> --region <region> --cost-posture "<exact cost posture>" --in-place-template-instance --dry-run
+   python bootstrap.py --target <repository root> --project-name <name> --region <region> --cost-posture "<exact cost posture>" --in-place-template-instance
+
+   Preserve existing Git and user-owned changes. For brownfield adoption,
+   preview every collision and require the current complete hash-bound decision
+   map from the owner before an adoption write. The start command does not authorize
+   you to choose `ADOPT_TEMPLATE`. Require this exact owner confirmation:
+
+   CONFIRM BOOTSTRAP ADOPTION PLAN
+   schema_version: 1
+   source_root: <canonical absolute template source>
+   target_root: <canonical absolute target>
+   authorized_by: <human owner>
+   authorized_at: <RFC 3339 timestamp with timezone>
+   authorization_source: OWNER_CONFIRMATION
+   plan_sha256: <64 lowercase hex characters>
+   Decisions:
+   <relative path> | <action> | <expected target SHA-256> | <expected rendered-template SHA-256>
+
+   Compute `plan_sha256` from canonical compact, sorted-key UTF-8 JSON
+   containing schema version, both roots, and the complete ordered decision
+   map. It never hashes decisions alone. Reject missing, duplicate, reordered,
+   or drifted paths. Never infer `ADOPT_TEMPLATE`.
+
+5. Run:
+
+   python scripts/bootstrap_doctor.py --root <target> --json
+
+   The doctor is the lifecycle router. If it already returns INTAKE-10 or a
+   later prompt, never restart BOOT-00 because AWS Core is absent or because
+   this command was sent again.
+
+   Route stale and resumed state from the doctor: Gate A STALE goes to
+   INTAKE-10 when owner facts are missing and otherwise REQ-10; a current Gate
+   A receipt awaiting approval goes to INTAKE-20; current Gate A with stale Gate
+   B goes to DESIGN-10; approved Gate B with an uninitialized or stale task plan
+   goes to TASK-10. Otherwise use the exact doctor route or STOP on conflict.
+
+6. Treat official AWS Core as an AWS research dependency, not a setup gate:
+
+   - accept only current `aws-core@agent-toolkit-for-aws` from
+     `aws/agent-toolkit-for-aws`;
+   - if visibly available, report `AVAILABLE`;
+   - otherwise report `DEFERRED_UNTIL_DESIGN` and continue;
+   - if the retired `aws-core@aws-codex-fastlane-dependencies` copy is
+     visible, mention once that it should be removed before AWS design;
+   - never install, enable, disable, update, pin, hash, probe, or trust a plugin
+     or hook for the owner.
+
+   AWS Core is the preferred source for current AWS service fit, Region support,
+   IAM, security, reliability, quotas, observability, cost drivers, deployment,
+   rollback, and operational guidance whenever those facts materially affect
+   REQ-10, DESIGN-10, DESIGN-20, RELEASE-10, AWS-10, AWS-20, AWS-30, AWS-40, or
+   AWS-50. Intake and Gate A continue without it unless a material AWS fact
+   truly cannot be resolved; record that fact as open instead of restarting
+   setup.
+
+7. Return:
+
+   AWS CODEX FASTLANE — READY
+   Setup: READY_FOR_INTAKE
+   Project: <name>
+   Region: <region>
+   Budget posture: <exact cost posture>
+   Doctor: PASS
+   AWS Core: <AVAILABLE|DEFERRED_UNTIL_DESIGN>
+   Next prompt: <doctor route>
+   AWS access: NOT USED
+
+8. If the route is INTAKE-10, immediately ask its first one to three
+   plain-language questions. If the route is later, resume that prompt. Do not
+   ask for `START GUIDED INTAKE`, another `init template`, plugin setup, or
+   hook verification before continuing.
+
+When DESIGN-10 first needs current AWS facts and official AWS Core is not
+available, give one concise owner action: enable AWS Core from Agent Toolkit
+for AWS in `/plugins` (register
+`aws/agent-toolkit-for-aws` only if absent), restart Codex, and send
+`CONTINUE AWS DESIGN`. Codex owns plugin and hook trust in its own UI.
+Fastlane never compares hook hashes, requests screenshots, runs synthetic hook
+probes, or creates an additional owner gate.
+
+Do not write requirements, design, tasks, application code, or infrastructure
+during BOOT-00. Outside the exact selected local-Git action, do not alter Git.
 ~~~
-
 ## INTAKE-10 — Guided Intake
 
-**Preconditions:** START GUIDED INTAKE command or an existing intake round.
+**Preconditions:** BOOT-00 routed to INTAKE-10 or an existing intake round.
 
 **Authoritative inputs:** Applicable AGENTS.md; existing source-of-truth files; for brownfield,
 repository code, tests, IaC, configuration, and recent relevant history.
@@ -1079,7 +686,7 @@ commit/archive the stopped ledger, then mark its Task-plan state STALE.
 
 **Stop conditions:** Unresolved contradiction; missing critical security/data
 boundary; unverifiable outcome; requested requirement is infeasible or unsafe;
-AWS Core unavailable; or a material AWS feasibility fact remains unverified.
+or a material AWS feasibility fact needed for Gate A remains unverified.
 
 **Receipt:** Standard work receipt with proposed REQ revision.
 
@@ -1089,13 +696,15 @@ AWS Core unavailable; or a material AWS feasibility fact remains unverified.
 [REQ-10]
 Analyze the entire intake as one requirement set before technical design.
 
-First run `python scripts/bootstrap_dependencies.py --root . --json` and
-confirm AWS Core is surfaced in the current session. Ask the read-only
-`fastlane-requirements-reviewer` to challenge the complete requirement set. If
-AWS feasibility, Region, identity, data protection, recovery, or cost affects
-readiness, ask the read-only `fastlane-aws-advisor` to verify those facts with
-AWS Core and current primary AWS documentation. The coordinator evaluates the
-findings and remains the only writer. Neither advisor can approve Gate A.
+First run `python scripts/bootstrap_dependencies.py --root . --json`. Ask the
+read-only `fastlane-requirements-reviewer` to challenge the complete
+requirement set. When AWS feasibility, Region, identity, data protection,
+recovery, or cost materially affects readiness, use the read-only
+`fastlane-aws-advisor` and official AWS Core to verify those facts with current
+primary AWS documentation. If AWS Core is unavailable, continue ordinary
+requirements work and mark only the unresolved material AWS fact as open. The
+coordinator evaluates the findings and remains the only writer. Neither advisor
+can approve Gate A.
 
 Create or increment a requirements revision such as REQ-0001. Give every
 requirement, non-goal, assumption, and material open question a stable ID.
@@ -1165,14 +774,15 @@ snapshot if needed to repair a mirror mismatch, never task blocks.
 
 **GitHub mode:** NONE.
 
-**AWS mode:** DOCS_ONLY through the current AWS Core session; no AWS account
+**AWS mode:** DOCS_ONLY when current AWS evidence is needed; no AWS account
 access.
 
 **Required authorization:** Presentation only until the human sends the exact receipt.
 
 **Stop conditions:** BLOCKED readiness; stale or mismatched ID; placeholder
-approver; altered or partial receipt; requirements change during review; AWS
-Core unavailable; or a material AWS feasibility fact is stale or unverified.
+approver; altered or partial receipt; requirements change during review; or a
+material AWS feasibility fact required by the readiness card is stale or
+unverified.
 
 **Receipt:** Standard work receipt with WAITING_FOR_GATE_A, followed by the
 copyable Gate A receipt as the final block.
@@ -1228,15 +838,17 @@ approval receipt last.
 **Preconditions:** docs/project/PRD.md contains a valid Gate A receipt for the current
 requirements revision.
 
-**Authoritative inputs:** All applicable AGENTS.md; complete docs/project/PRD.md; brownfield code, tests,
-IaC, config, schemas, and relevant history; current AWS Core capability,
-primary AWS documentation, and read-only AWS advisor findings.
+**Authoritative inputs:** All applicable AGENTS.md; complete docs/project/PRD.md and
+docs/project/VERIFY.md; brownfield code, tests, IaC, config, schemas, and relevant
+history; current official AWS Core capability, primary AWS documentation, and
+read-only AWS advisor findings.
 
 **Permitted writes:** docs/project/PRD.md Parts III and IV, proposed construction envelope,
 and matching Document status DES/AUTH/design/Gate B fields; narrowly scoped ADR
 only for a consequential, hard-to-reverse decision; docs/project/TASKS.md's Active execution
 snapshot identity, Gate B, maximum-worker, baseline, protected-path, run-stop,
-and next-action fields only. Update summary and detailed records, task snapshot,
+and next-action fields only; the `DESIGN-10` row in
+docs/project/VERIFY.md's `AWS Core evidence` table. Update summary and detailed records, task snapshot,
 and the matching `bootstrap.yaml` lifecycle mirror as one coordinator
 checkpoint. Do not generate a replacement graph. When invalidating a CURRENT
 plan, first reconcile active tasks and commit/archive the stopped ledger, then
@@ -1251,9 +863,10 @@ authorized and necessary to validate an existing brownfield environment.
 mutation.
 
 **Stop conditions:** Missing/invalid Gate A; requirements/design conflict;
-unresolved high-impact decision; unavailable AWS Core; or an unverified AWS
-claim material to service fit, identity, data protection, recovery, Region,
-operations, or cost.
+unresolved high-impact decision; unavailable or wrong-source AWS Core; missing,
+failed, cached, generic, or stale DESIGN-10 `retrieve_skill` or
+`search_documentation` evidence; or an unverified AWS claim material to service
+fit, identity, data protection, recovery, Region, operations, quota, or cost.
 
 **Receipt:** Standard work receipt with REQ, DES, and proposed AUTH IDs.
 
@@ -1264,12 +877,23 @@ operations, or cost.
 Complete a build-ready technical PRD for the accepted requirements.
 
 Create or increment a design revision such as DES-0001 and a proposed
-construction authorization such as AUTH-0001. Run the dependency checker,
-confirm AWS Core is surfaced in the current session, and ask the read-only
-`fastlane-aws-advisor` to verify material service-fit, Region, IAM, encryption,
-reliability, observability, quota, and cost facts through AWS Core and current
-AWS primary documentation. Record verified facts and sources in the design.
-The coordinator remains the only writer and the advisor cannot approve Gate B.
+construction authorization such as AUTH-0001. Run the dependency checker and
+confirm the live identity `aws-core@agent-toolkit-for-aws`. In this DESIGN-10
+run, visibly call both `retrieve_skill` for architecture-relevant official AWS
+guidance and `search_documentation` for the consequential service-fit, Region,
+IAM, encryption, reliability, observability, quota, security, and cost facts.
+A prior BOOT-00 result, generic connector, plugin metadata, cached content, or
+model memory is not fresh design evidence. Ask the read-only
+`fastlane-aws-advisor` to review the results where useful; it cannot replace the
+calls or approve Gate B. The coordinator remains the only writer.
+
+Fill two `DESIGN-10` capability rows in docs/project/VERIFY.md. Record observation actor
+`CODEX_LIVE_TOOL_CALL`, exact source/identity, observed current semantic
+version, capability input/output, decision, ISO 8601 time, current DES binding,
+PASS/FAIL, `Credentials inspected` = `NO`, and `AWS account accessed` = `NO`.
+The documentation row includes returned official AWS references. Record facts
+and sources in the design; store no credentials or private machine data. Gate B
+requires both rows fresh, official, attributed, successful, and DES-bound.
 
 Complete only the design needed to build safely:
 - context, boundaries, components, interfaces, and data flow;
@@ -1367,7 +991,7 @@ access.
 
 **Stop conditions:** Stale Gate A; incomplete design/envelope; mismatch between
 requirements, design, or IDs; placeholder approver; altered/partial receipt;
-AWS Core unavailable; or material AWS design evidence is stale or unverified.
+or material AWS design evidence is stale or unverified.
 
 **Receipt:** Standard work receipt with WAITING_FOR_GATE_B, followed by the
 copyable Gate B receipt as the final block.
@@ -1849,8 +1473,10 @@ publish a release, delete a branch, or deploy. Return the standard work receipt.
 Region, environment, and stack are named; authenticated read access is
 explicitly authorized.
 
-**Authoritative inputs:** docs/project/PRD.md; docs/project/VERIFY.md; docs/project/RUNBOOK.md; IaC; deployment artifact; aws-core
-skills/docs; read-only AWS identity, configuration, quotas, and target state.
+**Authoritative inputs:** docs/project/PRD.md; docs/project/VERIFY.md;
+docs/project/RUNBOOK.md; IaC; deployment artifact; official
+`aws-core@agent-toolkit-for-aws` skills/docs; read-only AWS identity,
+configuration, quotas, and target state.
 
 **Permitted writes:** docs/project/VERIFY.md preflight evidence only.
 
@@ -1860,8 +1486,10 @@ skills/docs; read-only AWS identity, configuration, quotas, and target state.
 
 **Required authorization:** Exact read-only account/profile/Region/environment scope.
 
-**Stop conditions:** Identity mismatch; missing plugin/tool; unavailable Region
-or quota; drift; unreviewed change set; cost/rollback uncertainty; any mutation.
+**Stop conditions:** Identity mismatch; missing or wrong-source plugin/tool;
+missing, failed, cached, generic, or stale AWS-10 `retrieve_skill` or
+`search_documentation` evidence; unavailable Region or quota; drift; unreviewed
+change set; cost/rollback uncertainty; or any mutation.
 
 **Receipt:** Standard work receipt with READY or BLOCKED and observed identity.
 
@@ -1869,8 +1497,24 @@ or quota; drift; unreviewed change set; cost/rollback uncertainty; any mutation.
 
 ~~~text
 [AWS-10]
-Perform a read-only AWS deployment preflight. Use aws-core and current AWS
-primary documentation.
+Perform a read-only AWS deployment preflight. First confirm
+`aws-core@agent-toolkit-for-aws`, then visibly make fresh `retrieve_skill` and
+`search_documentation` calls for the current operational, deployment, IAM,
+service, Region, quota, security, reliability, and cost decisions. BOOT-00 or
+DESIGN-10 evidence, a generic connector, plugin metadata, cached content, and
+model memory are insufficient for AWS-10.
+
+Fill the two `AWS-10` capability rows under `## AWS Core evidence` in
+docs/project/VERIFY.md. Record each live observation's observation actor,
+official source and invoked identity, observed current semantic plugin version,
+capability input/output, decision influenced, ISO 8601 observation time,
+current immutable-artifact binding, PASS/FAIL, `Credentials inspected` =
+`NO`, and `AWS account accessed` = `NO`. The actor is
+`CODEX_LIVE_TOOL_CALL` and the `search_documentation` row records returned
+official AWS references. Missing, failed, stale, unattributed, or wrong-binding
+evidence keeps the doctor's AWS execution-planning state `BLOCKED` and blocks
+any AWS execution proposal. Do not record credentials, local plugin paths,
+usernames, trust data, or private machine information.
 
 Confirm without exposing secrets:
 - caller identity, allowlisted profile/role, account, Region, and environment;

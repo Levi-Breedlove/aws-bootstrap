@@ -80,7 +80,6 @@ CANONICAL_PLACEHOLDERS = {
     "{{SETUP_STATUS}}",
 }
 MANDATORY_REQUIRED_FILES = {
-    ".agents/plugins/marketplace.json",
     ".github/ISSUE_TEMPLATE/aws-vertical-slice.yml",
     ".github/ISSUE_TEMPLATE/bugfix.yml",
     ".github/ISSUE_TEMPLATE/waf-risk.yml",
@@ -107,11 +106,16 @@ MANDATORY_REQUIRED_FILES = {
     "bootstrap.py",
     "bootstrap.yaml",
     "docs/adr/0000-template.md",
+    "docs/DEPENDENCY-POLICY.md",
+    "docs/EXISTING-AWS-CORE.md",
+    "docs/SETUP.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/WORKFLOW.md",
     "infrastructure/AGENTS.md",
     "prompts/CODEX-PROMPTS.md",
     "scripts/bootstrap_doctor.py",
     "scripts/bootstrap_dependencies.py",
-    "scripts/uv_setup_assistant.py",
+    "scripts/setup_assistant.py",
     "scripts/task_waves.py",
     "tests/AGENTS.md",
 }
@@ -275,7 +279,7 @@ CONTROL_HASH_FILES = {
     "bootstrap.py",
     "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
-    "scripts/uv_setup_assistant.py",
+    "scripts/setup_assistant.py",
     "scripts/task_waves.py",
 }
 COORDINATOR_LEDGER_PATHS = {TASKS_FILE, VERIFY_FILE, STATE_FILE}
@@ -365,6 +369,48 @@ GATE_B_READINESS_FIELDS = {
     "Brownfield compatibility/migration",
     "Outstanding gaps",
 }
+AWS_CORE_EVIDENCE_HEADERS = (
+    "Phase",
+    "Plugin source",
+    "Invoked plugin identity",
+    "Observed plugin version",
+    "Capability",
+    "Observation actor",
+    "Requested skill",
+    "Returned skill identifier",
+    "Documentation query",
+    "Source references",
+    "Design decision influenced",
+    "Credentials inspected",
+    "AWS account accessed",
+    "Observed at",
+    "Evidence binding",
+    "Observed status",
+)
+AWS_CORE_EVIDENCE_PHASES = ("DESIGN-10", "AWS-10")
+AWS_CORE_REQUIRED_CAPABILITIES = ("retrieve_skill", "search_documentation")
+AWS_CORE_OFFICIAL_SOURCE = "aws/agent-toolkit-for-aws"
+AWS_CORE_OFFICIAL_IDENTITY = "aws-core@agent-toolkit-for-aws"
+AWS_CORE_OBSERVATION_ACTOR = "CODEX_LIVE_TOOL_CALL"
+AWS_CORE_PLUGIN_VERSION_PATTERN = re.compile(
+    r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
+    r"(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
+)
+AWS_CORE_CANONICAL_SKILL_IDENTIFIER_PATTERN = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9._:/@-]*"
+)
+AWS_CORE_OFFICIAL_DOCUMENTATION_REFERENCE_PATTERN = re.compile(
+    r"https://(?:docs\.aws\.amazon\.com|aws\.amazon\.com)/\S+",
+    re.IGNORECASE,
+)
+AWS_CORE_EVIDENCE_STATUSES = {
+    "NOT_STARTED",
+    "PASS",
+    "VERIFIED",
+    "FAILED",
+    "BLOCKED",
+    "STALE",
+}
 
 
 @dataclass
@@ -404,6 +450,26 @@ class TaskCompletionEvidenceRow:
     commit_worktree_artifact: str
     durable_source: str
     status: str
+
+
+@dataclass(frozen=True)
+class AwsCoreEvidenceRow:
+    phase: str
+    plugin_source: str
+    invoked_plugin_identity: str
+    observed_plugin_version: str
+    capability: str
+    observation_actor: str
+    requested_skill: str
+    returned_skill_identifier: str
+    documentation_query: str
+    source_references: str
+    design_decision_influenced: str
+    credentials_inspected: str
+    aws_account_accessed: str
+    observed_at: str
+    evidence_binding: str
+    observed_status: str
 
 
 @dataclass(frozen=True)
@@ -545,6 +611,214 @@ def parse_task_completion_evidence(text: str) -> list[TaskCompletionEvidenceRow]
     if len(identifiers) != len(set(identifiers)):
         raise ValueError("VERIFY.md Task completion Evidence IDs must be unique")
     return rows
+
+
+def parse_aws_core_evidence(
+    text: str,
+) -> dict[tuple[str, str], AwsCoreEvidenceRow]:
+    """Parse one attributable AWS Core evidence row per phase and capability."""
+
+    structural = without_fenced_code(text)
+    headings = list(re.finditer(r"^## AWS Core evidence[ \t]*$", structural, re.MULTILINE))
+    if len(headings) != 1:
+        raise ValueError("VERIFY.md requires exactly one AWS Core evidence section")
+    following = re.search(r"^##\s+", structural[headings[0].end() :], re.MULTILINE)
+    end = headings[0].end() + following.start() if following else len(structural)
+    lines = structural[headings[0].end() : end].splitlines()
+    header_indexes = [
+        index
+        for index, line in enumerate(lines)
+        if split_markdown_table_row(line) == list(AWS_CORE_EVIDENCE_HEADERS)
+    ]
+    if len(header_indexes) != 1:
+        raise ValueError("VERIFY.md requires one exact AWS Core evidence table")
+    header = header_indexes[0]
+    separator = split_markdown_table_row(lines[header + 1]) if header + 1 < len(lines) else None
+    if (
+        separator is None
+        or len(separator) != len(AWS_CORE_EVIDENCE_HEADERS)
+        or any(re.fullmatch(r":?-{3,}:?", cell) is None for cell in separator)
+    ):
+        raise ValueError("VERIFY.md AWS Core evidence separator is invalid")
+    rows: dict[tuple[str, str], AwsCoreEvidenceRow] = {}
+    for line in lines[header + 2 :]:
+        if not line.strip():
+            if rows:
+                break
+            continue
+        cells = split_markdown_table_row(line)
+        if cells is None:
+            if rows:
+                break
+            raise ValueError("VERIFY.md AWS Core evidence row is missing")
+        if len(cells) != len(AWS_CORE_EVIDENCE_HEADERS):
+            raise ValueError(
+                "VERIFY.md AWS Core evidence row must have "
+                f"{len(AWS_CORE_EVIDENCE_HEADERS)} cells"
+            )
+        row = AwsCoreEvidenceRow(*(clean_cell(cell) for cell in cells))
+        if row.phase not in AWS_CORE_EVIDENCE_PHASES:
+            raise ValueError(f"VERIFY.md AWS Core evidence has unknown phase {row.phase!r}")
+        normalized_capability = row.capability.replace("`", "").strip()
+        if normalized_capability not in AWS_CORE_REQUIRED_CAPABILITIES:
+            raise ValueError(
+                f"{row.phase} AWS Core evidence has unknown capability "
+                f"{normalized_capability!r}"
+            )
+        key = (row.phase, normalized_capability)
+        if key in rows:
+            raise ValueError(
+                "VERIFY.md AWS Core evidence duplicates "
+                f"{row.phase} {normalized_capability}"
+            )
+        if row.observed_status not in AWS_CORE_EVIDENCE_STATUSES:
+            raise ValueError(
+                f"{row.phase} {normalized_capability} AWS Core evidence has invalid status"
+            )
+        rows[key] = row
+    expected = {
+        (phase, capability)
+        for phase in AWS_CORE_EVIDENCE_PHASES
+        for capability in AWS_CORE_REQUIRED_CAPABILITIES
+    }
+    missing = sorted(expected - set(rows))
+    if missing:
+        labels = [f"{phase} {capability}" for phase, capability in missing]
+        raise ValueError(
+            "VERIFY.md AWS Core evidence is missing phase/capability rows: "
+            + ", ".join(labels)
+        )
+    return rows
+
+
+def aws_core_phase_evidence_issues(
+    rows: dict[tuple[str, str], AwsCoreEvidenceRow],
+    phase: str,
+    *,
+    expected_binding: str | None = None,
+) -> list[str]:
+    """Return deterministic reasons that current official evidence is not ready."""
+
+    issues: list[str] = []
+    observed_versions: set[str] = set()
+    for capability in AWS_CORE_REQUIRED_CAPABILITIES:
+        row = rows.get((phase, capability))
+        label = f"{phase} {capability}"
+        if row is None or row.observed_status not in {"PASS", "VERIFIED"}:
+            issues.append(f"{label} requires fresh PASS evidence")
+            continue
+        if row.plugin_source != AWS_CORE_OFFICIAL_SOURCE:
+            issues.append(
+                f"{label} plugin source must be {AWS_CORE_OFFICIAL_SOURCE}"
+            )
+        if row.invoked_plugin_identity != AWS_CORE_OFFICIAL_IDENTITY:
+            issues.append(
+                f"{label} invoked plugin identity must be {AWS_CORE_OFFICIAL_IDENTITY}"
+            )
+        version = clean_cell(row.observed_plugin_version)
+        if AWS_CORE_PLUGIN_VERSION_PATTERN.fullmatch(version) is None:
+            issues.append(
+                f"{label} Observed plugin version must be an observed semantic version"
+            )
+        else:
+            observed_versions.add(version)
+        if row.observation_actor != AWS_CORE_OBSERVATION_ACTOR:
+            issues.append(
+                f"{label} Observation actor must be {AWS_CORE_OBSERVATION_ACTOR}"
+            )
+        if row.credentials_inspected != "NO":
+            issues.append(f"{label} Credentials inspected must be NO")
+        if row.aws_account_accessed != "NO":
+            issues.append(f"{label} AWS account accessed must be NO")
+        for field_label, value in (
+            ("Design decision influenced", row.design_decision_influenced),
+        ):
+            try:
+                require_explicit_evidence_value(value, f"{label} {field_label}")
+            except ValueError as exc:
+                issues.append(str(exc))
+        if capability == "retrieve_skill":
+            try:
+                requested_skill = require_explicit_evidence_value(
+                    row.requested_skill, f"{label} Requested skill"
+                )
+            except ValueError as exc:
+                issues.append(str(exc))
+            try:
+                returned_identifier = require_explicit_evidence_value(
+                    row.returned_skill_identifier,
+                    f"{label} Returned skill identifier",
+                )
+            except ValueError as exc:
+                issues.append(str(exc))
+            else:
+                if (
+                    AWS_CORE_CANONICAL_SKILL_IDENTIFIER_PATTERN.fullmatch(
+                        returned_identifier
+                    )
+                    is None
+                ):
+                    issues.append(
+                        f"{label} Returned skill identifier must be canonical"
+                    )
+        else:
+            try:
+                documentation_query = require_explicit_evidence_value(
+                    row.documentation_query, f"{label} Documentation query"
+                )
+            except ValueError as exc:
+                issues.append(str(exc))
+            try:
+                source_references = require_explicit_evidence_value(
+                    row.source_references, f"{label} Source references"
+                )
+            except ValueError as exc:
+                issues.append(str(exc))
+            else:
+                if (
+                    AWS_CORE_OFFICIAL_DOCUMENTATION_REFERENCE_PATTERN.search(
+                        source_references
+                    )
+                    is None
+                ):
+                    issues.append(
+                        f"{label} Source references must include returned "
+                        "official AWS documentation"
+                    )
+        if not explicit_timestamp(row.observed_at):
+            issues.append(f"{label} Observed at must be ISO 8601 with timezone")
+        try:
+            binding = require_explicit_evidence_value(
+                row.evidence_binding, f"{label} Evidence binding"
+            )
+        except ValueError as exc:
+            issues.append(str(exc))
+        else:
+            if expected_binding is not None and binding != clean_cell(expected_binding):
+                issues.append(
+                    f"{label} Evidence binding does not match current "
+                    f"{clean_cell(expected_binding)}"
+                )
+    if len(observed_versions) > 1:
+        issues.append(
+            f"{phase} capability rows must record one observed plugin version"
+        )
+    return issues
+
+
+def require_aws_core_phase_evidence(
+    ctx: Context,
+    rows: dict[tuple[str, str], AwsCoreEvidenceRow],
+    phase: str,
+    *,
+    expected_binding: str | None = None,
+) -> None:
+    """Block a phase boundary unless both official AWS Core calls are evidenced."""
+
+    for issue in aws_core_phase_evidence_issues(
+        rows, phase, expected_binding=expected_binding
+    ):
+        ctx.error("AWS_CORE_EVIDENCE_REQUIRED", issue, VERIFY_FILE)
 
 
 def require_explicit_evidence_value(value: str, label: str) -> str:
@@ -3340,6 +3614,13 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
             state=state,
         )
     prd_fields, envelope, _selections, requirements_present = validate_prd(ctx, state)
+    aws_core_rows: dict[tuple[str, str], AwsCoreEvidenceRow] = {}
+    verify_text = ctx.texts.get(VERIFY_FILE) or safe_read_text(ctx, VERIFY_FILE)
+    if verify_text is not None:
+        try:
+            aws_core_rows = parse_aws_core_evidence(verify_text)
+        except ValueError as exc:
+            ctx.error("AWS_CORE_EVIDENCE_STRUCTURE", str(exc), VERIFY_FILE)
     tasks = validate_tasks(ctx, state, prd_fields, envelope)
     release_decision = validate_release_decision(ctx)
     validate_placeholders(ctx)
@@ -3352,6 +3633,16 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
         gate_b_agent_ready = gate_b_agent.get("Agent recommendation") == "READY_FOR_CONSTRUCTION_APPROVAL"
     except ValueError:
         gate_b_agent_ready = False
+    if gate_b_agent_ready or gate_b in {
+        "PENDING_OWNER_APPROVAL",
+        "APPROVED_FOR_CONSTRUCTION",
+    }:
+        require_aws_core_phase_evidence(
+            ctx,
+            aws_core_rows,
+            "DESIGN-10",
+            expected_binding=prd_fields.get("design_revision"),
+        )
     lifecycle_state, next_prompt = derive_route(
         gate_a,
         gate_b,
@@ -3362,6 +3653,32 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
         state.get("execution", {}).get("mode", "NONE"),
         release_decision,
     )
+    aws_execution_planning_ready = False
+    aws_10_issues = ["AWS-10 active artifact binding is unresolved"]
+    if verify_text is not None:
+        try:
+            active_scope = table_after_heading(verify_text, "## Active evidence scope")
+            artifact_binding = clean_cell(
+                active_scope.get("Commit, tag, or image digest", "")
+            )
+        except ValueError:
+            artifact_binding = ""
+        if explicit_value(artifact_binding, allow_none=False):
+            aws_10_issues = aws_core_phase_evidence_issues(
+                aws_core_rows,
+                "AWS-10",
+                expected_binding=artifact_binding,
+            )
+            aws_execution_planning_ready = not aws_10_issues
+    if next_prompt == "AWS-10":
+        if not aws_execution_planning_ready:
+            ctx.warning(
+                "AWS_CORE_AWS10_EVIDENCE_REQUIRED",
+                "AWS-10 must record fresh source-attributed retrieve_skill and "
+                "search_documentation evidence bound to the current artifact before "
+                "AWS execution planning: " + "; ".join(aws_10_issues),
+                VERIFY_FILE,
+            )
     if ctx.has_errors:
         lifecycle_state, next_prompt = "BLOCKED", "STOP"
     return build_report(
@@ -3374,6 +3691,7 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
         state=state,
         release_decision=release_decision,
         envelope=envelope,
+        aws_execution_planning_ready=aws_execution_planning_ready,
     )
 
 
@@ -3407,6 +3725,7 @@ def build_report(
     state: dict[str, Any] | None = None,
     release_decision: str = "NOT_READY",
     envelope: dict[str, str] | None = None,
+    aws_execution_planning_ready: bool = False,
 ) -> dict[str, Any]:
     manifest = manifest or {}
     state = state or {}
@@ -3482,6 +3801,11 @@ def build_report(
             "gate_b": gate_b,
         },
         "evidence_state": release_decision,
+        "aws_core_evidence": {
+            "aws_execution_planning": (
+                "READY" if aws_execution_planning_ready else "BLOCKED"
+            )
+        },
         "authorizations": {
             "construction": construction_authorization,
             "aws": aws_authorization,
@@ -3519,6 +3843,10 @@ def print_human(report: dict[str, Any]) -> None:
     print(f"Gate A: {report['gates']['gate_a']}")
     print(f"Gate B: {report['gates']['gate_b']}")
     print(f"Evidence: {report['evidence_state']}")
+    print(
+        "AWS execution planning: "
+        f"{report['aws_core_evidence']['aws_execution_planning']}"
+    )
     print(f"AWS authorization: {report['authorizations']['aws']}")
     for item in report["diagnostics"]:
         location = f" ({item['path']})" if item.get("path") else ""

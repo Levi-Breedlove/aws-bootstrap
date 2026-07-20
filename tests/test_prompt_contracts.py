@@ -201,9 +201,9 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertEqual(self.prompts.count("~~~") % 2, 0)
         self.assertEqual(self.prd.count("```") % 2, 0)
         self.assertIn("START AWS CODEX BOOTSTRAP", self.prompts)
-        self.assertIn("START GUIDED INTAKE", self.prompts)
+        self.assertIn("begin its questions immediately", self.prompt_section("BOOT-00"))
 
-    def test_plain_language_init_welcomes_and_checks_aws_core_before_intake(self) -> None:
+    def test_plain_language_setup_is_friendly_resumable_and_verifies_aws_core(self) -> None:
         boot = self.prompt_section("BOOT-00")
         launch_skill = (
             PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
@@ -212,104 +212,54 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn(phrase, boot)
             self.assertIn(phrase, launch_skill)
             self.assertIn(phrase, self.agents)
-        self.assertIn("Welcome to AWS Codex Fastlane", boot)
-        self.assertIn("bootstrap_dependencies.py", boot)
-        self.assertIn("AWS CODEX FASTLANE — OWNER SETUP INSTRUCTIONS REQUIRED", boot)
-        self.assertIn("OWNER_SETUP_INSTRUCTIONS_REQUIRED", boot)
-        self.assertIn("Codex installation: OWNER_MANAGED", boot)
-        self.assertIn("Marketplace registration: OWNER_MANAGED", boot)
-        self.assertIn("Plugin selection: OWNER_MANAGED", boot)
-        self.assertIn("Session launch: OWNER_MANAGED", boot)
-        self.assertIn("codex plugin marketplace add .", boot)
-        self.assertIn("codex -C .", boot)
-        self.assertIn("workspace-write", boot)
-        self.assertIn("on-request", boot)
-        self.assertIn("never runs either command", boot)
-        self.assertIn("UV_INSTALL_INSTRUCTIONS_REQUIRED", boot)
-        self.assertIn("UV_DETECTED_OWNER_VERIFICATION_REQUIRED", boot)
-        self.assertNotIn("UV_INSTALL_APPROVAL_REQUIRED", boot)
-        self.assertNotIn("UV_INSTALL_COMPLETE_RESTART_REQUIRED", boot)
-        self.assertNotIn("APPROVE UV INSTALL <digest>", boot)
-        self.assertNotIn("uv_setup_assistant.py execute", boot)
-        self.assertIn("uvx --version", boot)
-        self.assertIn("Do not execute a PATH-discovered `uvx`", boot)
-        self.assertIn(
-            "https://docs.astral.sh/uv/getting-started/installation/", boot
-        )
-        self.assertIn("never executes its printed\ncommand", boot)
-        self.assertIn("AWS CODEX FASTLANE — AWS CORE HOOK RUNTIME REQUIRED", boot)
-        self.assertIn("AWS CODEX FASTLANE — AWS CORE HOOK REVIEW REQUIRED", boot)
-        self.assertIn("APPROVE AWS CORE HOOKS", boot)
-        self.assertIn("AWS CODEX FASTLANE — AWS CORE HOOKS APPROVED", boot)
-        self.assertIn("Trust: CURRENT_DEFINITION_HASH", boot)
-        self.assertIn("Active hook conflicts: NONE", boot)
-        self.assertIn("FASTLANE_SYNTHETIC_DO_NOT_USE", boot)
-        self.assertIn("FASTLANE_HOOK_ALLOW_PROBE", boot)
-        self.assertIn("Hook probes: PASS", boot)
-        self.assertIn("--dangerously-bypass-hook-trust", boot)
-        self.assertIn("AWS CODEX FASTLANE — AWS CORE SETUP REQUIRED", boot)
-        self.assertIn("AWS Toolkit marketplace: DECLARED_AND_PINNED", boot)
-        self.assertIn("aws-core plugin: AVAILABLE_NOT_INSTALLED", boot)
-        self.assertIn("Next action: OPEN `/plugins`", boot)
-        self.assertIn("@AWS Core\nVERIFY AWS CORE AND CONTINUE FASTLANE", boot)
-        self.assertIn("AWS CODEX FASTLANE — AWS CORE VERIFIED", boot)
-        self.assertIn("retrieve_skill: PASS", boot)
-        self.assertIn("search_documentation: PASS", boot)
-        self.assertIn("AWS credentials: NOT CHECKED", boot)
+        self.assertIn("continue setup", boot)
+        self.assertIn("python scripts/setup_assistant.py welcome", boot)
+        self.assertIn("Reproduce stdout exactly", boot)
+        for phrase in (
+            "project name",
+            "preferred AWS Region",
+            "development budget posture",
+        ):
+            self.assertIn(phrase, boot)
+            self.assertIn(phrase, launch_skill)
+        self.assertIn("READY_FOR_INTAKE", boot)
+        self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
+        self.assertIn("AWS Core is advisory during planning, not a BOOT-00 gate", launch_skill)
+        self.assertIn("begin its first one to three", launch_skill)
+        self.assertIn("Never restart BOOT-00", launch_skill)
+        self.assertIn("Do not require another start command", launch_skill)
+        self.assertIn("aws-core@agent-toolkit-for-aws", boot)
         self.assertIn("AWS access: NOT USED", boot)
-        self.assertIn("AWS authorization: NONE", boot)
-        self.assertRegex(boot, r"generic AWS\s+documentation connector")
-        self.assertIn("Do not probe for `pytest`", boot)
-        self.assertIn("Do not call `call_aws`", boot)
-        self.assertIn("`run_script`", boot)
-        self.assertIn("official Codex instructions", boot)
-        self.assertNotIn("npx -y @openai/codex", boot)
-        self.assertIn("Codex IDE extension", launch_skill)
-        self.assertIn("Never install a\n   Codex client", launch_skill)
-        self.assertIn("codex plugin marketplace add .", launch_skill)
-        self.assertIn("Never execute the command", launch_skill)
-        self.assertIn("uvx --version", launch_skill)
-        self.assertIn("AWS CORE HOOK RUNTIME REQUIRED", launch_skill)
-        self.assertIn("AWS CORE HOOK", launch_skill)
-        self.assertIn("--dangerously-bypass-hook-trust", launch_skill)
-        self.assertIn("Never execute that command", self.agents)
-        self.assertIn("Only the owner may trust", self.agents)
-        self.assertNotIn("npx -y @openai/codex", launch_skill)
-        self.assertNotIn("CLI handoff", self.bootstrap_source)
-        self.assertIn("owner-run Codex", self.bootstrap_source)
-        self.assertNotIn("AWS CODEX FASTLANE — TOOLKIT SETUP REQUIRED", boot)
-        self.assertLess(
-            boot.index("Complete the safe local initialization"),
-            boot.index("AWS CODEX FASTLANE — AWS CORE SETUP REQUIRED"),
-        )
-        self.assertLess(
-            boot.index("AWS CODEX FASTLANE — AWS CORE SETUP REQUIRED"),
-            boot.index("AWS CODEX FASTLANE — AWS CORE HOOK REVIEW REQUIRED"),
-        )
-        self.assertLess(
-            boot.index("AWS CODEX FASTLANE — AWS CORE HOOKS APPROVED"),
-            boot.index("AWS CODEX FASTLANE — AWS CORE VERIFIED"),
-        )
-
-    def test_aws_core_marketplace_fails_closed_on_the_immutable_pin(self) -> None:
-        boot = self.prompt_section("BOOT-00")
-        forbidden_live_fallback = (
-            "codex plugin marketplace add aws/agent-toolkit-for-aws"
-        )
-        for document in (boot, self.root_readme, self.agents):
-            self.assertNotIn(forbidden_live_fallback, document)
-
-        self.assertIn("PINNED_MARKETPLACE_UNAVAILABLE", boot)
-        self.assertIn("AWS Core", self.root_readme)
-        self.assertIn("AWS Agent Toolkit", self.root_readme)
-        self.assertIn("PINNED MARKETPLACE REQUIRED", boot)
-        self.assertIn(
-            "Expected AWS Core commit: "
+        self.assertIn("pytest", boot)
+        for obsolete in (
+            "four short setup checks",
+            "HOOK_REVIEW_REQUIRED",
+            "HOOK_PROBES_REQUIRED",
+            "AWS_CORE_HANDSHAKE_REQUIRED",
+            "FASTLANE_SYNTHETIC_DO_NOT_USE",
+            "FASTLANE_HOOK_ALLOW_PROBE",
+            "VERIFY AWS CORE AND CONTINUE FASTLANE",
+            "codex plugin marketplace add .",
             "36f16570de2015c0f0ce94ba9e391bd703c9ffb7",
-            boot,
-        )
-        self.assertIn("Moving upstream fallback: PROHIBITED", boot)
-        self.assertIn(".agents/plugins/marketplace.json", boot)
+        ):
+            self.assertNotIn(obsolete, boot)
+            self.assertNotIn(obsolete, launch_skill)
+        self.assertNotIn("subprocess", (
+            PROJECT_ROOT / "scripts/setup_assistant.py"
+        ).read_text(encoding="utf-8"))
+
+    def test_aws_core_uses_official_current_marketplace_without_pin_fallback(self) -> None:
+        boot = self.prompt_section("BOOT-00")
+        for document in (boot, self.root_readme, self.agents):
+            self.assertIn("aws/agent-toolkit-for-aws", document)
+            self.assertIn("aws-core@agent-toolkit-for-aws", document)
+            self.assertNotIn("36f16570de2015c0f0ce94ba9e391bd703c9ffb7", document)
+            self.assertNotIn("DECLARED_AND_PINNED", document)
+            self.assertNotIn("codex plugin marketplace add .", document)
+        self.assertIn("Do not pin", self.agents)
+        self.assertIn("does not pin a plugin version or commit", self.root_readme)
+        self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
+        self.assertIn("retired `aws-core@aws-codex-fastlane-dependencies`", boot)
 
     def test_aws_core_advises_both_gates_without_becoming_authority(self) -> None:
         requirements = self.prompt_section("REQ-10")
@@ -321,13 +271,67 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn("fastlane-aws-advisor", section)
             self.assertIn("AWS Core", section)
             self.assertIn("only writer", section)
-        for section in (gate_a, gate_b):
-            self.assertIn("AWS mode:** DOCS_ONLY", section)
-            self.assertRegex(section, r"AWS\s+Core unavailable")
+        self.assertIn("continue ordinary\nrequirements work", requirements)
+        self.assertIn("material AWS feasibility fact", gate_a)
+        self.assertIn("material AWS design evidence", gate_b)
         self.assertIn(
-            "AWS Core cannot approve Gate A, Gate B, or an AWS change.",
+            "AWS Core advises; it cannot approve either gate or authorize an AWS change.",
             self.root_readme,
         )
+        self.assertRegex(requirements, r"Neither advisor\s+can approve Gate A")
+        self.assertIn("cannot replace the\ncalls or approve Gate B", design)
+
+    def test_aws_core_is_wired_through_planning_build_and_operations(self) -> None:
+        build_skill = (
+            PROJECT_ROOT / ".agents/skills/build-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8")
+        operate_skill = (
+            PROJECT_ROOT / ".agents/skills/operate-fastlane-aws/SKILL.md"
+        ).read_text(encoding="utf-8")
+        aws_advisor = (
+            PROJECT_ROOT / ".codex/agents/fastlane-aws-advisor.toml"
+        ).read_text(encoding="utf-8")
+        for surface in (self.agents, build_skill, operate_skill, aws_advisor):
+            self.assertIn("AWS Core", surface)
+        self.assertIn("official current AWS Core", build_skill)
+        self.assertIn("release-readiness", build_skill)
+        self.assertIn("pause only the affected AWS-specific task", build_skill)
+        self.assertIn("throughout requirements, design, construction", aws_advisor)
+        self.assertIn("aws-core@agent-toolkit-for-aws", operate_skill)
+        self.assertIn("not required for BOOT-00", self.agents)
+
+    def test_design_and_aws_preflight_require_fresh_aws_core_evidence(self) -> None:
+        design = self.prompt_section("DESIGN-10")
+        aws_preflight = self.prompt_section("AWS-10")
+        verify = (PROJECT_ROOT / "docs/project/VERIFY.md").read_text(encoding="utf-8")
+        for section, phase in ((design, "DESIGN-10"), (aws_preflight, "AWS-10")):
+            self.assertIn("retrieve_skill", section)
+            self.assertIn("search_documentation", section)
+            self.assertIn("aws-core@agent-toolkit-for-aws", section)
+            self.assertIn("docs/project/VERIFY.md", section)
+            self.assertIn(phase, section)
+            self.assertRegex(section.lower(), r"(?:block|stop).*(?:missing|failed|stale|wrong)")
+        self.assertIn("## AWS Core evidence", verify)
+        for phase in ("DESIGN-10", "AWS-10"):
+            self.assertEqual(verify.count(f"| `{phase}` |"), 2)
+        self.assertNotIn("| `BOOT-00` |", verify)
+        self.assertEqual(verify.count("| `retrieve_skill` |"), 2)
+        self.assertEqual(verify.count("| `search_documentation` |"), 2)
+        self.assertIn("AWS Core is not required for\nBOOT-00", verify)
+        operate_skill = (
+            PROJECT_ROOT / ".agents/skills/operate-fastlane-aws/SKILL.md"
+        ).read_text(encoding="utf-8")
+        for phrase in (
+            "aws_core_evidence.aws_execution_planning",
+            "CODEX_LIVE_TOOL_CALL",
+            "Credentials inspected` = `NO",
+            "AWS account accessed` = `NO",
+        ):
+            self.assertIn(phrase, operate_skill)
+        launch_skill = (
+            PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("not a BOOT-00 gate", launch_skill)
 
     def test_receipts_require_complete_normalized_block_equality(self) -> None:
         self.assertIn("equal to this complete", self.prompts)
@@ -367,9 +371,10 @@ class PromptPackContractTests(unittest.TestCase):
 
     def test_stale_gates_have_recovery_routes(self) -> None:
         boot = self.prompt_section("BOOT-00")
-        self.assertIn("Gate A is STALE: INTAKE-10", boot)
+        self.assertRegex(boot, r"Gate A STALE goes to\s+INTAKE-10")
         self.assertIn("otherwise REQ-10", boot)
-        self.assertIn("Gate A is current and Gate B is STALE: DESIGN-10", boot)
+        self.assertRegex(boot, r"stale Gate\s+B goes to DESIGN-10")
+        self.assertIn("uninitialized or stale task plan\n   goes to TASK-10", boot)
         self.assertIn("stale Gate B with a current Gate A routes to `DESIGN-10`", self.agents)
 
     def test_gate_receipts_record_provenance_without_extra_lines(self) -> None:
@@ -385,13 +390,11 @@ class PromptPackContractTests(unittest.TestCase):
 
     def test_launchpad_routes_from_existing_lifecycle_state(self) -> None:
         boot = self.prompt_section("BOOT-00")
-        self.assertIn("Determine lifecycle state", boot)
-        self.assertIn("Gate A awaits a current owner receipt: INTAKE-20", boot)
-        self.assertIn(
-            "Gate B approved and Task-plan state is UNINITIALIZED or STALE: TASK-10",
-            boot,
-        )
-        self.assertIn("Only when the state-derived next prompt is INTAKE-10", boot)
+        self.assertIn("The doctor is the lifecycle router", boot)
+        self.assertIn("later prompt, never restart BOOT-00", boot)
+        self.assertIn("current Gate\n   A receipt awaiting approval goes to INTAKE-20", boot)
+        self.assertIn("approved Gate B with an uninitialized or stale task plan", boot)
+        self.assertIn("Otherwise use the exact doctor route or STOP", boot)
 
     def test_launchpad_and_build_use_executable_safety_controls(self) -> None:
         boot = self.prompt_section("BOOT-00")
@@ -483,20 +486,16 @@ class PromptPackContractTests(unittest.TestCase):
                 document,
                 r"An AWS lane describes planned access; it does not authorize a\s+change",
             )
-        self.assertIn(
-            "lowest practical total\ncost without weakening required safeguards",
+        self.assertRegex(
             self.root_readme,
+            r"lowest practical total cost without\s+weakening required safeguards",
         )
-
-        self.assertIn(
-            "approved access succeeds and unapproved access is denied",
-            self.prd,
-        )
+        self.assertIn("approved access succeeds and unapproved access is denied", self.prd)
         self.assertIn("Invalid, malformed, and oversized inputs are rejected", self.prd)
         self.assertIn("actual discovered defect", self.prd)
         for phrase in (
             "approved access succeeds and unapproved access is denied",
-            "secrets stay out of code and logs",
+            "secrets stay out of code",
             "invalid or oversized input is rejected",
             "IAM permits only required actions",
             "sensitive data uses approved encryption",
@@ -505,7 +504,6 @@ class PromptPackContractTests(unittest.TestCase):
 
     def test_human_first_documents_label_the_exact_agent_reference(self) -> None:
         documents = {
-            "root README": self.root_readme,
             "root AGENTS": self.agents,
             "PRD": self.prd,
             "TASKS": self.tasks,
@@ -522,6 +520,9 @@ class PromptPackContractTests(unittest.TestCase):
         }
         for name, document in documents.items():
             self.assertRegex(document, r"(?m)^## Agent reference", name)
+        self.assertLessEqual(len(self.root_readme.splitlines()), 90)
+        self.assertIn("## Start", self.root_readme)
+        self.assertIn("## What to expect", self.root_readme)
 
     def test_readme_uses_one_line_gate_flow(self) -> None:
         gate_line = (
@@ -534,27 +535,29 @@ class PromptPackContractTests(unittest.TestCase):
     def test_template_first_readme_sets_complete_user_expectations(self) -> None:
         for phrase in (
             "init template",
+            "project name",
+            "preferred AWS Region",
+            "development budget",
             "https://github.com/Levi-Breedlove/aws-bootstrap/generate",
             "AWS Core",
             "AWS Agent Toolkit",
-            "Template setup does not access or change an AWS account",
-            "asks short, plain-language questions",
-            "creates dependency-aware tasks",
+            "does not require AWS credentials or access an AWS account",
+            "short, plain-language questions",
+            "organized task plan",
             "exact authorization",
         ):
             self.assertIn(phrase, self.root_readme)
-        self.assertNotIn("npx -y @openai/codex", self.root_readme)
         for path in (
             "AGENTS.md",
-            "docs/project/",
-            "PRD.md",
-            "TASKS.md",
+            "docs/project/PRD.md",
+            "docs/project/TASKS.md",
             ".agents/skills/",
             ".codex/agents/",
             "prompts/CODEX-PROMPTS.md",
         ):
             self.assertIn(path, self.root_readme)
         self.assertNotIn("codex plugin marketplace add", self.root_readme)
+        self.assertNotIn("continue setup", self.root_readme)
         self.assertNotIn("uv_setup_assistant.py", self.root_readme)
         self.assertLessEqual(len(self.root_readme.splitlines()), 90)
         self.assertFalse((REPOSITORY_ROOT / "my-project" / "README.md").exists())
@@ -563,24 +566,24 @@ class PromptPackContractTests(unittest.TestCase):
         boot = self.prompt_section("BOOT-00")
         self.assertIn("START AWS CODEX FASTLANE", boot)
         self.assertIn("Setup: <THIS_REPOSITORY|ADOPT_EXISTING_REPOSITORY>", boot)
-        self.assertIn("Ask no more than these two setup questions", boot)
+        self.assertIn("no more than these three values", boot)
+        self.assertIn("development budget posture", boot)
         self.assertIn("--in-place-template-instance --dry-run", boot)
         self.assertIn("UNCONFIGURED_TEMPLATE", boot)
         for field in (
-            "Classification:",
-            "Lifecycle:",
+            "Project:",
+            "Region:",
+            "Budget posture:",
             "Doctor:",
+            "AWS Core:",
             "Next prompt:",
-            "Git baseline:",
             "AWS access:",
-            "Gate A:",
-            "Gate B:",
-            "Evidence:",
-            "AWS authorization:",
         ):
             self.assertIn(field, boot)
-        self.assertIn("AWS Core hooks: APPROVED_AND_VERIFIED", boot)
-        self.assertIn("AWS Core hook conflict review: PASS", boot)
+        self.assertIn("immediately ask its first one to three", boot)
+        self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
+        self.assertNotIn("OWNER_ATTESTED_AND_PROBES_VERIFIED", boot)
+        self.assertNotIn("hook conflict review", boot)
 
     def test_repo_scoped_skills_have_distinct_safe_trigger_contracts(self) -> None:
         implicit = {
@@ -659,13 +662,13 @@ class PromptPackContractTests(unittest.TestCase):
 
     def test_brownfield_adoption_requires_exact_user_confirmation(self) -> None:
         boot = self.prompt_section("BOOT-00")
-        self.assertIn("does not\nauthorize you to choose `ADOPT_TEMPLATE`", boot)
+        self.assertIn("does not authorize\n   you to choose `ADOPT_TEMPLATE`", boot)
         self.assertIn("CONFIRM BOOTSTRAP ADOPTION PLAN", boot)
         self.assertIn("plan_sha256: <64 lowercase hex characters>", boot)
         self.assertIn("authorized_by: <human owner>", boot)
         self.assertIn("authorization_source: OWNER_CONFIRMATION", boot)
-        self.assertIn("schema version, roots, and ordered decisions", boot)
-        self.assertIn("It never hashes decisions\nalone", boot)
+        self.assertIn("schema version, both roots, and the complete ordered decision", boot)
+        self.assertIn("It never hashes decisions alone", boot)
         self.assertIn("complete ordered decision map", self.agents)
 
     def test_task_prompt_and_ledger_define_validator_shape(self) -> None:
@@ -733,15 +736,15 @@ class PromptPackContractTests(unittest.TestCase):
             PROJECT_ROOT / ".codex/agents/fastlane-aws-advisor.toml"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("Ask no more than these two setup questions", boot)
-        self.assertNotIn("What monthly development budget", boot)
-        self.assertNotIn("Recommend `us-west-2` and `$20/month`", boot)
+        self.assertIn("no more than these three values", boot)
+        self.assertIn("development budget posture", boot)
         self.assertIn("MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED", boot)
-        self.assertIn("MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00", boot)
+        self.assertIn(
+            "MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>",
+            boot,
+        )
         self.assertIn("--cost-posture", boot)
         self.assertIn("A missing amount alone never blocks intake", intake)
-        for surface in (boot, intake, requirements, plan_skill, self.agents):
-            self.assertIn("exact", surface.lower())
         self.assertIn(
             "MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>",
             plan_skill,
@@ -752,33 +755,22 @@ class PromptPackContractTests(unittest.TestCase):
 
         for surface in (self.agents, self.prd, design, plan_skill, aws_advisor):
             self.assertIn("serverless", surface.lower())
-        self.assertIn("pay-per-use serverless options", self.root_readme)
-
+        self.assertIn("secure pay-per-use\nserverless options", self.root_readme)
         for surface in (self.agents, self.prd, plan_skill):
             self.assertIn("MINIMIZE_TOTAL_COST", surface)
-
-        self.assertIn(
-            "lowest practical total\ncost without weakening required safeguards",
+        self.assertRegex(
             self.root_readme,
+            r"lowest practical total cost without\s+weakening required safeguards",
         )
         self.assertIn("Never weaken one of those required controls", design)
         self.assertIn("measurable expansion or migration\ntriggers", design)
-
-        # Planning does not require an invented budget, but actual AWS mutation
-        # remains bound to an exact ceiling.
         self.assertIn(
             "Cost ceiling: <finite positive ISO-currency amount, for example USD: 20.00>",
             self.prompts,
         )
         self.assertIn("| AWS cost ceiling |", self.prd)
         self.assertIn("not a guaranteed AWS billing stop", self.prd)
-
-        for surface in (
-            self.root_readme,
-            self.agents,
-            self.prd,
-            self.prompts,
-        ):
+        for surface in (self.root_readme, self.agents, self.prd, self.prompts):
             self.assertNotIn("{{MONTHLY_BUDGET}}", surface)
 
     def test_gate_b_binds_canonical_complete_envelope_digest(self) -> None:
@@ -880,9 +872,9 @@ class PromptPackContractTests(unittest.TestCase):
     def test_manifest_matches_pack_and_required_files_exist(self) -> None:
         manifest_path = PROJECT_ROOT / "bootstrap.manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["bootstrap_version"], "1.0.0")
+        self.assertEqual(manifest["bootstrap_version"], "1.1.0")
         self.assertEqual(manifest["canonical_prompt_ids"], PROMPT_IDS)
-        self.assertIn("**Pack version:** 1.0.0", self.prompts)
+        self.assertIn("**Pack version:** 1.1.0", self.prompts)
         missing = [
             path
             for path in manifest["required_files"]

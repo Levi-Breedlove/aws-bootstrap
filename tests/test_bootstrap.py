@@ -255,7 +255,7 @@ class BootstrapSafetyTests(unittest.TestCase):
                 "bootstrap.py": b"bootstrap",
                 "scripts/bootstrap_dependencies.py": b"dependencies",
                 "scripts/bootstrap_doctor.py": b"doctor",
-                "scripts/uv_setup_assistant.py": b"uv-setup",
+                "scripts/setup_assistant.py": b"setup-assistant",
                 "scripts/task_waves.py": b"tasks",
             }
             for relative, content in controls.items():
@@ -303,7 +303,7 @@ class BootstrapSafetyTests(unittest.TestCase):
         with mock.patch.object(
             bootstrap,
             "validate_repository_dependencies",
-            side_effect=ValueError("pinned dependency mismatch"),
+            side_effect=ValueError("dependency policy mismatch"),
         ) as dependency_check, mock.patch.object(
             bootstrap, "initialize_template_in_place"
         ) as initialize:

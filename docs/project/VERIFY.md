@@ -72,6 +72,41 @@ Assign every recorded evidence item one monotonic `EV-nnnn` ID, beginning with
 baseline, authorization, and task IDs remain traceability fields, not alternate
 evidence-ID formats.
 
+## AWS Core evidence
+
+This ledger proves observed use of the official
+`aws-core@agent-toolkit-for-aws` plugin; installation metadata, generic AWS
+connectors, cached content, prior conversation, and prose claims are not proof.
+DESIGN-10 and AWS-10 each require fresh successful observations of both
+`retrieve_skill` and `search_documentation`, with one independently
+attributed result row for each capability. AWS Core is not required for
+BOOT-00, intake, requirements analysis, or Gate A. Missing, stale,
+wrong-source, or unattributed DESIGN-10 evidence blocks Gate B readiness; the
+same condition at AWS-10 blocks AWS execution planning.
+
+Every completed row must come from observed live calls through
+`aws-core@agent-toolkit-for-aws` and source `aws/agent-toolkit-for-aws`. Every
+passing row uses observation actor `CODEX_LIVE_TOOL_CALL`, records the observed
+current semantic plugin version as observation metadata rather than a pin,
+and records `Credentials inspected` and `AWS account accessed` as exactly
+`NO`. Both rows for a phase use the same observed version.
+
+Each phase records the requested and returned skill identifiers or
+documentation query and returned official AWS references, as applicable.
+
+Do not record credentials, local plugin/cache paths, usernames, session
+identifiers, hook-trust state or trust-database data, secrets, or private
+machine information. Every passing row also records an ISO 8601 observation
+time and a current binding: the current DES revision for DESIGN-10 or the
+Active evidence scope artifact for AWS-10.
+
+| Phase | Plugin source | Invoked plugin identity | Observed plugin version | Capability | Observation actor | Requested skill | Returned skill identifier | Documentation query | Source references | Design decision influenced | Credentials inspected | AWS account accessed | Observed at | Evidence binding | Observed status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `DESIGN-10` | TODO | TODO | TODO | `retrieve_skill` | TODO | TODO | TODO | — | — | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+| `DESIGN-10` | TODO | TODO | TODO | `search_documentation` | TODO | — | — | TODO | TODO | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+| `AWS-10` | TODO | TODO | TODO | `retrieve_skill` | TODO | TODO | TODO | — | — | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+| `AWS-10` | TODO | TODO | TODO | `search_documentation` | TODO | — | — | TODO | TODO | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+
 ## Task completion evidence
 
 This is the machine-checked local evidence ledger for `DONE` transitions. One
@@ -126,6 +161,7 @@ evidence-based readiness check performed within the active authorization.
 |---|---|---|
 | Requirements identity | Gate A remains current for the active REQ revision | `NOT_STARTED` |
 | Construction identity | Gate B remains current for matching REQ/DES/AUTH IDs | `NOT_STARTED` |
+| AWS design grounding | Current DESIGN-10 has fresh successful official AWS Core `retrieve_skill` and `search_documentation` evidence | `NOT_STARTED` |
 | Task graph | Dependencies validate, waivers are explicit, and required tasks are complete | `NOT_STARTED` |
 | Build | Formatting, linting, typing, tests, and packaging pass | `NOT_STARTED` |
 | Infrastructure | IaC, policy, and brownfield drift checks pass | `NOT_STARTED` |
@@ -135,6 +171,7 @@ evidence-based readiness check performed within the active authorization.
 | Deployment | Required live deployment and smoke evidence is `VERIFIED` or explicitly not applicable | `NOT_STARTED` |
 | Operations | Monitoring, restore, rollback, and authorized cleanup procedures are usable | `NOT_STARTED` |
 | Cost | Observed and forecast cost remains inside the approved ceiling | `NOT_STARTED` |
+| AWS execution grounding | Current AWS-10 has fresh successful official AWS Core operational and deployment evidence before any AWS execution plan | `NOT_STARTED` |
 
 ## Autonomous run receipts
 

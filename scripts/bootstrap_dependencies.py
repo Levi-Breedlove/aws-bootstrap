@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Fastlane skills, agents, AWS Core pin, and hook-review contract."""
+"""Validate Fastlane repository assets and its official AWS Core contract."""
 
 from __future__ import annotations
 
@@ -12,36 +12,18 @@ from pathlib import Path
 from typing import Any
 
 
-AWS_TOOLKIT_REPOSITORY = "https://github.com/aws/agent-toolkit-for-aws.git"
-AWS_TOOLKIT_COMMIT = "36f16570de2015c0f0ce94ba9e391bd703c9ffb7"
-AWS_CORE_VERSION = "1.1.0"
-MARKETPLACE_PATH = ".agents/plugins/marketplace.json"
+AWS_TOOLKIT_REPOSITORY = "https://github.com/aws/agent-toolkit-for-aws"
+AWS_TOOLKIT_MARKETPLACE = "aws/agent-toolkit-for-aws"
+AWS_CORE_PLUGIN_ID = "aws-core@agent-toolkit-for-aws"
+LEGACY_MARKETPLACE_PATH = ".agents/plugins/marketplace.json"
 AWS_CORE_MANAGEMENT_COMMAND = "/plugins"
-AWS_CORE_INVOCATION = "@AWS Core"
 AWS_CORE_RUNTIME_COMMAND = "uvx"
 AWS_CORE_RUNTIME_PACKAGE = "uv"
 AWS_CORE_REQUIRED_CAPABILITIES = ("retrieve_skill", "search_documentation")
-AWS_CORE_SUPPORTED_SURFACES = ("CHATGPT_DESKTOP_CODEX", "CODEX_CLI")
-AWS_CORE_UNSUPPORTED_SURFACES = ("CODEX_IDE_EXTENSION",)
-AWS_CORE_HOOK_MANAGEMENT_COMMAND = "/hooks"
-AWS_CORE_HOOK_EVENT = "PreToolUse"
-AWS_CORE_HOOK_MATCHERS = (
-    "Bash",
-    "use_aws|mcp__aws.*|mcp__plugin_.*aws-mcp.*",
-)
-AWS_CORE_HOOK_COMMAND = 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/secret-safety.py"'
-AWS_CORE_HOOK_RUNTIME_COMMAND = "python3"
-AWS_CORE_HOOKS_SHA256 = (
-    "b1e46a5d755ca3d13e2cc0e5cc21f8bf26e6f4446424b82773ee2e0e90dfcd4b"
-)
-AWS_CORE_HOOK_SCRIPT_SHA256 = (
-    "01d517c5d45f09c010328114f970147848ac264179d96ed5a84aa51981e1341b"
-)
-UV_SETUP_SCRIPT = "scripts/uv_setup_assistant.py"
-UV_SETUP_STATES = (
-    "UV_DETECTED_OWNER_VERIFICATION_REQUIRED",
-    "UV_INSTALL_INSTRUCTIONS_REQUIRED",
-    "AWS_CORE_UPDATE_REVIEW_REQUIRED",
+SETUP_ASSISTANT_SCRIPT = "scripts/setup_assistant.py"
+SETUP_STATES = (
+    "LOCAL_PREREQUISITES_REQUIRED",
+    "READY_FOR_INTAKE",
 )
 
 REQUIRED_SKILLS = (
@@ -76,138 +58,29 @@ def diagnostic(code: str, message: str, path: str | None = None) -> dict[str, st
     return item
 
 
-def load_object(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError("expected one JSON object")
-    return value
-
-
-def inspect_repository_hook_sources(
-    root: Path, diagnostics: list[dict[str, str]]
-) -> tuple[list[str], str]:
-    """Find project hook sources without treating their presence as a conflict."""
-
-    sources: list[str] = []
-    hooks_path = root / ".codex" / "hooks.json"
-    if hooks_path.exists():
-        relative = ".codex/hooks.json"
-        if not hooks_path.is_file() or hooks_path.is_symlink():
-            diagnostics.append(
-                diagnostic(
-                    "FASTLANE_PROJECT_HOOK_UNSAFE",
-                    "The project hook file must be a regular file inside the repository.",
-                    relative,
-                )
-            )
-        else:
-            try:
-                value = load_object(hooks_path)
-                if not isinstance(value.get("hooks"), dict):
-                    raise ValueError("hooks.json must contain a hooks object")
-                sources.append(relative)
-            except (OSError, ValueError, json.JSONDecodeError) as exc:
-                diagnostics.append(
-                    diagnostic("FASTLANE_PROJECT_HOOK_INVALID", str(exc), relative)
-                )
-
-    config_path = root / ".codex" / "config.toml"
-    feature_state = "ENABLED_OR_DEFAULT"
-    if config_path.exists():
-        relative = ".codex/config.toml"
-        if not config_path.is_file() or config_path.is_symlink():
-            diagnostics.append(
-                diagnostic(
-                    "FASTLANE_PROJECT_CONFIG_UNSAFE",
-                    "The project Codex config must be a regular file inside the repository.",
-                    relative,
-                )
-            )
-        else:
-            try:
-                value = tomllib.loads(config_path.read_text(encoding="utf-8"))
-                hooks = value.get("hooks")
-                if hooks is not None:
-                    if not isinstance(hooks, dict):
-                        raise ValueError("config.toml hooks must be a table")
-                    sources.append(relative)
-                features = value.get("features")
-                if isinstance(features, dict) and features.get("hooks") is False:
-                    feature_state = "DISABLED"
-                    diagnostics.append(
-                        diagnostic(
-                            "FASTLANE_HOOKS_DISABLED",
-                            "Project configuration disables hooks required for AWS Core review.",
-                            relative,
-                        )
-                    )
-            except (OSError, ValueError, tomllib.TOMLDecodeError) as exc:
-                diagnostics.append(
-                    diagnostic("FASTLANE_PROJECT_CONFIG_INVALID", str(exc), relative)
-                )
-
-    return sources, feature_state
-
-
 def inspect_repository(root: Path) -> dict[str, Any]:
     root = root.resolve()
     diagnostics: list[dict[str, str]] = []
-    uv_setup_path = root / UV_SETUP_SCRIPT
-    if not uv_setup_path.is_file() or uv_setup_path.is_symlink():
+    setup_assistant_path = root / SETUP_ASSISTANT_SCRIPT
+    if not setup_assistant_path.is_file() or setup_assistant_path.is_symlink():
         diagnostics.append(
             diagnostic(
-                "FASTLANE_UV_SETUP_ASSISTANT_MISSING",
-                "The instruction-only uv setup assistant is missing or unsafe.",
-                UV_SETUP_SCRIPT,
+                "FASTLANE_SETUP_ASSISTANT_MISSING",
+                "The instruction-only setup assistant is missing or unsafe.",
+                SETUP_ASSISTANT_SCRIPT,
             )
         )
-    repository_hook_sources, hooks_feature_state = inspect_repository_hook_sources(
-        root, diagnostics
-    )
-
-    marketplace_file = root / MARKETPLACE_PATH
-    marketplace_status = "DECLARED_AND_PINNED"
-    if not marketplace_file.is_file() or marketplace_file.is_symlink():
-        marketplace_status = "BLOCKED"
+    legacy_marketplace = root / LEGACY_MARKETPLACE_PATH
+    legacy_marketplace_status = "ABSENT"
+    if legacy_marketplace.exists():
+        legacy_marketplace_status = "PRESENT"
         diagnostics.append(
             diagnostic(
-                "AWS_MARKETPLACE_MISSING",
-                "The pinned Fastlane AWS plugin marketplace is missing or unsafe.",
-                MARKETPLACE_PATH,
+                "LEGACY_PINNED_MARKETPLACE_PRESENT",
+                "Remove the repository-local AWS Core marketplace; Fastlane uses the official AWS Agent Toolkit marketplace.",
+                LEGACY_MARKETPLACE_PATH,
             )
         )
-    else:
-        try:
-            marketplace = load_object(marketplace_file)
-            plugins = marketplace.get("plugins")
-            if not isinstance(plugins, list) or len(plugins) != 1:
-                raise ValueError("plugins must contain exactly the aws-core entry")
-            plugin = plugins[0]
-            source = plugin.get("source") if isinstance(plugin, dict) else None
-            policy = plugin.get("policy") if isinstance(plugin, dict) else None
-            expected_source = {
-                "source": "git-subdir",
-                "url": AWS_TOOLKIT_REPOSITORY,
-                "path": "./plugins/aws-core",
-                "sha": AWS_TOOLKIT_COMMIT,
-            }
-            expected_policy = {
-                "installation": "AVAILABLE",
-                "authentication": "ON_INSTALL",
-            }
-            if (
-                not isinstance(plugin, dict)
-                or plugin.get("name") != "aws-core"
-                or source != expected_source
-                or policy != expected_policy
-                or plugin.get("category") != "Cloud"
-            ):
-                raise ValueError("aws-core source or install policy differs from the approved pin")
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
-            marketplace_status = "BLOCKED"
-            diagnostics.append(
-                diagnostic("AWS_MARKETPLACE_INVALID", str(exc), MARKETPLACE_PATH)
-            )
 
     skill_states: dict[str, str] = {}
     skill_descriptions: dict[str, str] = {}
@@ -309,20 +182,32 @@ def inspect_repository(root: Path) -> dict[str, Any]:
 
     ready = not diagnostics
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": "READY" if ready else "BLOCKED",
         "aws_agent_toolkit": {
             "repository": AWS_TOOLKIT_REPOSITORY,
-            "commit": AWS_TOOLKIT_COMMIT,
-            "aws_core_version": AWS_CORE_VERSION,
-            "marketplace": marketplace_status,
-            "installation_policy": "AVAILABLE",
+            "dependency_policy": "OFFICIAL_CURRENT",
+            "marketplace": "agent-toolkit-for-aws",
+            "marketplace_slug": AWS_TOOLKIT_MARKETPLACE,
+            "marketplace_registration_command": [
+                "codex",
+                "plugin",
+                "marketplace",
+                "add",
+                AWS_TOOLKIT_MARKETPLACE,
+            ],
+            "plugin_identity": AWS_CORE_PLUGIN_ID,
+            "plugin": "aws-core",
+            "legacy_repository_marketplace": legacy_marketplace_status,
+            "installation_policy": "OWNER_MANAGED",
             "setup_mode": "INSTRUCTIONS_ONLY",
-            "uv_setup": {
-                "status": "UV_SETUP_ASSISTANCE_AVAILABLE",
+            "availability_policy": "DEFERRED_UNTIL_AWS_DESIGN",
+            "version_policy": "OFFICIAL_CURRENT_NO_TEMPLATE_PIN",
+            "setup_assistant": {
+                "status": "SETUP_ASSISTANCE_AVAILABLE",
                 "mode": "INSTRUCTIONS_ONLY",
-                "script": UV_SETUP_SCRIPT,
-                "states": list(UV_SETUP_STATES),
+                "script": SETUP_ASSISTANT_SCRIPT,
+                "states": list(SETUP_STATES),
                 "automatic_runtime_installation": False,
                 "package_manager_execution": False,
                 "runtime_probe_execution": False,
@@ -331,41 +216,15 @@ def inspect_repository(root: Path) -> dict[str, Any]:
             "runtime_verification": {
                 "status": "NOT_CHECKED",
                 "management_command": AWS_CORE_MANAGEMENT_COMMAND,
-                "plugin_invocation": AWS_CORE_INVOCATION,
+                "expected_plugin_identity": AWS_CORE_PLUGIN_ID,
                 "required_capabilities": list(AWS_CORE_REQUIRED_CAPABILITIES),
-                "supported_surfaces": list(AWS_CORE_SUPPORTED_SURFACES),
-                "unsupported_surfaces": list(AWS_CORE_UNSUPPORTED_SURFACES),
-                "automatic_client_installation": False,
-                "approval_bound_client_installation": False,
                 "automatic_marketplace_registration": False,
                 "automatic_session_launch": False,
                 "required_runtime_command": AWS_CORE_RUNTIME_COMMAND,
                 "runtime_package": AWS_CORE_RUNTIME_PACKAGE,
                 "automatic_runtime_installation": False,
-                "approval_bound_runtime_installation": False,
-            },
-            "hook_review": {
-                "status": "NOT_CHECKED",
-                "approval_required": True,
-                "management_command": AWS_CORE_HOOK_MANAGEMENT_COMMAND,
-                "trust_scope": "CURRENT_DEFINITION_HASH",
-                "expected_event": AWS_CORE_HOOK_EVENT,
-                "expected_matchers": list(AWS_CORE_HOOK_MATCHERS),
-                "expected_command": AWS_CORE_HOOK_COMMAND,
-                "expected_hooks_sha256": AWS_CORE_HOOKS_SHA256,
-                "expected_script_sha256": AWS_CORE_HOOK_SCRIPT_SHA256,
-                "required_runtime_command": AWS_CORE_HOOK_RUNTIME_COMMAND,
-                "purpose": "BLOCK_DIRECT_SECRETS_MANAGER_VALUE_FETCH",
-                "repository_hook_sources": repository_hook_sources,
-                "repository_hook_status": (
-                    "NONE_DECLARED"
-                    if not repository_hook_sources
-                    else "ACTIVE_HOOK_REVIEW_REQUIRED"
-                ),
-                "hooks_feature": hooks_feature_state,
-                "external_hook_inventory": "REQUIRED_AT_RUNTIME",
-                "automatic_hook_trust": False,
-                "dangerous_trust_bypass_allowed": False,
+                "required_at_boot": False,
+                "required_evidence_phases": ["DESIGN-10", "AWS-10"],
             },
         },
         "fastlane_skills": {
@@ -385,18 +244,15 @@ def print_human(report: dict[str, Any]) -> None:
     print(f"Bootstrap dependencies: {report['status']}")
     print(f"Fastlane skills: {report['fastlane_skills']['status']}")
     print(f"Project agents: {report['project_agents']['status']}")
-    print(f"AWS Toolkit marketplace: {toolkit['marketplace']}")
-    print(f"AWS Core pin: {toolkit['aws_core_version']} @ {toolkit['commit']}")
+    print(
+        "AWS Core dependency: OFFICIAL_CURRENT_NO_TEMPLATE_PIN from "
+        f"{toolkit['marketplace_slug']}"
+    )
     runtime = toolkit["runtime_verification"]
     print(
         "AWS Core runtime: NOT CHECKED; manage with "
-        f"{runtime['management_command']}, require {runtime['required_runtime_command']}, "
-        f"then invoke {runtime['plugin_invocation']}"
-    )
-    hook_review = toolkit["hook_review"]
-    print(
-        "AWS Core hooks: NOT CHECKED; review exact definitions with "
-        f"{hook_review['management_command']}; automatic trust is disabled"
+        f"{runtime['management_command']} when AWS-specific design begins; "
+        f"runtime {runtime['required_runtime_command']} is owner managed"
     )
     for item in report["diagnostics"]:
         location = f" ({item['path']})" if "path" in item else ""

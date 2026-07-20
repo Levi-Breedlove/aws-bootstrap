@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -362,6 +364,86 @@ def current_greenfield_state(state: dict[str, object], *, gate_b: bool = False) 
         lifecycle["gate_b"] = "APPROVED_FOR_CONSTRUCTION"
 
 
+def record_aws_core_evidence(
+    text: str,
+    phase: str,
+    status: str = "PASS",
+    *,
+    binding: str | None = None,
+    actor: str = "CODEX_LIVE_TOOL_CALL",
+    plugin_version: str = "1.2.0",
+) -> str:
+    if binding is None:
+        binding = {
+            "DESIGN-10": "DES-0001",
+            "AWS-10": "sha256:" + "a" * 64,
+        }[phase]
+    for capability in doctor.AWS_CORE_REQUIRED_CAPABILITIES:
+        text = record_aws_core_capability_evidence(
+            text,
+            phase,
+            capability,
+            status,
+            binding=binding,
+            actor=actor,
+            plugin_version=plugin_version,
+        )
+    return text
+
+
+def record_aws_core_capability_evidence(
+    text: str,
+    phase: str,
+    capability: str,
+    status: str = "PASS",
+    *,
+    binding: str,
+    actor: str = "CODEX_LIVE_TOOL_CALL",
+    plugin_source: str = "aws/agent-toolkit-for-aws",
+    invoked_identity: str = "aws-core@agent-toolkit-for-aws",
+    plugin_version: str = "1.2.0",
+    requested_skill: str | None = None,
+    returned_skill_identifier: str | None = None,
+    documentation_query: str | None = None,
+    source_references: str | None = None,
+    credentials_inspected: str = "NO",
+    aws_account_accessed: str = "NO",
+) -> str:
+    if capability == "retrieve_skill":
+        requested_skill = requested_skill or "aws-architecture"
+        returned_skill_identifier = returned_skill_identifier or requested_skill
+        documentation_query = "—"
+        source_references = "—"
+    else:
+        requested_skill = "—"
+        returned_skill_identifier = "—"
+        documentation_query = documentation_query or "Current AWS service and IAM guidance"
+        source_references = source_references or (
+            "https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html"
+        )
+    replacement = (
+        f"| `{phase}` | `{plugin_source}` | `{invoked_identity}` | "
+        f"`{plugin_version}` | `{capability}` | `{actor}` | "
+        f"`{requested_skill}` | `{returned_skill_identifier}` | "
+        f"`{documentation_query}` | `{source_references}` | "
+        f"`DES-0001 architecture review` | `{credentials_inspected}` | "
+        f"`{aws_account_accessed}` | `2026-07-20T12:00:00Z` | "
+        f"`{binding}` | `{status}` |"
+    )
+    updated, count = re.subn(
+        rf"^\| `{re.escape(phase)}` \|.*\| `{re.escape(capability)}` \|.*$",
+        replacement,
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count != 1:
+        raise AssertionError(
+            f"Missing AWS Core evidence row for {phase} {capability}"
+        )
+    return updated
+
+
 def current_task_snapshot(
     text: str,
     *,
@@ -499,6 +581,11 @@ class BootstrapDoctorTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            verify_path = project / "docs/project/VERIFY.md"
+            verify_text = record_aws_core_evidence(
+                verify_path.read_text(encoding="utf-8"), "DESIGN-10"
+            )
+            verify_path.write_text(verify_text, encoding="utf-8")
 
     def initialize_task_plan(self, project: Path, task_text: str) -> None:
         state_path = project / "bootstrap.yaml"
@@ -600,7 +687,7 @@ class BootstrapDoctorTests(unittest.TestCase):
 
         self.assertTrue(report["ok"], report["diagnostics"])
         self.assertEqual(report["schema_version"], 1)
-        self.assertEqual(report["bootstrap_version"], "1.0.0")
+        self.assertEqual(report["bootstrap_version"], "1.1.0")
         self.assertEqual(report["classification"], "TEMPLATE_SOURCE")
         self.assertEqual(report["next_prompt"], "INTAKE-10")
         self.assertEqual(
@@ -1132,6 +1219,147 @@ class BootstrapDoctorTests(unittest.TestCase):
             report = doctor.inspect_project(project)
 
         self.assertIn("GATE_B_ENVELOPE", codes(report))
+
+    def test_gate_b_requires_fresh_design_aws_core_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            self.approve_project(project)
+            verify_path = project / "docs/project/VERIFY.md"
+            verify_path.write_text(
+                record_aws_core_evidence(
+                    verify_path.read_text(encoding="utf-8"),
+                    "DESIGN-10",
+                    "NOT_STARTED",
+                ),
+                encoding="utf-8",
+            )
+
+            report = doctor.inspect_project(project)
+
+        self.assertIn("AWS_CORE_EVIDENCE_REQUIRED", codes(report))
+        self.assertEqual(report["next_prompt"], "STOP")
+
+    def test_boot_00_routes_to_intake_without_aws_core_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            manifest_path = project / "bootstrap.manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["control_sha256"] = {
+                relative: hashlib.sha256((project / relative).read_bytes()).hexdigest()
+                for relative in doctor.CONTROL_HASH_FILES
+            }
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            report = doctor.inspect_project(project)
+
+        self.assertNotIn("AWS_CORE_BOOT00_EVIDENCE_REQUIRED", codes(report))
+        self.assertEqual(report["next_prompt"], "INTAKE-10")
+
+    def test_aws_core_capabilities_require_independent_attribution(self) -> None:
+        verify_text = (REPOSITORY_ROOT / "docs/project/VERIFY.md").read_text(
+            encoding="utf-8"
+        )
+        binding = "DES-0001"
+        passed = record_aws_core_evidence(
+            verify_text, "DESIGN-10", binding=binding
+        )
+        passed_rows = doctor.parse_aws_core_evidence(passed)
+        self.assertEqual(
+            doctor.aws_core_phase_evidence_issues(
+                passed_rows, "DESIGN-10", expected_binding=binding
+            ),
+            [],
+        )
+
+        unattributed = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "retrieve_skill",
+            binding=binding,
+            actor="Codex",
+        )
+        unattributed_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(unattributed),
+            "DESIGN-10",
+            expected_binding=binding,
+        )
+        self.assertTrue(
+            any("Observation actor" in issue for issue in unattributed_issues)
+        )
+
+        generic = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "search_documentation",
+            binding=binding,
+            plugin_source="generic-aws-docs",
+        )
+        generic_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(generic),
+            "DESIGN-10",
+            expected_binding=binding,
+        )
+        self.assertTrue(any("plugin source" in issue for issue in generic_issues))
+
+        one_failed = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "search_documentation",
+            "FAILED",
+            binding=binding,
+        )
+        failed_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(one_failed),
+            "DESIGN-10",
+            expected_binding=binding,
+        )
+        self.assertTrue(
+            any(
+                "DESIGN-10 search_documentation requires fresh PASS" in issue
+                for issue in failed_issues
+            )
+        )
+
+    def test_aws_core_evidence_is_limited_to_design_and_aws_preflight(self) -> None:
+        verify_text = (REPOSITORY_ROOT / "docs/project/VERIFY.md").read_text(
+            encoding="utf-8"
+        )
+        rows = doctor.parse_aws_core_evidence(verify_text)
+        self.assertEqual(
+            {phase for phase, _capability in rows},
+            {"DESIGN-10", "AWS-10"},
+        )
+        self.assertNotIn("BOOT-00", doctor.AWS_CORE_EVIDENCE_PHASES)
+
+    def test_missing_aws_10_evidence_blocks_aws_execution_planning(self) -> None:
+        verify_text = (REPOSITORY_ROOT / "docs/project/VERIFY.md").read_text(
+            encoding="utf-8"
+        )
+        rows = doctor.parse_aws_core_evidence(verify_text)
+        binding = "sha256:" + "a" * 64
+        self.assertTrue(
+            doctor.aws_core_phase_evidence_issues(
+                rows, "AWS-10", expected_binding=binding
+            )
+        )
+
+        passed = record_aws_core_evidence(
+            verify_text, "AWS-10", binding=binding
+        )
+        passed_rows = doctor.parse_aws_core_evidence(passed)
+        self.assertEqual(
+            doctor.aws_core_phase_evidence_issues(
+                passed_rows, "AWS-10", expected_binding=binding
+            ),
+            [],
+        )
+        self.assertTrue(
+            doctor.aws_core_phase_evidence_issues(
+                passed_rows,
+                "AWS-10",
+                expected_binding="sha256:" + "b" * 64,
+            )
+        )
 
     def test_split_aws_rows_are_conditionally_bound(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

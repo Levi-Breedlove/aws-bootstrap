@@ -7,11 +7,9 @@ description: Turn a rough AWS project idea or brownfield change into owner-appro
 
 1. Read the root `AGENTS.md`, current `docs/project/PRD.md`, and only the canonical prompt
    section named by the doctor.
-2. Run `python scripts/bootstrap_dependencies.py --root . --json` and require
-   the current task's explicit `@AWS Core` verification receipt with successful
-   `retrieve_skill` and `search_documentation` checks. A generic AWS
-   documentation connector is insufficient. Then run
+2. Run `python scripts/bootstrap_dependencies.py --root . --json`, then run
    `python scripts/bootstrap_doctor.py --root . --json` before writing.
+   AWS Core is not required for intake, requirements analysis, or Gate A.
    Continue only through `INTAKE-10`, `REQ-10`, `INTAKE-20`, `DESIGN-10`, or
    `DESIGN-20` as returned.
 3. During intake, ask no more than three related plain-language questions at a
@@ -28,9 +26,25 @@ description: Turn a rough AWS project idea or brownfield change into owner-appro
    the read-only `fastlane-aws-advisor` when AWS feasibility or design facts
    are material. The coordinator remains the sole PRD and lifecycle writer.
 6. Use AWS Core and current primary AWS documentation when a service fact
-   affects requirements, a gate recommendation, or design. Record what was
-   verified and any unavailable fact. Do not require AWS credentials and do
-   not access an AWS account during planning.
+   affects requirements or a gate recommendation. At `DESIGN-10`, reuse the
+   official current `aws-core@agent-toolkit-for-aws` plugin when it is
+   available. If it is unavailable, give one concise owner action: register
+   `aws/agent-toolkit-for-aws` only when absent, enable AWS Core in
+   `/plugins`, restart Codex, and send `CONTINUE AWS DESIGN`. Do not mention
+   plugin versions, hook hashes, probes, or trust receipts; Codex owns plugin
+   and hook trust in its own UI. Then make fresh live `retrieve_skill` and
+   `search_documentation` calls for the proposed architecture. Record in
+   `docs/project/VERIFY.md` one independently attributed row for each
+   capability. Each row records source `aws/agent-toolkit-for-aws`, identity
+   `aws-core@agent-toolkit-for-aws`, observed current semantic version, actor
+   `CODEX_LIVE_TOOL_CALL`, capability input/output, decision influenced,
+   observation time, current DES-revision binding, PASS/FAIL,
+   `Credentials inspected` = `NO`, and `AWS account accessed` = `NO`; the
+   documentation row also records returned official AWS sources. Missing,
+   failed, generic, unattributed, cached, or stale evidence blocks Gate B
+   readiness. These are agent-executed documentation checks, not additional
+   owner approvals. Do not require AWS credentials or access an AWS account
+   during planning, and do not pin AWS Core to a version or commit.
 7. For greenfield design, evaluate a secure managed serverless baseline first.
    Minimize total expected cost and idle resources, preserve required security
    and recovery controls, compare scaling breakpoints, and record measurable
