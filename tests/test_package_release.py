@@ -226,8 +226,8 @@ class PackageReleaseTests(unittest.TestCase):
             self.assertEqual(doctor.returncode, 0, doctor.stdout + doctor.stderr)
             report = json.loads(doctor.stdout)
             self.assertEqual(report["classification"], "ACTIVE_GREENFIELD")
-            self.assertEqual(report["status"], "RESUME")
-            self.assertEqual(report["next_prompt"], "BOOT-00")
+            self.assertEqual(report["status"], "READY")
+            self.assertEqual(report["next_prompt"], "INTAKE-10")
 
     @source_template_only
     def test_manifest_hashes_are_current(self) -> None:

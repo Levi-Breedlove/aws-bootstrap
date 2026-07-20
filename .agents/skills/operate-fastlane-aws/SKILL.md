@@ -8,7 +8,8 @@ description: Perform the Fastlane AWS read-only preflight, exactly authorized de
 1. Read the root and `infrastructure/AGENTS.md`, current REQ/DES/AUTH records,
    `docs/project/TASKS.md`, `docs/project/VERIFY.md`, `docs/project/RUNBOOK.md`, and the requested AWS prompt section.
 2. Run `python scripts/bootstrap_dependencies.py --root . --json` and require
-   the current official plugin identity `aws-core@agent-toolkit-for-aws`. Then run
+   the current official AWS Core plugin identity
+   `aws-core@agent-toolkit-for-aws`. Then run
    `python scripts/bootstrap_doctor.py --root . --json`. Stop unless the
    lifecycle and release state permit the requested AWS prompt.
 3. At `AWS-10`, visibly make fresh live `retrieve_skill` and
@@ -24,8 +25,8 @@ description: Perform the Fastlane AWS read-only preflight, exactly authorized de
    `AWS account accessed` = `NO`; the documentation row also records returned
    official AWS sources. A generic connector, unattributed row, installation
    record, cached result, prior phase receipt, or prose claim is insufficient.
-   Missing or failed evidence blocks AWS execution planning. Do not pin
-   evidence to the last-tested plugin version. Use the read-only
+   Missing or failed evidence blocks AWS execution planning. Record the
+   observed current version only as evidence metadata; do not pin it. Use the read-only
    `fastlane-aws-advisor` where useful; it cannot replace the official live
    calls.
 4. Treat documentation access, credentials, connector access, and IAM

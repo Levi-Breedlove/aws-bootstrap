@@ -177,7 +177,7 @@ def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tup
         forbidden_setup = sorted(FORBIDDEN_LEGACY_SETUP_ASSETS.intersection(inventory))
         if forbidden_setup:
             raise PackagingError(
-                "Manifest retains legacy pinned setup assets: "
+                "Manifest retains retired repository-local marketplace assets: "
                 + ", ".join(forbidden_setup)
             )
 

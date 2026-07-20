@@ -201,104 +201,65 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertEqual(self.prompts.count("~~~") % 2, 0)
         self.assertEqual(self.prd.count("```") % 2, 0)
         self.assertIn("START AWS CODEX BOOTSTRAP", self.prompts)
-        self.assertIn("START GUIDED INTAKE", self.prompts)
+        self.assertIn("begin its questions immediately", self.prompt_section("BOOT-00"))
 
     def test_plain_language_setup_is_friendly_resumable_and_verifies_aws_core(self) -> None:
         boot = self.prompt_section("BOOT-00")
         launch_skill = (
             PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
         ).read_text(encoding="utf-8")
-        for phrase in ("init template", "initialize template", "start Fastlane", "continue setup"):
+        for phrase in ("init template", "initialize template", "start Fastlane"):
             self.assertIn(phrase, boot)
             self.assertIn(phrase, launch_skill)
             self.assertIn(phrase, self.agents)
-        self.assertIn("Welcome to AWS Codex Fastlane", boot)
-        self.assertIn("Iâ€™ll help you turn your AWS project idea", boot)
-        self.assertIn("four short setup checks", boot)
-        self.assertIn("Iâ€™m not sureâ€”recommend one", boot)
-        self.assertIn("Progress: Step", boot)
-        self.assertIn("bootstrap_dependencies.py", boot)
-        self.assertIn("scripts/setup_assistant.py status", boot)
-        self.assertIn("codex plugin marketplace add aws/agent-toolkit-for-aws", boot)
-        self.assertIn("codex -C .", boot)
-        self.assertIn("workspace-write", boot)
-        self.assertIn("on-request", boot)
-        for state in (
-            "LOCAL_PREREQUISITES_REQUIRED",
-            "CODEX_LOGIN_VERIFICATION_REQUIRED",
-            "OFFICIAL_MARKETPLACE_REQUIRED",
-            "AWS_CORE_INSTALLATION_REQUIRED",
-            "AWS_CORE_ENABLE_REQUIRED",
-            "AWS_CORE_DUPLICATE_BLOCKED",
-            "AWS_CORE_SOURCE_UNVERIFIED",
-            "HOOK_RUNTIME_REQUIRED",
+        self.assertIn("continue setup", boot)
+        self.assertIn("python scripts/setup_assistant.py welcome", boot)
+        self.assertIn("Reproduce stdout exactly", boot)
+        for phrase in (
+            "project name",
+            "preferred AWS Region",
+            "development budget posture",
+        ):
+            self.assertIn(phrase, boot)
+            self.assertIn(phrase, launch_skill)
+        self.assertIn("READY_FOR_INTAKE", boot)
+        self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
+        self.assertIn("AWS Core is advisory during planning, not a BOOT-00 gate", launch_skill)
+        self.assertIn("begin its first one to three", launch_skill)
+        self.assertIn("Never restart BOOT-00", launch_skill)
+        self.assertIn("Do not require another start command", launch_skill)
+        self.assertIn("aws-core@agent-toolkit-for-aws", boot)
+        self.assertIn("AWS access: NOT USED", boot)
+        self.assertIn("pytest", boot)
+        for obsolete in (
+            "four short setup checks",
             "HOOK_REVIEW_REQUIRED",
             "HOOK_PROBES_REQUIRED",
             "AWS_CORE_HANDSHAKE_REQUIRED",
-            "AWS_CORE_VERIFICATION_BLOCKED",
-            "READY_FOR_INTAKE",
+            "FASTLANE_SYNTHETIC_DO_NOT_USE",
+            "FASTLANE_HOOK_ALLOW_PROBE",
+            "VERIFY AWS CORE AND CONTINUE FASTLANE",
+            "codex plugin marketplace add .",
+            "36f16570de2015c0f0ce94ba9e391bd703c9ffb7",
         ):
-            self.assertIn(state, boot)
-        self.assertIn("uvx --version", boot)
-        self.assertIn("python3 --version", boot)
-        self.assertIn("FASTLANE_SYNTHETIC_DO_NOT_USE", boot)
-        self.assertIn("FASTLANE_HOOK_ALLOW_PROBE", boot)
-        self.assertIn("--dangerously-bypass-hook-trust", boot)
-        self.assertNotIn("APPROVE AWS CORE HOOKS", boot)
-        self.assertIn("aws-core@agent-toolkit-for-aws", boot)
-        self.assertIn("@AWS Core\nVERIFY AWS CORE AND CONTINUE FASTLANE", boot)
-        self.assertIn("retrieve_skill", boot)
-        self.assertIn("search_documentation", boot)
-        self.assertIn("requesting\nexactly `aws-serverless`", boot)
-        self.assertIn(
-            "AWS Lambda security best practices for serverless applications, "
-            "including least-privilege IAM and input validation",
-            boot,
-        )
-        self.assertIn("CODEX_LIVE_TOOL_CALL", boot)
-        self.assertIn("Credentials inspected` = `NO", boot)
-        self.assertIn("AWS account accessed` = `NO", boot)
-        self.assertIn("A newer official version is valid", boot)
-        self.assertIn("Requested skill", boot)
-        self.assertIn("Returned skill identifier", boot)
-        self.assertIn("Documentation query", boot)
-        self.assertIn("AWS credentials", boot)
-        self.assertIn("AWS account", boot)
-        self.assertRegex(boot, r"generic AWS\s+documentation connector")
-        self.assertIn("Do not probe for `pytest`", boot)
-        self.assertIn("Do not call `call_aws`", boot)
-        self.assertIn("`run_script`", boot)
-        self.assertNotIn("npx -y @openai/codex", boot)
-        self.assertIn("Codex IDE extension", launch_skill)
-        self.assertIn("codex plugin marketplace add aws/agent-toolkit-for-aws", launch_skill)
-        self.assertIn("uvx --version", launch_skill)
-        self.assertIn("HOOK_RUNTIME_REQUIRED", launch_skill)
-        self.assertIn("HOOK_REVIEW_REQUIRED", launch_skill)
-        self.assertIn("--dangerously-bypass-hook-trust", launch_skill)
-        self.assertIn("owner's attestation", boot)
-        self.assertIn("persisted trust\nwas machine-observed", boot)
-        self.assertIn("hook-trust state", boot)
-        self.assertIn("bound only to that current definition and inventory", launch_skill)
-        self.assertIn("requesting exactly `aws-serverless`", launch_skill)
-        self.assertIn("CODEX_LIVE_TOOL_CALL", launch_skill)
-        self.assertIn("A newer\n   official version remains valid", launch_skill)
-        self.assertIn("Only the owner may trust", self.agents)
-        self.assertNotIn("npx -y @openai/codex", launch_skill)
-        self.assertNotIn("CLI handoff", self.bootstrap_source)
-        self.assertIn("owner-run Codex", self.bootstrap_source)
+            self.assertNotIn(obsolete, boot)
+            self.assertNotIn(obsolete, launch_skill)
+        self.assertNotIn("subprocess", (
+            PROJECT_ROOT / "scripts/setup_assistant.py"
+        ).read_text(encoding="utf-8"))
 
     def test_aws_core_uses_official_current_marketplace_without_pin_fallback(self) -> None:
         boot = self.prompt_section("BOOT-00")
         for document in (boot, self.root_readme, self.agents):
             self.assertIn("aws/agent-toolkit-for-aws", document)
+            self.assertIn("aws-core@agent-toolkit-for-aws", document)
             self.assertNotIn("36f16570de2015c0f0ce94ba9e391bd703c9ffb7", document)
             self.assertNotIn("DECLARED_AND_PINNED", document)
-        self.assertIn("official", boot.lower())
-        self.assertIn("already", boot.lower())
-        self.assertIn("disabled", boot.lower())
-        self.assertIn("duplicate", boot.lower())
-        self.assertIn("unknown", boot.lower())
-        self.assertNotIn("codex plugin marketplace add .", boot)
+            self.assertNotIn("codex plugin marketplace add .", document)
+        self.assertIn("Do not pin", self.agents)
+        self.assertIn("does not pin a plugin version or commit", self.root_readme)
+        self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
+        self.assertIn("retired `aws-core@aws-codex-fastlane-dependencies`", boot)
 
     def test_aws_core_advises_both_gates_without_becoming_authority(self) -> None:
         requirements = self.prompt_section("REQ-10")
@@ -310,13 +271,34 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn("fastlane-aws-advisor", section)
             self.assertIn("AWS Core", section)
             self.assertIn("only writer", section)
-        for section in (gate_a, gate_b):
-            self.assertIn("AWS mode:** DOCS_ONLY", section)
-            self.assertRegex(section, r"AWS\s+Core unavailable")
+        self.assertIn("continue ordinary\nrequirements work", requirements)
+        self.assertIn("material AWS feasibility fact", gate_a)
+        self.assertIn("material AWS design evidence", gate_b)
         self.assertIn(
-            "AWS Core cannot approve Gate A, Gate B, or an AWS change.",
+            "AWS Core advises; it cannot approve either gate or authorize an AWS change.",
             self.root_readme,
         )
+        self.assertRegex(requirements, r"Neither advisor\s+can approve Gate A")
+        self.assertIn("cannot replace the\ncalls or approve Gate B", design)
+
+    def test_aws_core_is_wired_through_planning_build_and_operations(self) -> None:
+        build_skill = (
+            PROJECT_ROOT / ".agents/skills/build-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8")
+        operate_skill = (
+            PROJECT_ROOT / ".agents/skills/operate-fastlane-aws/SKILL.md"
+        ).read_text(encoding="utf-8")
+        aws_advisor = (
+            PROJECT_ROOT / ".codex/agents/fastlane-aws-advisor.toml"
+        ).read_text(encoding="utf-8")
+        for surface in (self.agents, build_skill, operate_skill, aws_advisor):
+            self.assertIn("AWS Core", surface)
+        self.assertIn("official current AWS Core", build_skill)
+        self.assertIn("release-readiness", build_skill)
+        self.assertIn("pause only the affected AWS-specific task", build_skill)
+        self.assertIn("throughout requirements, design, construction", aws_advisor)
+        self.assertIn("aws-core@agent-toolkit-for-aws", operate_skill)
+        self.assertIn("not required for BOOT-00", self.agents)
 
     def test_design_and_aws_preflight_require_fresh_aws_core_evidence(self) -> None:
         design = self.prompt_section("DESIGN-10")
@@ -330,43 +312,26 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn(phase, section)
             self.assertRegex(section.lower(), r"(?:block|stop).*(?:missing|failed|stale|wrong)")
         self.assertIn("## AWS Core evidence", verify)
-        for heading in (
-            "Phase",
-            "Plugin source",
-            "Invoked plugin identity",
-            "Observed plugin version",
-            "Capability",
-            "Observation actor",
-            "Requested skill",
-            "Returned skill identifier",
-            "Documentation query",
-            "Source references",
-            "Design decision influenced",
-            "Credentials inspected",
-            "AWS account accessed",
-            "Observed at",
-            "Evidence binding",
-            "Observed status",
-        ):
-            self.assertIn(heading, verify)
-        for phase in ("BOOT-00", "DESIGN-10", "AWS-10"):
+        for phase in ("DESIGN-10", "AWS-10"):
             self.assertEqual(verify.count(f"| `{phase}` |"), 2)
-        self.assertEqual(verify.count("| `retrieve_skill` |"), 3)
-        self.assertEqual(verify.count("| `search_documentation` |"), 3)
-        self.assertIn("unattributed BOOT-00 row blocks intake", verify)
+        self.assertNotIn("| `BOOT-00` |", verify)
+        self.assertEqual(verify.count("| `retrieve_skill` |"), 2)
+        self.assertEqual(verify.count("| `search_documentation` |"), 2)
+        self.assertIn("AWS Core is not required for\nBOOT-00", verify)
         operate_skill = (
             PROJECT_ROOT / ".agents/skills/operate-fastlane-aws/SKILL.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("aws_core_evidence.aws_execution_planning", operate_skill)
-        self.assertIn("observation actor", operate_skill)
-        self.assertIn("CODEX_LIVE_TOOL_CALL", operate_skill)
-        self.assertIn("Credentials inspected` = `NO", operate_skill)
-        self.assertIn("AWS account accessed` = `NO", operate_skill)
-        self.assertIn("observation actor", self.prompt_section("DESIGN-10"))
-        self.assertIn("observation actor", self.prompt_section("AWS-10"))
-        self.assertIn("missing\n    BOOT-00 evidence must route back to `BOOT-00`", (
+        for phrase in (
+            "aws_core_evidence.aws_execution_planning",
+            "CODEX_LIVE_TOOL_CALL",
+            "Credentials inspected` = `NO",
+            "AWS account accessed` = `NO",
+        ):
+            self.assertIn(phrase, operate_skill)
+        launch_skill = (
             PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
-        ).read_text(encoding="utf-8"))
+        ).read_text(encoding="utf-8")
+        self.assertIn("not a BOOT-00 gate", launch_skill)
 
     def test_receipts_require_complete_normalized_block_equality(self) -> None:
         self.assertIn("equal to this complete", self.prompts)
@@ -375,564 +340,4 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertNotIn("response begins exactly", self.prompts)
 
     def test_gate_writes_keep_prd_summary_and_records_atomic(self) -> None:
-        requirements = self.prompt_section("REQ-10")
-        gate_a = self.prompt_section("INTAKE-20")
-        design = self.prompt_section("DESIGN-10")
-        gate_b = self.prompt_section("DESIGN-20")
-
-        self.assertIn("Document status requirements revision", requirements)
-        self.assertIn("derived Gate A/Gate B states", requirements)
-        self.assertIn("matching Document\nstatus Gate A state", gate_a)
-        self.assertIn("Document status DES/AUTH/design/Gate B fields", design)
-        self.assertIn("matching Document\nstatus Gate B state", gate_b)
-        self.assertIn("lifecycle mirror as one coordinator\ncheckpoint", gate_a)
-        self.assertIn("lifecycle mirror as one coordinator checkpoint", gate_b)
-
-    def test_ready_recommendations_transition_to_pending_and_sync_snapshot(self) -> None:
-        requirements = self.prompt_section("REQ-10")
-        design = self.prompt_section("DESIGN-10")
-        gate_b = self.prompt_section("DESIGN-20")
-
-        self.assertIn("Gate A owner state to `PENDING_OWNER_APPROVAL`", requirements)
-        self.assertIn("docs/project/TASKS.md's Active execution snapshot", requirements)
-        self.assertIn("Gate B state to\n`PENDING_OWNER_APPROVAL`", design)
-        self.assertIn("maximum\nworkers, baseline, and protected dirty paths", design)
-        self.assertIn("docs/project/TASKS.md Active execution snapshot", gate_b)
-        self.assertIn("APPROVED_FOR_CONSTRUCTION", gate_b)
-        self.assertRegex(
-            self.agents,
-            r"Do not leave\s+an agent-ready gate marked `BLOCKED`",
-        )
-
-    def test_stale_gates_have_recovery_routes(self) -> None:
-        boot = self.prompt_section("BOOT-00")
-        self.assertIn("Gate A is STALE: INTAKE-10", boot)
-        self.assertIn("otherwise REQ-10", boot)
-        self.assertIn("Gate A is current and Gate B is STALE: DESIGN-10", boot)
-        self.assertIn("stale Gate B with a current Gate A routes to `DESIGN-10`", self.agents)
-
-    def test_gate_receipts_record_provenance_without_extra_lines(self) -> None:
-        gate_a = self.prompt_section("INTAKE-20")
-        gate_b = self.prompt_section("DESIGN-20")
-        for section in (gate_a, gate_b):
-            self.assertIn("observed ISO 8601 authorization time", section)
-            self.assertRegex(section, r"without\s+adding either value to the receipt")
-            self.assertIn("Do not invent a source", section)
-        self.assertIn("Authorization provided at", self.prd)
-        self.assertIn("Authorization source", self.prd)
-        self.assertIn("subset, superset, reordered list", self.prd)
-
-    def test_launchpad_routes_from_existing_lifecycle_state(self) -> None:
-        boot = self.prompt_section("BOOT-00")
-        self.assertIn("Determine lifecycle state", boot)
-        self.assertIn("Gate A awaits a current owner receipt: INTAKE-20", boot)
-        self.assertIn(
-            "Gate B approved and Task-plan state is UNINITIALIZED or STALE: TASK-10",
-            boot,
-        )
-        self.assertIn("Only when the state-derived next prompt is INTAKE-10", boot)
-
-    def test_launchpad_and_build_use_executable_safety_controls(self) -> None:
-        boot = self.prompt_section("BOOT-00")
-        tasks = self.prompt_section("TASK-10")
-        build = self.prompt_section("BUILD-20")
-
-        self.assertIn("Never use `--force`", boot)
-        self.assertIn("bootstrap_doctor.py", boot)
-        self.assertIn("hash-bound decision", boot)
-        self.assertIn("Task-plan revision", tasks)
-        self.assertIn("explicit skipped-dependency waivers", tasks)
-        self.assertIn("durable coordinator run ID", build)
-        self.assertIn("isolated worktrees", build)
-        self.assertIn("UNKNOWN", build)
-
-    def test_run_lifecycle_commands_are_complete_and_mode_specific(self) -> None:
-        single = self.prompt_section("BUILD-10")
-        autonomous = self.prompt_section("BUILD-20")
-        common_claim = (
-            "--claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 "
-            "--coordinator codex-coordinator --checkpoint CP-0000"
-        )
-        self.assertIn("--start-run RUN-0001 --coordinator codex-coordinator --run-mode SINGLE_TASK", single)
-        self.assertIn(common_claim, single)
-        self.assertIn("--pause-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002", single)
-        self.assertIn("--set-status TASK-0001 DONE --evidence EV-0001 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001", single)
-        self.assertIn("--complete-run RUN-0001 --coordinator codex-coordinator", single)
-        self.assertIn("--resume-run RUN-0001 --coordinator codex-coordinator", single)
-        self.assertIn("--start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS", autonomous)
-        self.assertIn("--safe-ready --isolated-worktrees --json", autonomous)
-        self.assertIn(common_claim, autonomous)
-        self.assertIn(common_claim + " --isolated-worktrees", autonomous)
-        self.assertRegex(
-            autonomous,
-            r"Never\s+run doctor against a persisted RUNNING snapshot",
-        )
-
-    def test_aws_mutations_use_canonical_prompts_and_exact_action_receipts(self) -> None:
-        build_single = self.prompt_section("BUILD-10")
-        build_auto = self.prompt_section("BUILD-20")
-        preflight = self.prompt_section("AWS-10")
-        evidence = self.prompt_section("AWS-30")
-
-        self.assertIn("BUILD-10 never\nexecutes an AWS mutation directly", build_single)
-        self.assertIn("Route AWS mutation through AWS-10/AWS-20", build_auto)
-        self.assertIn("**AWS mode:** READ_ONLY.", preflight)
-        self.assertNotIn("DOCS_ONLY plus", preflight)
-        self.assertIn("AUTHORIZE AWS DEPLOYMENT", self.prompts)
-        self.assertIn("AUTHORIZE AWS TEARDOWN", self.prompts)
-        self.assertIn("AUTHORIZE AWS DEPLOYMENT", self.runbook)
-        self.assertIn("AUTHORIZE AWS TEARDOWN", self.runbook)
-        self.assertIn("action-authorization evidence", self.runbook)
-        self.assertIn("## Action authorization provenance", self.verify)
-        self.assertIn("put\n`VERIFIED`, `PENDING_AWS`", evidence)
-
-    def test_profiles_are_overlays_not_additional_gates(self) -> None:
-        for document in (self.prompts, self.prd, self.agents):
-            self.assertIn("`quick-mvp`", document)
-            self.assertIn("`standard`", document)
-            self.assertIn("`high-risk`", document)
-        self.assertIn("All profiles still use only Gate A and Gate B", self.prompts)
-        self.assertIn("without adding lifecycle gates", self.agents)
-
-    def test_owner_facing_profile_and_security_language_is_concrete(self) -> None:
-        owner_documents = (
-            self.root_readme,
-            self.agents,
-            self.prd,
-            self.tasks,
-            self.prompts,
-        )
-        rejected = (
-            "controls " + "ceremony",
-            "not weaker " + "security",
-            "Deeper " + "threat",
-            "threat " + "requirements",
-            "privilege-escalation " + "properties",
-        )
-        for document in owner_documents:
-            for phrase in rejected:
-                self.assertNotIn(phrase, document)
-
-        for document in (self.agents, self.prd, self.prompts):
-            self.assertRegex(
-                document,
-                r"A Quick MVP is one small, reversible development release",
-            )
-            self.assertRegex(
-                document,
-                r"An AWS lane describes planned access; it does not authorize a\s+change",
-            )
-        self.assertIn(
-            "lowest practical total\ncost without weakening required safeguards",
-            self.root_readme,
-        )
-
-        self.assertIn(
-            "approved access succeeds and unapproved access is denied",
-            self.prd,
-        )
-        self.assertIn("Invalid, malformed, and oversized inputs are rejected", self.prd)
-        self.assertIn("actual discovered defect", self.prd)
-        for phrase in (
-            "approved access succeeds and unapproved access is denied",
-            "secrets stay out of code and logs",
-            "invalid or oversized input is rejected",
-            "IAM permits only required actions",
-            "sensitive data uses approved encryption",
-        ):
-            self.assertIn(phrase, self.security)
-
-    def test_human_first_documents_label_the_exact_agent_reference(self) -> None:
-        documents = {
-            "root README": self.root_readme,
-            "root AGENTS": self.agents,
-            "PRD": self.prd,
-            "TASKS": self.tasks,
-            "prompt pack": self.prompts,
-            "app AGENTS": (PROJECT_ROOT / "app" / "AGENTS.md").read_text(
-                encoding="utf-8"
-            ),
-            "infrastructure AGENTS": (
-                PROJECT_ROOT / "infrastructure" / "AGENTS.md"
-            ).read_text(encoding="utf-8"),
-            "tests AGENTS": (PROJECT_ROOT / "tests" / "AGENTS.md").read_text(
-                encoding="utf-8"
-            ),
-        }
-        for name, document in documents.items():
-            self.assertRegex(document, r"(?m)^## Agent reference", name)
-
-    def test_readme_uses_one_line_gate_flow(self) -> None:
-        gate_line = (
-            "Gate A â€” approve requirements â†’ Gate B â€” approve the PRD and "
-            "construction boundary â†’ Codex builds autonomously inside that boundary."
-        )
-        self.assertEqual(self.root_readme.count(gate_line), 1)
-        self.assertNotIn("| Gate | You approve |", self.root_readme)
-
-    def test_template_first_readme_sets_complete_user_expectations(self) -> None:
-        for phrase in (
-            "init template",
-            "continue setup",
-            "https://github.com/Levi-Breedlove/aws-bootstrap/generate",
-            "AWS Core",
-            "AWS Agent Toolkit",
-            "Setup does not configure AWS credentials, access an AWS account",
-            "asks short, plain-language questions",
-            "creates dependency-aware tasks",
-            "exact authorization",
-        ):
-            self.assertIn(phrase, self.root_readme)
-        self.assertNotIn("npx -y @openai/codex", self.root_readme)
-        for path in (
-            "AGENTS.md",
-            "docs/project/",
-            "PRD.md",
-            "TASKS.md",
-            ".agents/skills/",
-            ".codex/agents/",
-            "prompts/CODEX-PROMPTS.md",
-        ):
-            self.assertIn(path, self.root_readme)
-        self.assertIn(
-            "codex plugin marketplace add aws/agent-toolkit-for-aws",
-            self.root_readme,
-        )
-        self.assertNotIn("uv_setup_assistant.py", self.root_readme)
-        self.assertLessEqual(len(self.root_readme.splitlines()), 90)
-        self.assertFalse((REPOSITORY_ROOT / "my-project" / "README.md").exists())
-
-    def test_boot_prompt_has_stable_template_first_contract(self) -> None:
-        boot = self.prompt_section("BOOT-00")
-        self.assertIn("START AWS CODEX FASTLANE", boot)
-        self.assertIn("Setup: <THIS_REPOSITORY|ADOPT_EXISTING_REPOSITORY>", boot)
-        self.assertIn("Ask no more than these two setup questions", boot)
-        self.assertIn("--in-place-template-instance --dry-run", boot)
-        self.assertIn("UNCONFIGURED_TEMPLATE", boot)
-        for field in (
-            "Classification:",
-            "Lifecycle:",
-            "Doctor:",
-            "Next prompt:",
-            "Git baseline:",
-            "AWS access:",
-            "Gate A:",
-            "Gate B:",
-            "Evidence:",
-            "AWS authorization:",
-        ):
-            self.assertIn(field, boot)
-        self.assertIn("AWS Core hooks: OWNER_ATTESTED_AND_PROBES_VERIFIED", boot)
-        self.assertIn("AWS Core hook conflict review: PASS", boot)
-
-    def test_repo_scoped_skills_have_distinct_safe_trigger_contracts(self) -> None:
-        implicit = {
-            "launch-fastlane": "true",
-            "plan-fastlane": "true",
-            "build-fastlane": "true",
-            "operate-fastlane-aws": "false",
-        }
-        descriptions: set[str] = set()
-        for name, expected_implicit in implicit.items():
-            root = REPOSITORY_ROOT / ".agents" / "skills" / name
-            skill = (root / "SKILL.md").read_text(encoding="utf-8")
-            config = (root / "agents" / "openai.yaml").read_text(encoding="utf-8")
-            self.assertTrue(skill.startswith("---\nname: " + name + "\n"))
-            description = re.search(r"(?m)^description:\s*(.+)$", skill)
-            self.assertIsNotNone(description)
-            descriptions.add(description.group(1) if description else "")
-            self.assertIn("interface:", config)
-            self.assertIn("display_name:", config)
-            self.assertIn("short_description:", config)
-            self.assertIn("default_prompt:", config)
-            self.assertIn(
-                f"allow_implicit_invocation: {expected_implicit}",
-                config,
-            )
-            for forbidden in ("model:", "permissions:", "hooks:", "mcp_servers:"):
-                self.assertNotIn(forbidden, config)
-        self.assertEqual(len(descriptions), len(implicit))
-        aws_skill = (
-            REPOSITORY_ROOT
-            / ".agents"
-            / "skills"
-            / "operate-fastlane-aws"
-            / "SKILL.md"
-        ).read_text(encoding="utf-8")
-        self.assertIn("Use only when the user explicitly invokes this skill", aws_skill)
-        self.assertIn("They never authorize an AWS change", aws_skill)
-
-    def test_task_cards_are_human_first_with_collapsed_exact_metadata(self) -> None:
-        self.assertIn("## How to read a task card", self.tasks)
-        self.assertIn("- Status: BACKLOG", self.tasks)
-        self.assertIn("- Owner: UNASSIGNED", self.tasks)
-        self.assertIn("- Blocker: NONE", self.tasks)
-        self.assertIn("- GitHub issue: PENDING_SYNC", self.tasks)
-        self.assertIn("<details>", self.tasks)
-        self.assertIn("Exact metadata used by Codex and task_waves.py", self.tasks)
-        required_metadata = (
-            "Status",
-            "Requirements",
-            "Design",
-            "Authorization",
-            "Depends on",
-            "Dependency waivers",
-            "Owner",
-            "Run ID",
-            "Risk",
-            "Write set",
-            "External state",
-            "AWS mode",
-            "Attempt budget",
-            "Attempts used",
-            "Evidence",
-            "Blocker",
-            "Skip record",
-            "GitHub issue",
-            "Last checkpoint",
-            "Last updated",
-        )
-        task_template = self.tasks.split("~~~text", 1)[1].split("~~~", 1)[0]
-        for key in required_metadata:
-            self.assertEqual(
-                task_template.count(f"- {key}:"),
-                1,
-                f"Task template must contain one {key} metadata line",
-            )
-
-    def test_brownfield_adoption_requires_exact_user_confirmation(self) -> None:
-        boot = self.prompt_section("BOOT-00")
-        self.assertIn("does not\nauthorize you to choose `ADOPT_TEMPLATE`", boot)
-        self.assertIn("CONFIRM BOOTSTRAP ADOPTION PLAN", boot)
-        self.assertIn("plan_sha256: <64 lowercase hex characters>", boot)
-        self.assertIn("authorized_by: <human owner>", boot)
-        self.assertIn("authorization_source: OWNER_CONFIRMATION", boot)
-        self.assertIn("schema version, roots, and ordered decisions", boot)
-        self.assertIn("It never hashes decisions\nalone", boot)
-        self.assertIn("complete ordered decision map", self.agents)
-
-    def test_task_prompt_and_ledger_define_validator_shape(self) -> None:
-        task_prompt = self.prompt_section("TASK-10")
-        for heading in (
-            "#### Outcome",
-            "#### Acceptance criteria",
-            "#### Validation",
-            "#### Execution log",
-            "#### Agent execution details",
-        ):
-            self.assertIn(heading, task_prompt)
-            self.assertIn(heading, self.tasks)
-        self.assertIn("every remaining singleton metadata line", task_prompt)
-        self.assertIn("A READY task cannot contain `TODO`", self.tasks)
-        self.assertIn("- Dependency waivers: NONE", self.tasks)
-        self.assertRegex(
-            self.tasks,
-            r"#### Validation\n\n```bash\n<exact validation command>\n```",
-        )
-
-    def test_readiness_cards_are_complete_and_prompt_filled(self) -> None:
-        gate_a_fields = (
-            "Outcome",
-            "Owner and users",
-            "Scope and non-goals",
-            "Measurable requirement/acceptance IDs",
-            "Data boundary",
-            "Identity/security boundary",
-            "Environment/Region",
-            "Failure/recovery",
-            "Cost posture",
-            "Intake provenance",
-        )
-        gate_b_fields = (
-            "Design basis IDs",
-            "Architecture/components",
-            "Interfaces/data flow",
-            "Identity/secrets",
-            "Failure/retry/concurrency",
-            "Deployment/operations",
-            "Validation/evidence",
-            "Rollback/recovery/teardown",
-            "Brownfield compatibility/migration",
-            "Outstanding gaps",
-        )
-        self.assertIn("### Gate A â€” readiness card", self.prd)
-        self.assertIn("### Gate B â€” readiness card", self.prd)
-        for field in (*gate_a_fields, *gate_b_fields):
-            self.assertIn(f"| {field} |", self.prd)
-        self.assertIn("| Authorized cost posture |", self.prd)
-        self.assertIn("Fill the Gate A readiness card with these exact fields", self.prompt_section("REQ-10"))
-        self.assertIn("Fill the Gate B readiness card with these exact fields", self.prompt_section("DESIGN-10"))
-        self.assertIn("`NOT_APPLICABLE â€” <reason>`", self.prd)
-
-    def test_cost_posture_and_secure_serverless_first_contract(self) -> None:
-        boot = self.prompt_section("BOOT-00")
-        intake = self.prompt_section("INTAKE-10")
-        requirements = self.prompt_section("REQ-10")
-        design = self.prompt_section("DESIGN-10")
-        plan_skill = (
-            PROJECT_ROOT / ".agents/skills/plan-fastlane/SKILL.md"
-        ).read_text(encoding="utf-8")
-        aws_advisor = (
-            PROJECT_ROOT / ".codex/agents/fastlane-aws-advisor.toml"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn("Ask no more than these two setup questions", boot)
-        self.assertNotIn("What monthly development budget", boot)
-        self.assertNotIn("Recommend `us-west-2` and `$20/month`", boot)
-        self.assertIn("MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED", boot)
-        self.assertIn("MINIMIZE_TOTAL_COST; HARD_CAP: USD 20.00", boot)
-        self.assertIn("--cost-posture", boot)
-        self.assertIn("A missing amount alone never blocks intake", intake)
-        for surface in (boot, intake, requirements, plan_skill, self.agents):
-            self.assertIn("exact", surface.lower())
-        self.assertIn(
-            "MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>",
-            plan_skill,
-        )
-        self.assertIn("Cost posture; Intake provenance", requirements)
-        self.assertIn("Do not manufacture a numeric ceiling for Gate A", requirements)
-        self.assertIn("Cost posture: <exact current Gate A cost posture>", self.prompts)
-
-        for surface in (self.agents, self.prd, design, plan_skill, aws_advisor):
-            self.assertIn("serverless", surface.lower())
-        self.assertIn("pay-per-use serverless options", self.root_readme)
-
-        for surface in (self.agents, self.prd, plan_skill):
-            self.assertIn("MINIMIZE_TOTAL_COST", surface)
-
-        self.assertIn(
-            "lowest practical total\ncost without weakening required safeguards",
-            self.root_readme,
-        )
-        self.assertIn("Never weaken one of those required controls", design)
-        self.assertIn("measurable expansion or migration\ntriggers", design)
-
-        # Planning does not require an invented budget, but actual AWS mutation
-        # remains bound to an exact ceiling.
-        self.assertIn(
-            "Cost ceiling: <finite positive ISO-currency amount, for example USD: 20.00>",
-            self.prompts,
-        )
-        self.assertIn("| AWS cost ceiling |", self.prd)
-        self.assertIn("not a guaranteed AWS billing stop", self.prd)
-
-        for surface in (
-            self.root_readme,
-            self.agents,
-            self.prd,
-            self.prompts,
-        ):
-            self.assertNotIn("{{MONTHLY_BUDGET}}", surface)
-
-    def test_gate_b_binds_canonical_complete_envelope_digest(self) -> None:
-        receipt_line = "Construction envelope SHA-256: sha256:<64-lowercase-hex>"
-        self.assertIn("| Authorized construction envelope SHA-256 |", self.prd)
-        self.assertIn("| Construction envelope SHA-256 reviewed |", self.prd)
-        self.assertIn(receipt_line, self.prd)
-        self.assertEqual(self.prompts.count(receipt_line), 2)
-        self.assertIn("header, separator, and every boundary row", self.prd)
-        self.assertIn("append one final LF", self.prd)
-
-    def test_construction_envelope_uses_bindable_grammars(self) -> None:
-        required_rows = (
-            "Project mode",
-            "Delivery profile and effective risk",
-            "Project AWS lane",
-            "Authorized requirement and design IDs",
-            "Authorized baseline commit",
-            "Protected dirty paths",
-            "Allowed external-state targets",
-            "Local command boundary",
-            "Task boundary",
-            "GitHub repository, branch, and merge constraints",
-            "Authorization expiry or completion condition",
-        )
-        for row in required_rows:
-            self.assertIn(f"| {row} |", self.prd)
-        self.assertIn("`<profile> / <risk>`", self.prd)
-        self.assertIn("`ALLOW_PREFIXES: prefix; prefix`", self.prd)
-        self.assertIn("`DERIVED_FROM_AUTHORIZED_IDS_AND_WRITE_SET`", self.prd)
-        self.assertIn("`REPO: owner/name; BRANCH: branch; MERGE: ALLOWED\\|PROHIBITED`", self.prd)
-        self.assertIn(
-            "`ENVIRONMENT: <exact name>; CLASS: NON_PRODUCTION\\|PRODUCTION`",
-            self.prd,
-        )
-        self.assertIn("`EXACT_DIGEST: sha256:<64 lowercase hex>`", self.prd)
-        self.assertIn(
-            "`DERIVED_FROM_AUTHORIZED_SOURCE: SHA-256 from baseline <full authorized commit>; <deterministic rule>`",
-            self.prd,
-        )
-        self.assertIn(
-            "`Expires at <ISO 8601 with timezone>; earlier completion: <exact condition>`",
-            self.prd,
-        )
-        for row in (
-            "AWS account", "AWS role or profile", "AWS Region", "AWS environment",
-            "AWS stack or application", "AWS resource allowlist", "AWS allowed operations",
-            "AWS cost ceiling", "AWS prohibited operations",
-            "AWS artifact authorization and provenance", "AWS rollback boundary",
-            "AWS authorization validity",
-        ):
-            self.assertIn(f"| {row} |", self.prd)
-
-    def test_git_checkpoint_plan_and_release_lifecycles_are_explicit(self) -> None:
-        self.assertIn("| Task-plan state | `UNINITIALIZED` |", self.tasks)
-        for state in ("UNINITIALIZED", "CURRENT", "STALE"):
-            self.assertIn(state, self.tasks)
-        self.assertRegex(self.tasks, r"commits? only authorized wave changes")
-        self.assertIn("Last known-green commit", self.tasks)
-        for state in ("NOT_READY", "READY_TO_DEPLOY", "RELEASE_VERIFIED"):
-            self.assertIn(state, self.verify)
-            self.assertIn(state, self.prompt_section("RELEASE-10"))
-        self.assertIn("AWS-30 | Reconcile deployed evidence | RELEASE-10", self.prompts)
-        self.assertIn("**Next:** RELEASE-10", self.prompt_section("AWS-30"))
-        self.assertIn("Local Git setup:", self.prompt_section("BOOT-00"))
-
-    def test_done_requires_structured_observed_local_evidence(self) -> None:
-        header = (
-            "| Evidence ID | Task | Command or observation | Result | Actor | "
-            "Observed at | Commit / worktree / artifact | Durable source | Status |"
-        )
-        self.assertIn("## Task completion evidence", self.verify)
-        self.assertIn(header, self.verify)
-        for document in (self.agents, self.tasks, self.prompts):
-            self.assertIn("Task completion evidence", document)
-        for field in (
-            "command/result",
-            "actor",
-            "commit/worktree/artifact",
-            "LOCAL_PASS",
-            "VERIFIED",
-        ):
-            self.assertIn(field, self.prompts)
-
-    def test_brownfield_mandatory_facts_are_not_nullable(self) -> None:
-        self.assertIn("every baseline fact is mandatory", self.prd)
-        self.assertIn("Only these fields\nare nullable", self.prd)
-        self.assertIn("known defects and accepted debt\n`NONE_OBSERVED`", self.prd)
-        self.assertIn("Only drift, dirty changes, known debt/defects", self.prompt_section("REQ-10"))
-
-    def test_aws_mode_mapping_is_canonical(self) -> None:
-        for document in (self.prompts, self.prd):
-            self.assertIn("Project AWS lane", document)
-            self.assertIn("Prompt AWS mode", document)
-            self.assertIn("Gate B AWS boundary", document)
-            self.assertIn("MUTATE_LISTED_RESOURCES", document)
-        self.assertNotIn("PLAN_ONLY", self.prd)
-
-    def test_manifest_matches_pack_and_required_files_exist(self) -> None:
-        manifest_path = PROJECT_ROOT / "bootstrap.manifest.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["bootstrap_version"], "1.1.0")
-        self.assertEqual(manifest["canonical_prompt_ids"], PROMPT_IDS)
-        self.assertIn("**Pack version:** 1.1.0", self.prompts)
-        missing = [
-            path
-            for path in manifest["required_files"]
-            if not (PROJECT_ROOT / path).is_file()
-        ]
-        self.assertEqual(missing, [])
-
-
-if __name__ == "__main__":
-    unittest.main()
+        requiremeß¯5¶‰žËkºwµç@‘•˜Ñ•ÍÑ}‰½½Ñ}ÁÉ½µÁÑ}¡…Í}ÍÑ…‰±•}Ñ•µÁ±…Ñ•}™¥ÉÍÑ}½¹ÑÉ…Ð¡Í•±˜¤€´ø9½¹”è(€€€€€€€‰½½Ð€ôÍ•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰	==P´ÀÀˆ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰MQIP]L=`MQ19ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰M•ÑÕÀè€ñQ!%M}IA=M%Q=Ieñ=AQ}a%MQ%9}IA=M%Q=Idøˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¹¼µ½É”Ñ¡…¸Ñ¡•Í”Ñ¡É•”Ù…±Õ•Ìˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰‘•Ù•±½Áµ•¹Ð‰Õ‘•ÐÁ½ÍÑÕÉ”ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ´µ¥¸µÁ±…”µÑ•µÁ±…Ñ”µ¥¹ÍÑ…¹”€´µ‘ÉäµÉÕ¸ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰U9=9%UI}Q5A1Qˆ°‰½½Ð¤(€€€€€€€™½È™¥•±¥¸€ (€€€€€€€€€€€€‰AÉ½©•Ðèˆ°(€€€€€€€€€€€€‰I•¥½¸èˆ°(€€€€€€€€€€€€‰	Õ‘•ÐÁ½ÍÑÕÉ”èˆ°(€€€€€€€€€€€€‰½Ñ½Èèˆ°(€€€€€€€€€€€€‰]L½É”èˆ°(€€€€€€€€€€€€‰9•áÐÁÉ½µÁÐèˆ°(€€€€€€€€€€€€‰]L…•ÍÌèˆ°(€€€€€€€€¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡™¥•±°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¥µµ•‘¥…Ñ•±ä…Í¬¥ÑÌ™¥ÉÍÐ½¹”Ñ¼Ñ¡É•”ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰II}U9Q%1}M%8ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ9½Ñ%¸ ‰=]9I}QQMQ}9}AI=	M}YI%%ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ9½Ñ%¸ ‰¡½½¬½¹™±¥ÐÉ•Ù¥•Üˆ°‰½½Ð¤4(4(€€€‘•˜Ñ•ÍÑ}É•Á½}Í½Á•‘}Í­¥±±Í}¡…Ù•}‘¥ÍÑ¥¹Ñ}Í…™•}ÑÉ¥•É}½¹ÑÉ…ÑÌ¡Í•±˜¤€´ø9½¹”è(€€€€€€€¥µÁ±¥¥Ð€ôì(€€€€€€€€€€€€‰±…Õ¹ µ™…ÍÑ±…¹”ˆè€‰ÑÉÕ”ˆ°(€€€€€€€€€€€€‰Á±…¸µ™…ÍÑ±…¹”ˆè€‰ÑÉÕ”ˆ°(€€€€€€€€€€€€‰‰Õ¥±µ™…ÍÑ±…¹”ˆè€‰ÑÉÕ”ˆ°(€€€€€€€€€€€€‰½Á•É…Ñ”µ™…ÍÑ±…¹”µ…ÝÌˆè€‰™…±Í”ˆ°(€€€€€€€ô(€€€€€€€‘•ÍÉ¥ÁÑ¥½¹ÌèÍ•ÑmÍÑÉt€ôÍ•Ð ¤(€€€€€€€™½È¹…µ”°•áÁ•Ñ•‘}¥µÁ±¥¥Ð¥¸¥µÁ±¥¥Ð¹¥Ñ•µÌ ¤è(€€€€€€€€€€€É½½Ð€ôIA=M%Q=Ie}I==P€¼€ˆ¹…•¹ÑÌˆ€¼€‰Í­¥±±Ìˆ€¼¹…µ”(€€€€€€€€€€€Í­¥±°€ô€¡É½½Ð€¼€‰M-%10¹µˆ¤¹É•…‘}Ñ•áÐ¡•¹½‘¥¹œô‰ÕÑ˜´àˆ¤(€€€€€€€€€€€½¹™¥œ€ô€¡É½½Ð€¼€‰…•¹ÑÌˆ€¼€‰½Á•¹…¤¹å…µ°ˆ¤¹É•…‘}Ñ•áÐ¡•¹½‘¥¹œô‰ÕÑ˜´àˆ¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑQÉÕ”¡Í­¥±°¹ÍÑ…ÉÑÍÝ¥Ñ  ˆ´´µq¹¹…µ”è€ˆ€¬¹…µ”€¬€‰q¸ˆ¤¤(€€€€€€€€€€€‘•ÍÉ¥ÁÑ¥½¸€ôÉ”¹Í•…É ¡Èˆ ý´¥y‘•ÍÉ¥ÁÑ¥½¸éqÌ¨ ¸¬¤ˆ°Í­¥±°¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%Í9½Ñ9½¹”¡‘•ÍÉ¥ÁÑ¥½¸¤(€€€€€€€€€€€‘•ÍÉ¥ÁÑ¥½¹Ì¹…‘¡‘•ÍÉ¥ÁÑ¥½¸¹É½ÕÀ Ä¤¥˜‘•ÍÉ¥ÁÑ¥½¸•±Í”€ˆˆ¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¥¹Ñ•É™…”èˆ°½¹™¥œ¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰‘¥ÍÁ±…å}¹…µ”èˆ°½¹™¥œ¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰Í¡½ÉÑ}‘•ÍÉ¥ÁÑ¥½¸èˆ°½¹™¥œ¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰‘•™…Õ±Ñ}ÁÉ½µÁÐèˆ°½¹™¥œ¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ (€€€€€€€€€€€€€€€˜‰…±±½Ý}¥µÁ±¥¥Ñ}¥¹Ù½…Ñ¥½¸èí•áÁ•Ñ•‘}¥µÁ±¥¥Ñôˆ°(€€€€€€€€€€€€€€€½¹™¥œ°(€€€€€€€€€€€€¤(€€€€€€€€€€€™½È™½É‰¥‘‘•¸¥¸€ ‰µ½‘•°èˆ°€‰Á•Éµ¥ÍÍ¥½¹Ìèˆ°€‰¡½½­Ìèˆ°€‰µÁ}Í•ÉÙ•ÉÌèˆ¤è(€€€€€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ9½Ñ%¸¡™½É‰¥‘‘•¸°½¹™¥œ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑÅÕ…°¡±•¸¡‘•ÍÉ¥ÁÑ¥½¹Ì¤°±•¸¡¥µÁ±¥¥Ð¤¤(€€€€€€€…ÝÍ}Í­¥±°€ô€ (€€€€€€€€€€€IA=M%Q=Ie}I==P(€€€€€€€€€€€€¼€ˆ¹…•¹ÑÌˆ(€€€€€€€€€€€€¼€‰Í­¥±±Ìˆ(€€€€€€€€€€€€¼€‰½Á•É…Ñ”µ™…ÍÑ±…¹”µ…ÝÌˆ(€€€€€€€€€€€€¼€‰M-%10¹µˆ(€€€€€€€€¤¹É•…‘}Ñ•áÐ¡•¹½‘¥¹œô‰ÕÑ˜´àˆ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰UÍ”½¹±äÝ¡•¸Ñ¡”ÕÍ•È•áÁ±¥¥Ñ±ä¥¹Ù½­•ÌÑ¡¥ÌÍ­¥±°ˆ°…ÝÍ}Í­¥±°¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰Q¡•ä¹•Ù•È…ÕÑ¡½É¥é”…¸]L¡…¹”ˆ°…ÝÍ}Í­¥±°¤((€€€‘•˜Ñ•ÍÑ}Ñ…Í­}…É‘Í}…É•}¡Õµ…¹}™¥ÉÍÑ}Ý¥Ñ¡}½±±…ÁÍ•‘}•á…Ñ}µ•Ñ…‘…Ñ„¡Í•±˜¤€´ø9½¹”è(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆŒŒ!½ÜÑ¼É•…„Ñ…Í¬…Éˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ´MÑ…ÑÕÌè	-1=ˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ´=Ý¹•ÈèU9MM%9ˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ´	±½­•Èè9=9ˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ´¥Ñ!Õˆ¥ÍÍÕ”èA9%9}Me9ˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆñ‘•Ñ…¥±Ìøˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰á…Ðµ•Ñ…‘…Ñ„ÕÍ•‰ä½‘•à…¹Ñ…Í­}Ý…Ù•Ì¹Áäˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€É•ÅÕ¥É•‘}µ•Ñ…‘…Ñ„€ô€ (€€€€€€€€€€€€‰MÑ…ÑÕÌˆ°(€€€€€€€€€€€€‰I•ÅÕ¥É•µ•¹ÑÌˆ°(€€€€€€€€€€€€‰•Í¥¸ˆ°(€€€€€€€€€€€€‰ÕÑ¡½É¥é…Ñ¥½¸ˆ°(€€€€€€€€€€€€‰•Á•¹‘Ì½¸ˆ°(€€€€€€€€€€€€‰•Á•¹‘•¹äÝ…¥Ù•ÉÌˆ°(€€€€€€€€€€€€‰=Ý¹•Èˆ°(€€€€€€€€€€€€‰IÕ¸%ˆ°(€€€€€€€€€€€€‰I¥Í¬ˆ°(€€€€€€€€€€€€‰]É¥Ñ”Í•Ðˆ°(€€€€€€€€€€€€‰áÑ•É¹…°ÍÑ…Ñ”ˆ°(€€€€€€€€€€€€‰]Lµ½‘”ˆ°(€€€€€€€€€€€€‰ÑÑ•µÁÐ‰Õ‘•Ðˆ°(€€€€€€€€€€€€‰ÑÑ•µÁÑÌÕÍ•ˆ°(€€€€€€€€€€€€‰Ù¥‘•¹”ˆ°(€€€€€€€€€€€€‰	±½­•Èˆ°(€€€€€€€€€€€€‰M­¥ÀÉ•½Éˆ°(€€€€€€€€€€€€‰¥Ñ!Õˆ¥ÍÍÕ”ˆ°(€€€€€€€€€€€€‰1…ÍÐ¡•­Á½¥¹Ðˆ°(€€€€€€€€€€€€‰1…ÍÐÕÁ‘…Ñ•ˆ°(€€€€€€€€¤(€€€€€€€Ñ…Í­}Ñ•µÁ±…Ñ”€ôÍ•±˜¹Ñ…Í­Ì¹ÍÁ±¥Ð ‰ùùùÑ•áÐˆ°€Ä¥lÅt¹ÍÁ±¥Ð ‰ùùøˆ°€Ä¥lÁt(€€€€€€€™½È­•ä¥¸É•ÅÕ¥É•‘}µ•Ñ…‘…Ñ„è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑÅÕ…° (€€€€€€€€€€€€€€€Ñ…Í­}Ñ•µÁ±…Ñ”¹½Õ¹Ð¡˜ˆ´í­•åôèˆ¤°(€€€€€€€€€€€€€€€€Ä°(€€€€€€€€€€€€€€€˜‰Q…Í¬Ñ•µÁ±…Ñ”µÕÍÐ½¹Ñ…¥¸½¹”í­•åôµ•Ñ…‘…Ñ„±¥¹”ˆ°(€€€€€€€€€€€€¤((€€€‘•˜Ñ•ÍÑ}‰É½Ý¹™¥•±‘}…‘½ÁÑ¥½¹}É•ÅÕ¥É•Í}•á…Ñ}ÕÍ•É}½¹™¥Éµ…Ñ¥½¸¡Í•±˜¤€´ø9½¹”è(€€€€€€€‰½½Ð€ôÍ•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰	==P´ÀÀˆ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰‘½•Ì¹½Ð…ÕÑ¡½É¥é•q¸€€å½ÔÑ¼¡½½Í”=AQ}Q5A1Q€ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰=9%I4	==QMQI@=AQ%=8A18ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰Á±…¹}Í¡„ÈÔØè€ðØÐ±½Ý•É…Í”¡•à¡…É…Ñ•ÉÌøˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰…ÕÑ¡½É¥é•‘}‰äè€ñ¡Õµ…¸½Ý¹•Èøˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰…ÕÑ¡½É¥é…Ñ¥½¹}Í½ÕÉ”è=]9I}=9%I5Q%=8ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰Í¡•µ„Ù•ÉÍ¥½¸°‰½Ñ É½½ÑÌ°…¹Ñ¡”½µÁ±•Ñ”½É‘•É•‘•¥Í¥½¸ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰%Ð¹•Ù•È¡…Í¡•Ì‘•¥Í¥½¹Ì…±½¹”ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰½µÁ±•Ñ”½É‘•É•‘•¥Í¥½¸µ…Àˆ°Í•±˜¹…•¹ÑÌ¤4(4(€€€‘•˜Ñ•ÍÑ}Ñ…Í­}ÁÉ½µÁÑ}…¹‘}±•‘•É}‘•™¥¹•}Ù…±¥‘…Ñ½É}Í¡…Á”¡Í•±˜¤€´ø9½¹”è(€€€€€€€Ñ…Í­}ÁÉ½µÁÐ€ôÍ•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰QM,´ÄÀˆ¤(€€€€€€€™½È¡•…‘¥¹œ¥¸€ (€€€€€€€€€€€€ˆŒŒŒŒ=ÕÑ½µ”ˆ°(€€€€€€€€€€€€ˆŒŒŒŒ•ÁÑ…¹”É¥Ñ•É¥„ˆ°(€€€€€€€€€€€€ˆŒŒŒŒY…±¥‘…Ñ¥½¸ˆ°(€€€€€€€€€€€€ˆŒŒŒŒá•ÕÑ¥½¸±½œˆ°(€€€€€€€€€€€€ˆŒŒŒŒ•¹Ð•á•ÕÑ¥½¸‘•Ñ…¥±Ìˆ°(€€€€€€€€¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡¡•…‘¥¹œ°Ñ…Í­}ÁÉ½µÁÐ¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡¡•…‘¥¹œ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰•Ù•ÉäÉ•µ…¥¹¥¹œÍ¥¹±•Ñ½¸µ•Ñ…‘…Ñ„±¥¹”ˆ°Ñ…Í­}ÁÉ½µÁÐ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰IdÑ…Í¬…¹¹½Ð½¹Ñ…¥¸Q==€ˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ´•Á•¹‘•¹äÝ…¥Ù•ÉÌè9=9ˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑI••à (€€€€€€€€€€€Í•±˜¹Ñ…Í­Ì°(€€€€€€€€€€€ÈˆŒŒŒŒY…±¥‘…Ñ¥½¹q¹q¹‰…Í¡q¸ñ•á…ÐÙ…±¥‘…Ñ¥½¸½µµ…¹ùq¹€ˆ°(€€€€€€€€¤((€€€‘•˜Ñ•ÍÑ}É•…‘¥¹•ÍÍ}…É‘Í}…É•}½µÁ±•Ñ•}…¹‘}ÁÉ½µÁÑ}™¥±±•¡Í•±˜¤€´ø9½¹”è(€€€€€€€…Ñ•}…}™¥•±‘Ì€ô€ (€€€€€€€€€€€€‰=ÕÑ½µ”ˆ°(€€€€€€€€€€€€‰=Ý¹•È…¹ÕÍ•ÉÌˆ°(€€€€€€€€€€€€‰M½Á”…¹¹½¸µ½…±Ìˆ°(€€€€€€€€€€€€‰5•…ÍÕÉ…‰±”É•ÅÕ¥É•µ•¹Ð½…•ÁÑ…¹”%Ìˆ°(€€€€€€€€€€€€‰…Ñ„‰½Õ¹‘…Éäˆ°(€€€€€€€€€€€€‰%‘•¹Ñ¥Ñä½Í•ÕÉ¥Ñä‰½Õ¹‘…Éäˆ°(€€€€€€€€€€€€‰¹Ù¥É½¹µ•¹Ð½I•¥½¸ˆ°(€€€€€€€€€€€€‰…¥±ÕÉ”½É•½Ù•Éäˆ°(€€€€€€€€€€€€‰½ÍÐÁ½ÍÑÕÉ”ˆ°(€€€€€€€€€€€€‰%¹Ñ…­”ÁÉ½Ù•¹…¹”ˆ°(€€€€€€€€¤(€€€€€€€…Ñ•}‰}™¥•±‘Ì€ô€ (€€€€€€€€€€€€‰•Í¥¸‰…Í¥Ì%Ìˆ°(€€€€€€€€€€€€‰É¡¥Ñ•ÑÕÉ”½½µÁ½¹•¹ÑÌˆ°(€€€€€€€€€€€€‰%¹Ñ•É™…•Ì½‘…Ñ„™±½Üˆ°(€€€€€€€€€€€€‰%‘•¹Ñ¥Ñä½Í•É•ÑÌˆ°(€€€€€€€€€€€€‰…¥±ÕÉ”½É•ÑÉä½½¹ÕÉÉ•¹äˆ°(€€€€€€€€€€€€‰•Á±½åµ•¹Ð½½Á•É…Ñ¥½¹Ìˆ°(€€€€€€€€€€€€‰Y…±¥‘…Ñ¥½¸½•Ù¥‘•¹”ˆ°(€€€€€€€€€€€€‰I½±±‰…¬½É•½Ù•Éä½Ñ•…É‘½Ý¸ˆ°(€€€€€€€€€€€€‰	É½Ý¹™¥•±½µÁ…Ñ¥‰¥±¥Ñä½µ¥É…Ñ¥½¸ˆ°(€€€€€€€€€€€€‰=ÕÑÍÑ…¹‘¥¹œ…ÁÌˆ°(€€€€€€€€¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆŒŒŒ…Ñ”ƒŠPÉ•…‘¥¹•ÍÌ…Éˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆŒŒŒ…Ñ”ƒŠPÉ•…‘¥¹•ÍÌ…Éˆ°Í•±˜¹ÁÉ¤(€€€€€€€™½È™¥•±¥¸€ ©…Ñ•}…}™¥•±‘Ì°€©…Ñ•}‰}™¥•±‘Ì¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡˜‰ðí™¥•±‘ôðˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰ðÕÑ¡½É¥é•½ÍÐÁ½ÍÑÕÉ”ðˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¥±°Ñ¡”…Ñ”É•…‘¥¹•ÍÌ…ÉÝ¥Ñ Ñ¡•Í”•á…Ð™¥•±‘Ìˆ°Í•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰ID´ÄÀˆ¤¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¥±°Ñ¡”…Ñ”É•…‘¥¹•ÍÌ…ÉÝ¥Ñ Ñ¡•Í”•á…Ð™¥•±‘Ìˆ°Í•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰M%8´ÄÀˆ¤¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰9=Q}AA1%	1ƒŠP€ñÉ•…Í½¸ù€ˆ°Í•±˜¹ÁÉ¤((€€€‘•˜Ñ•ÍÑ}½ÍÑ}Á½ÍÑÕÉ•}…¹‘}Í•ÕÉ•}Í•ÉÙ•É±•ÍÍ}™¥ÉÍÑ}½¹ÑÉ…Ð¡Í•±˜¤€´ø9½¹”è(€€€€€€€‰½½Ð€ôÍ•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰	==P´ÀÀˆ¤(€€€€€€€¥¹Ñ…­”€ôÍ•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰%9Q-´ÄÀˆ¤(€€€€€€€É•ÅÕ¥É•µ•¹ÑÌ€ôÍ•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰ID´ÄÀˆ¤(€€€€€€€‘•Í¥¸€ôÍ•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰M%8´ÄÀˆ¤(€€€€€€€Á±…¹}Í­¥±°€ô€ (€€€€€€€€€€€AI=)Q}I==P€¼€ˆ¹…•¹ÑÌ½Í­¥±±Ì½Á±…¸µ™…ÍÑ±…¹”½M-%10¹µˆ(€€€€€€€€¤¹É•…‘}Ñ•áÐ¡•¹½‘¥¹œô‰ÕÑ˜´àˆ¤(€€€€€€€…ÝÍ}…‘Ù¥Í½È€ô€ (€€€€€€€€€€€AI=)Q}I==P€¼€ˆ¹½‘•à½…•¹ÑÌ½™…ÍÑ±…¹”µ…ÝÌµ…‘Ù¥Í½È¹Ñ½µ°ˆ(€€€€€€€€¤¹É•…‘}Ñ•áÐ¡•¹½‘¥¹œô‰ÕÑ˜´àˆ¤((€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¹¼µ½É”Ñ¡…¸Ñ¡•Í”Ñ¡É•”Ù…±Õ•Ìˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰‘•Ù•±½Áµ•¹Ð‰Õ‘•ÐÁ½ÍÑÕÉ”ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰5%9%5%i}Q=Q1}=MPì!I}A}9=Q}MQQˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ (€€€€€€€€€€€€‰5%9%5%i}Q=Q1}=MPì!I}@è€ñ%M=}UII9dø€ñ=]9I}5=U9Pøˆ°(€€€€€€€€€€€‰½½Ð°(€€€€€€€€¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ´µ½ÍÐµÁ½ÍÑÕÉ”ˆ°‰½½Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰µ¥ÍÍ¥¹œ…µ½Õ¹Ð…±½¹”¹•Ù•È‰±½­Ì¥¹Ñ…­”ˆ°¥¹Ñ…­”¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ (€€€€€€€€€€€€‰5%9%5%i}Q=Q1}=MPì!I}@è€ñ%M=}UII9dø€ñ=]9I}5=U9Pøˆ°(€€€€€€€€€€€Á±…¹}Í­¥±°°(€€€€€€€€¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰½ÍÐÁ½ÍÑÕÉ”ì%¹Ñ…­”ÁÉ½Ù•¹…¹”ˆ°É•ÅÕ¥É•µ•¹ÑÌ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¼¹½Ðµ…¹Õ™…ÑÕÉ”„¹Õµ•É¥Œ•¥±¥¹œ™½È…Ñ”ˆ°É•ÅÕ¥É•µ•¹ÑÌ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰½ÍÐÁ½ÍÑÕÉ”è€ñ•á…ÐÕÉÉ•¹Ð…Ñ”½ÍÐÁ½ÍÑÕÉ”øˆ°Í•±˜¹ÁÉ½µÁÑÌ¤((€€€€€€€™½ÈÍÕÉ™…”¥¸€¡Í•±˜¹…•¹ÑÌ°Í•±˜¹ÁÉ°‘•Í¥¸°Á±…¹}Í­¥±°°…ÝÍ}…‘Ù¥Í½È¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰Í•ÉÙ•É±•ÍÌˆ°ÍÕÉ™…”¹±½Ý•È ¤¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰Í•ÕÉ”Á…äµÁ•ÈµÕÍ•q¹Í•ÉÙ•É±•ÍÌ½ÁÑ¥½¹Ìˆ°Í•±˜¹É½½Ñ}É•…‘µ”¤(€€€€€€€™½ÈÍÕÉ™…”¥¸€¡Í•±˜¹…•¹ÑÌ°Í•±˜¹ÁÉ°Á±…¹}Í­¥±°¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰5%9%5%i}Q=Q1}=MPˆ°ÍÕÉ™…”¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑI••à (€€€€€€€€€€€Í•±˜¹É½½Ñ}É•…‘µ”°(€€€€€€€€€€€È‰±½Ý•ÍÐÁÉ…Ñ¥…°Ñ½Ñ…°½ÍÐÝ¥Ñ¡½ÕÑqÌ­Ý•…­•¹¥¹œÉ•ÅÕ¥É•Í…™•Õ…É‘Ìˆ°(€€€€€€€€¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰9•Ù•ÈÝ•…­•¸½¹”½˜Ñ¡½Í”É•ÅÕ¥É•½¹ÑÉ½±Ìˆ°‘•Í¥¸¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰µ•…ÍÕÉ…‰±”•áÁ…¹Í¥½¸½Èµ¥É…Ñ¥½¹q¹ÑÉ¥•ÉÌˆ°‘•Í¥¸¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ (€€€€€€€€€€€€‰½ÍÐ•¥±¥¹œè€ñ™¥¹¥Ñ”Á½Í¥Ñ¥Ù”%M<µÕÉÉ•¹ä…µ½Õ¹Ð°™½È•á…µÁ±”UMè€ÈÀ¸ÀÀøˆ°(€€€€€€€€€€€Í•±˜¹ÁÉ½µÁÑÌ°(€€€€€€€€¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰ð]L½ÍÐ•¥±¥¹œðˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¹½Ð„Õ…É…¹Ñ••]L‰¥±±¥¹œÍÑ½Àˆ°Í•±˜¹ÁÉ¤(€€€€€€€™½ÈÍÕÉ™…”¥¸€¡Í•±˜¹É½½Ñ}É•…‘µ”°Í•±˜¹…•¹ÑÌ°Í•±˜¹ÁÉ°Í•±˜¹ÁÉ½µÁÑÌ¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ9½Ñ%¸ ‰íí5=9Q!1e}	UQõôˆ°ÍÕÉ™…”¤4(4(€€€‘•˜Ñ•ÍÑ}…Ñ•}‰}‰¥¹‘Í}…¹½¹¥…±}½µÁ±•Ñ•}•¹Ù•±½Á•}‘¥•ÍÐ¡Í•±˜¤€´ø9½¹”è(€€€€€€€É••¥ÁÑ}±¥¹”€ô€‰½¹ÍÑÉÕÑ¥½¸•¹Ù•±½Á”M!´ÈÔØèÍ¡„ÈÔØèðØÐµ±½Ý•É…Í”µ¡•àøˆ(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰ðÕÑ¡½É¥é•½¹ÍÑÉÕÑ¥½¸•¹Ù•±½Á”M!´ÈÔØðˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰ð½¹ÍÑÉÕÑ¥½¸•¹Ù•±½Á”M!´ÈÔØÉ•Ù¥•Ý•ðˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡É••¥ÁÑ}±¥¹”°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑÅÕ…°¡Í•±˜¹ÁÉ½µÁÑÌ¹½Õ¹Ð¡É••¥ÁÑ}±¥¹”¤°€È¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰¡•…‘•È°Í•Á…É…Ñ½È°…¹•Ù•Éä‰½Õ¹‘…ÉäÉ½Üˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰…ÁÁ•¹½¹”™¥¹…°1ˆ°Í•±˜¹ÁÉ¤((€€€‘•˜Ñ•ÍÑ}½¹ÍÑÉÕÑ¥½¹}•¹Ù•±½Á•}ÕÍ•Í}‰¥¹‘…‰±•}É…µµ…ÉÌ¡Í•±˜¤€´ø9½¹”è(€€€€€€€É•ÅÕ¥É•‘}É½ÝÌ€ô€ (€€€€€€€€€€€€‰AÉ½©•Ðµ½‘”ˆ°(€€€€€€€€€€€€‰•±¥Ù•ÉäÁÉ½™¥±”…¹•™™•Ñ¥Ù”É¥Í¬ˆ°(€€€€€€€€€€€€‰AÉ½©•Ð]L±…¹”ˆ°(€€€€€€€€€€€€‰ÕÑ¡½É¥é•É•ÅÕ¥É•µ•¹Ð…¹‘•Í¥¸%Ìˆ°(€€€€€€€€€€€€‰ÕÑ¡½É¥é•‰…Í•±¥¹”½µµ¥Ðˆ°(€€€€€€€€€€€€‰AÉ½Ñ•Ñ•‘¥ÉÑäÁ…Ñ¡Ìˆ°(€€€€€€€€€€€€‰±±½Ý••áÑ•É¹…°µÍÑ…Ñ”Ñ…É•ÑÌˆ°(€€€€€€€€€€€€‰1½…°½µµ…¹‰½Õ¹‘…Éäˆ°(€€€€€€€€€€€€‰Q…Í¬‰½Õ¹‘…Éäˆ°(€€€€€€€€€€€€‰¥Ñ!ÕˆÉ•Á½Í¥Ñ½Éä°‰É…¹ °…¹µ•É”½¹ÍÑÉ…¥¹ÑÌˆ°(€€€€€€€€€€€€‰ÕÑ¡½É¥é…Ñ¥½¸•áÁ¥Éä½È½µÁ±•Ñ¥½¸½¹‘¥Ñ¥½¸ˆ°(€€€€€€€€¤(€€€€€€€™½ÈÉ½Ü¥¸É•ÅÕ¥É•‘}É½ÝÌè(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡˜‰ðíÉ½Ýôðˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰€ñÁÉ½™¥±”ø€¼€ñÉ¥Í¬ù€ˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰11=]}AI%aLèÁÉ•™¥àìÁÉ•™¥á€ˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰I%Y}I=5}UQ!=I%i}%M}9}]I%Q}MQ€ˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰IA<è½Ý¹•È½¹…µ”ì	I9 è‰É…¹ ì5Iè11=]qqñAI=!%	%Q€ˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ (€€€€€€€€€€€€‰9Y%I=959Pè€ñ•á…Ð¹…µ”øì1MLè9=9}AI=UQ%=9qqñAI=UQ%=9€ˆ°(€€€€€€€€€€€Í•±˜¹ÁÉ°(€€€€€€€€¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰aQ}%MPèÍ¡„ÈÔØèðØÐ±½Ý•É…Í”¡•àù€ˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ (€€€€€€€€€€€€‰I%Y}I=5}UQ!=I%i}M=UIèM!´ÈÔØ™É½´‰…Í•±¥¹”€ñ™Õ±°…ÕÑ¡½É¥é•½µµ¥Ðøì€ñ‘•Ñ•Éµ¥¹¥ÍÑ¥ŒÉÕ±”ù€ˆ°(€€€€€€€€€€€Í•±˜¹ÁÉ°(€€€€€€€€¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ (€€€€€€€€€€€€‰áÁ¥É•Ì…Ð€ñ%M<€àØÀÄÝ¥Ñ Ñ¥µ•é½¹”øì•…É±¥•È½µÁ±•Ñ¥½¸è€ñ•á…Ð½¹‘¥Ñ¥½¸ù€ˆ°(€€€€€€€€€€€Í•±˜¹ÁÉ°(€€€€€€€€¤(€€€€€€€™½ÈÉ½Ü¥¸€ (€€€€€€€€€€€€‰]L…½Õ¹Ðˆ°€‰]LÉ½±”½ÈÁÉ½™¥±”ˆ°€‰]LI•¥½¸ˆ°€‰]L•¹Ù¥É½¹µ•¹Ðˆ°(€€€€€€€€€€€€‰]LÍÑ…¬½È…ÁÁ±¥…Ñ¥½¸ˆ°€‰]LÉ•Í½ÕÉ”…±±½Ý±¥ÍÐˆ°€‰]L…±±½Ý•½Á•É…Ñ¥½¹Ìˆ°(€€€€€€€€€€€€‰]L½ÍÐ•¥±¥¹œˆ°€‰]LÁÉ½¡¥‰¥Ñ•½Á•É…Ñ¥½¹Ìˆ°(€€€€€€€€€€€€‰]L…ÉÑ¥™…Ð…ÕÑ¡½É¥é…Ñ¥½¸…¹ÁÉ½Ù•¹…¹”ˆ°€‰]LÉ½±±‰…¬‰½Õ¹‘…Éäˆ°(€€€€€€€€€€€€‰]L…ÕÑ¡½É¥é…Ñ¥½¸Ù…±¥‘¥Ñäˆ°(€€€€€€€€¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡˜‰ðíÉ½Ýôðˆ°Í•±˜¹ÁÉ¤((€€€‘•˜Ñ•ÍÑ}¥Ñ}¡•­Á½¥¹Ñ}Á±…¹}…¹‘}É•±•…Í•}±¥™•å±•Í}…É•}•áÁ±¥¥Ð¡Í•±˜¤€´ø9½¹”è(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰ðQ…Í¬µÁ±…¸ÍÑ…Ñ”ðU9%9%Q%1%i€ðˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€™½ÈÍÑ…Ñ”¥¸€ ‰U9%9%Q%1%iˆ°€‰UII9Pˆ°€‰MQ1ˆ¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡ÍÑ…Ñ”°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑI••à¡Í•±˜¹Ñ…Í­Ì°È‰½µµ¥ÑÌü½¹±ä…ÕÑ¡½É¥é•Ý…Ù”¡…¹•Ìˆ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰1…ÍÐ­¹½Ý¸µÉ••¸½µµ¥Ðˆ°Í•±˜¹Ñ…Í­Ì¤(€€€€€€€™½ÈÍÑ…Ñ”¥¸€ ‰9=Q}Idˆ°€‰Ie}Q=}A1=dˆ°€‰I1M}YI%%ˆ¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡ÍÑ…Ñ”°Í•±˜¹Ù•É¥™ä¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡ÍÑ…Ñ”°Í•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰I1M´ÄÀˆ¤¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰]L´ÌÀðI•½¹¥±”‘•Á±½å••Ù¥‘•¹”ðI1M´ÄÀˆ°Í•±˜¹ÁÉ½µÁÑÌ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ¨©9•áÐè¨¨I1M´ÄÀˆ°Í•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰]L´ÌÀˆ¤¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰1½…°¥ÐÍ•ÑÕÀèˆ°Í•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰	==P´ÀÀˆ¤¤((€€€‘•˜Ñ•ÍÑ}‘½¹•}É•ÅÕ¥É•Í}ÍÑÉÕÑÕÉ•‘}½‰Í•ÉÙ•‘}±½…±}•Ù¥‘•¹”¡Í•±˜¤€´ø9½¹”è(€€€€€€€¡•…‘•È€ô€ (€€€€€€€€€€€€‰ðÙ¥‘•¹”%ðQ…Í¬ð½µµ…¹½È½‰Í•ÉÙ…Ñ¥½¸ðI•ÍÕ±ÐðÑ½Èð€ˆ(€€€€€€€€€€€€‰=‰Í•ÉÙ•…Ðð½µµ¥Ð€¼Ý½É­ÑÉ•”€¼…ÉÑ¥™…ÐðÕÉ…‰±”Í½ÕÉ”ðMÑ…ÑÕÌðˆ(€€€€€€€€¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆŒŒQ…Í¬½µÁ±•Ñ¥½¸•Ù¥‘•¹”ˆ°Í•±˜¹Ù•É¥™ä¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡¡•…‘•È°Í•±˜¹Ù•É¥™ä¤(€€€€€€€™½È‘½Õµ•¹Ð¥¸€¡Í•±˜¹…•¹ÑÌ°Í•±˜¹Ñ…Í­Ì°Í•±˜¹ÁÉ½µÁÑÌ¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰Q…Í¬½µÁ±•Ñ¥½¸•Ù¥‘•¹”ˆ°‘½Õµ•¹Ð¤(€€€€€€€™½È™¥•±¥¸€ (€€€€€€€€€€€€‰½µµ…¹½É•ÍÕ±Ðˆ°(€€€€€€€€€€€€‰…Ñ½Èˆ°(€€€€€€€€€€€€‰½µµ¥Ð½Ý½É­ÑÉ•”½…ÉÑ¥™…Ðˆ°(€€€€€€€€€€€€‰1=1}AMLˆ°(€€€€€€€€€€€€‰YI%%ˆ°(€€€€€€€€¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸¡™¥•±°Í•±˜¹ÁÉ½µÁÑÌ¤((€€€‘•˜Ñ•ÍÑ}‰É½Ý¹™¥•±‘}µ…¹‘…Ñ½Éå}™…ÑÍ}…É•}¹½Ñ}¹Õ±±…‰±”¡Í•±˜¤€´ø9½¹”è(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰•Ù•Éä‰…Í•±¥¹”™…Ð¥Ìµ…¹‘…Ñ½Éäˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰=¹±äÑ¡•Í”™¥•±‘Íq¹…É”¹Õ±±…‰±”ˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰­¹½Ý¸‘•™•ÑÌ…¹…•ÁÑ•‘•‰Ñq¹9=9}=	MIY€ˆ°Í•±˜¹ÁÉ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰=¹±ä‘É¥™Ð°‘¥ÉÑä¡…¹•Ì°­¹½Ý¸‘•‰Ð½‘•™•ÑÌˆ°Í•±˜¹ÁÉ½µÁÑ}Í•Ñ¥½¸ ‰ID´ÄÀˆ¤¤((€€€‘•˜Ñ•ÍÑ}…ÝÍ}µ½‘•}µ…ÁÁ¥¹}¥Í}…¹½¹¥…°¡Í•±˜¤€´ø9½¹”è(€€€€€€€™½È‘½Õµ•¹Ð¥¸€¡Í•±˜¹ÁÉ½µÁÑÌ°Í•±˜¹ÁÉ¤è(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰AÉ½©•Ð]L±…¹”ˆ°‘½Õµ•¹Ð¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰AÉ½µÁÐ]Lµ½‘”ˆ°‘½Õµ•¹Ð¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰…Ñ”]L‰½Õ¹‘…Éäˆ°‘½Õµ•¹Ð¤(€€€€€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ‰5UQQ}1%MQ}IM=UILˆ°‘½Õµ•¹Ð¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ9½Ñ%¸ ‰A19}=91dˆ°Í•±˜¹ÁÉ¤((€€€‘•˜Ñ•ÍÑ}µ…¹¥™•ÍÑ}µ…Ñ¡•Í}Á…­}…¹‘}É•ÅÕ¥É•‘}™¥±•Í}•á¥ÍÐ¡Í•±˜¤€´ø9½¹”è(€€€€€€€µ…¹¥™•ÍÑ}Á…Ñ €ôAI=)Q}I==P€¼€‰‰½½ÑÍÑÉ…À¹µ…¹¥™•ÍÐ¹©Í½¸ˆ(€€€€€€€µ…¹¥™•ÍÐ€ô©Í½¸¹±½…‘Ì¡µ…¹¥™•ÍÑ}Á…Ñ ¹É•…‘}Ñ•áÐ¡•¹½‘¥¹œô‰ÕÑ˜´àˆ¤¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑÅÕ…°¡µ…¹¥™•ÍÑl‰‰½½ÑÍÑÉ…Á}Ù•ÉÍ¥½¸‰t°€ˆÄ¸Ä¸Àˆ¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑÅÕ…°¡µ…¹¥™•ÍÑl‰…¹½¹¥…±}ÁÉ½µÁÑ}¥‘Ì‰t°AI=5AQ}%L¤(€€€€€€€Í•±˜¹…ÍÍ•ÉÑ%¸ ˆ¨©A…¬Ù•ÉÍ¥½¸è¨¨€Ä¸Ä¸Àˆ°Í•±˜¹ÁÉ½µÁÑÌ¤(€€€€€€€µ¥ÍÍ¥¹œ€ôl(€€€€€€€€€€€Á…Ñ (€€€€€€€€€€€™½ÈÁ…Ñ ¥¸µ…¹¥™•ÍÑl‰É•ÅÕ¥É•‘}™¥±•Ì‰t(€€€€€€€€€€€¥˜¹½Ð€¡AI=)Q}I==P€¼Á…Ñ ¤¹¥Í}™¥±” ¤(€€€€€€€t(€€€€€€€Í•±˜¹…ÍÍ•ÉÑÅÕ…°¡µ¥ÍÍ¥¹œ°mt¤(()¥˜}}¹…µ•}|€ôô€‰}}µ…¥¹}|ˆè(€€€Õ¹¥ÑÑ•ÍÐ¹µ…¥¸ ¤(

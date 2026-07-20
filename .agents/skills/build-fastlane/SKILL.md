@@ -18,11 +18,17 @@ description: Generate, execute, pause, or resume dependency-aware Fastlane tasks
    `task_waves.py`; do not hand-edit coordinator state.
 6. Execute only the current task write and command boundary. Route all AWS
    mutation to `AWS-20`; BUILD prompts never deploy directly.
-7. Validate the integrated diff and required checks after each task or wave.
+7. When a task or release-readiness decision depends on a current AWS service,
+   SDK, IaC, IAM, quota, security, reliability, observability, or cost fact,
+   consult the read-only `fastlane-aws-advisor` and official current AWS Core.
+   Keep the answer inside the approved design and task boundary. If AWS Core is
+   unavailable, pause only the affected AWS-specific task with one recovery
+   action; never guess, widen scope, or restart project intake.
+8. Validate the integrated diff and required checks after each task or wave.
    Use the read-only `fastlane-evidence-reviewer` for boundary and evidence
    review when a wave or release claim is material. Record only observed
    evidence in `docs/project/VERIFY.md`, then run the doctor.
-8. Continue autonomously while work is ready and inside Gate B. Pause on a
+9. Continue autonomously while work is ready and inside Gate B. Pause on a
    stale gate, unsafe interrupted run, exhausted attempt budget, boundary
    change, or missing external authority.
 
