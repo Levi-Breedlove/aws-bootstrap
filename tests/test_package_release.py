@@ -111,7 +111,6 @@ class PackageReleaseTests(unittest.TestCase):
         inventory = {path for path, _content in files}
         for required in (
             "docs/SETUP.md",
-            "docs/EXISTING-AWS-CORE.md",
             "docs/TROUBLESHOOTING.md",
             "docs/DEPENDENCY-POLICY.md",
             "docs/WORKFLOW.md",
@@ -119,8 +118,6 @@ class PackageReleaseTests(unittest.TestCase):
             "tests/test_setup_assistant.py",
         ):
             self.assertIn(required, inventory)
-        self.assertNotIn(".agents/plugins/marketplace.json", inventory)
-        self.assertNotIn("scripts/uv_setup_assistant.py", inventory)
 
     def test_manifest_is_the_exact_template_file_inventory(self) -> None:
         template = REPOSITORY_ROOT

@@ -40,8 +40,8 @@ Fastlane is built to use official AWS Core from the
 [AWS Agent Toolkit](https://github.com/aws/agent-toolkit-for-aws) for current
 AWS design guidance. AWS Core is not required for project intake or Gate A.
 
-If it is not already available, Codex gives one setup step before technical
-AWS design. Fastlane uses the current official
+When AWS-specific design needs AWS Core and it is unavailable, Codex gives one
+setup step. Fastlane uses the current official
 `aws-core@agent-toolkit-for-aws`; it does not pin a plugin version or commit.
 Codex's own `/plugins` and `/hooks` screens manage installation and trust.
 AWS Core advises; it cannot approve either gate or authorize an AWS change.

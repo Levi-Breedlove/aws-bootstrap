@@ -37,8 +37,6 @@ def ready_evidence(**updates: object) -> dict[str, object]:
         "observed_marketplace_repository": None,
         "observed_plugin_source": None,
         "observed_plugin_identity": None,
-        "legacy_plugin_enabled": False,
-        "legacy_marketplace_registered": False,
         "unknown_plugin_sources": [],
     }
     evidence.update(updates)
@@ -94,15 +92,7 @@ class SetupAssistantTests(unittest.TestCase):
         self.assertNotIn("plugin_version", report.get("details", {}))
         self.assertNotIn("plugin_commit", report.get("details", {}))
 
-    def test_legacy_or_unknown_source_is_deferred_not_a_boot_loop(self) -> None:
-        legacy = setup.reduce_setup(ready_evidence(legacy_plugin_enabled=True))
-        self.assertEqual(legacy["state"], "READY_FOR_INTAKE")
-        self.assertEqual(legacy["aws_core_status"], "DEFERRED_UNTIL_DESIGN")
-        self.assertIn(
-            setup.LEGACY_MARKETPLACE_REMOVE_COMMAND,
-            json.dumps(legacy),
-        )
-
+    def test_unknown_source_is_deferred_not_a_boot_loop(self) -> None:
         unknown = setup.reduce_setup(
             ready_evidence(unknown_plugin_sources=["aws-core@unknown-source"])
         )
@@ -163,7 +153,6 @@ class SetupAssistantTests(unittest.TestCase):
             self.assertIn(setup.MARKETPLACE_COMMAND, rendered)
             self.assertIn(expected_uv, rendered)
             self.assertIn("owner-run instructions", rendered)
-            self.assertNotIn("plugin marketplace add .", rendered)
             self.assertNotIn("1.1.0", rendered)
             self.assertNotIn("36f16570", rendered)
             self.assertFalse(guide["executed_external_commands"])

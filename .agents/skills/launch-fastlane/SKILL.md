@@ -31,8 +31,6 @@ description: Welcome, initialize, inspect, or resume an AWS Codex Fastlane repos
    - if official `aws-core@agent-toolkit-for-aws` is visibly available, report
      `AVAILABLE`;
    - otherwise report `DEFERRED_UNTIL_DESIGN` and continue;
-   - if an older `aws-core@aws-codex-fastlane-dependencies` copy is visible,
-     mention once that it should be removed before AWS design;
    - never install, enable, disable, update, trust, hash, or probe a plugin or
      hook for the owner.
 7. Return this compact receipt:

@@ -26,15 +26,10 @@ SEMVER_PATTERN = re.compile(r"\d+\.\d+\.\d+")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 REQUIRED_SETUP_ASSETS = {
     "docs/DEPENDENCY-POLICY.md",
-    "docs/EXISTING-AWS-CORE.md",
     "docs/SETUP.md",
     "docs/TROUBLESHOOTING.md",
     "docs/WORKFLOW.md",
     "scripts/setup_assistant.py",
-}
-FORBIDDEN_LEGACY_SETUP_ASSETS = {
-    ".agents/plugins/marketplace.json",
-    "scripts/uv_setup_assistant.py",
 }
 REQUIRED_CONTROL_FILES = {
     "bootstrap.py",
@@ -174,13 +169,6 @@ def load_release_files(repo_root: Path = REPOSITORY_ROOT) -> tuple[str, list[tup
                 "Manifest omits official AWS Core setup assets: "
                 + ", ".join(missing_setup)
             )
-        forbidden_setup = sorted(FORBIDDEN_LEGACY_SETUP_ASSETS.intersection(inventory))
-        if forbidden_setup:
-            raise PackagingError(
-                "Manifest retains retired repository-local marketplace assets: "
-                + ", ".join(forbidden_setup)
-            )
-
     files: list[tuple[str, bytes]] = []
     seen: set[str] = set()
     folded: set[str] = set()

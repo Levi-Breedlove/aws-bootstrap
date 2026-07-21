@@ -38,6 +38,3 @@ AWS Core is an advisor. It cannot approve Gate A, Gate B, or an AWS mutation.
 Tool availability never grants AWS authority. Fastlane never stores plugin
 state, trust state, usernames, client paths, credentials, account identifiers,
 or local setup history.
-
-If the retired Fastlane marketplace is present, follow
-[EXISTING-AWS-CORE.md](EXISTING-AWS-CORE.md).

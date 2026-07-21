@@ -82,7 +82,6 @@ jobs:
               "python_version_supported": True,
               "system": "WINDOWS",
               "surface": "CODEX_CLI",
-              "legacy_plugin_enabled": False,
               "unknown_plugin_sources": [],
           }
 
