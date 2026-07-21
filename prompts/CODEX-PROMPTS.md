@@ -903,6 +903,9 @@ Complete only the design needed to build safely:
 - brownfield compatibility, rollout, migration, and rollback when applicable;
 - explicit decisions, alternatives, assumptions, and Well-Architected effects.
 
+Edit existing PRD Mermaid blocks in place; do not append by default. Route
+material Part I flow changes through REQ-10.
+
 For a greenfield application, evaluate a secure managed serverless baseline
 first. Prefer the smallest pay-per-use design that satisfies the accepted
 requirements, minimizes idle infrastructure and operational burden, and
@@ -989,6 +992,8 @@ access.
 
 **Stop conditions:** Stale Gate A; incomplete design/envelope; mismatch between
 requirements, design, or IDs; placeholder approver; altered/partial receipt;
+diagram-to-design conflict; unexplained generic roles or unused optional
+diagram paths;
 or material AWS design evidence is stale or unverified.
 
 **Receipt:** Standard work receipt with WAITING_FOR_GATE_B, followed by the
@@ -1005,6 +1010,8 @@ Show a concise decision brief:
 - canonical complete construction-envelope SHA-256;
 - all ten fields from the current Gate B readiness card;
 - architecture and key tradeoffs;
+- confirmation that the existing diagram slots were specialized in place and
+  agree with the component, interface, data, and failure design;
 - material AWS facts verified through AWS Core, primary sources, and any AWS
   advisor finding the coordinator rejected with its reason;
 - requirement-to-design/test traceability;

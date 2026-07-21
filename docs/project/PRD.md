@@ -226,6 +226,10 @@ Acceptance criteria must be objective and observable. Replace terms such as "fas
 
 ### Primary flow
 
+Edit this requirements-level flow in place during intake. Keep it focused on
+the user-visible outcome and approved or rejected behavior; detailed component
+behavior belongs in Part III.
+
 ```mermaid
 sequenceDiagram
     actor User
@@ -551,6 +555,15 @@ current AWS evidence shows a material latency, sustained-utilization, service
 limit, networking, compliance, portability, or total-cost advantage. Define
 measurable expansion triggers instead of provisioning future capacity early.
 
+The Mermaid blocks in Parts III and IV are editable starter patterns, not
+claims about the finished system. During `DESIGN-10`, update the existing
+blocks in place: replace generic roles with selected components, remove unused
+optional paths, and keep the diagrams consistent with the written design. Do
+not append another diagram by default. If a path is not applicable, remove it
+and record the reason beside the existing diagram. A diagram records intended
+design; implementation and deployment proof belongs in code, IaC, tests, and
+`docs/project/VERIFY.md`.
+
 ```mermaid
 flowchart LR
     subgraph External["External trust boundary"]
@@ -559,24 +572,38 @@ flowchart LR
     end
 
     subgraph AWS["Approved AWS account, Region, and environment"]
-        Entry[Managed entry point]
-        Identity[Identity and authorization]
-        App[Application compute]
-        Queue[Optional queue]
-        Worker[Optional worker]
-        Data[(Authoritative encrypted data)]
-        Obs[Logs, metrics, traces, and alarms]
+        subgraph Edge["Managed entry and identity boundary"]
+            Entry[Managed entry point]
+            Identity[Identity verification]
+        end
+        subgraph Processing["Application processing boundary"]
+            App[Application authorization, validation, and compute]
+            Queue[Optional queue]
+            Worker[Optional worker]
+        end
+        subgraph DataBoundary["Data boundary"]
+            Data[(Authoritative encrypted data)]
+        end
+        subgraph Operations["Operations boundary"]
+            Obs[Logs, metrics, traces, and alarms without secrets]
+        end
     end
 
-    Actor --> Entry --> Identity --> App
+    Actor --> Entry
+    Entry -. Authenticate when required .-> Identity
+    Identity -. Claims or denial .-> Entry
+    Entry --> App
     App --> Data
     App -. When asynchronous work is required .-> Queue
     Queue -.-> Worker
-    Worker -.-> Data
+    Worker -. Validated and idempotent write .-> Data
     App -. Approved call only .-> ExternalDependency
     Entry --> Obs
+    Identity -. Authentication outcomes .-> Obs
     App --> Obs
+    Queue -. Queue age and delivery outcomes .-> Obs
     Worker -.-> Obs
+    Data -. Access and change events .-> Obs
 ```
 
 Describe:
@@ -610,17 +637,22 @@ flowchart TD
     Input[Received untrusted input]
     Decision{Authorization and validation decision}
     Rejected[Rejected input]
+    Classification[Apply approved data classification]
     Active[(Encrypted active data)]
     Retention[Approved retention period]
     Backup[(Optional encrypted backup)]
+    Restore[Verified restore test]
+    RecoveryEvidence[Recovery evidence without sensitive values]
     Deleted[Approved deletion]
+    DeletionEvidence[Deletion evidence without sensitive values]
     BackupExpiry[Backup expiry]
 
     Input --> Decision
     Decision -->|Denied or invalid| Rejected
-    Decision -->|Approved| Active
-    Active --> Retention --> Deleted
+    Decision -->|Approved| Classification --> Active
+    Active --> Retention --> Deleted --> DeletionEvidence
     Active -. Only when recovery requirements justify it .-> Backup
+    Backup --> Restore --> RecoveryEvidence
     Backup --> BackupExpiry
 ```
 
@@ -663,10 +695,18 @@ sequenceDiagram
     else Request approved
         alt Bounded asynchronous work is required
             API->>Queue: Enqueue approved work with idempotency key
-            Queue->>Worker: Deliver work
-            Worker->>Data: Persist approved data
-            Worker->>Telemetry: Completion and correlation ID
+            Queue-->>API: Durable enqueue acknowledged
+            API->>Telemetry: Acceptance and correlation ID
             API-->>Client: Accepted response with correlation ID
+            Queue->>Worker: Deliver work
+            Worker->>Worker: Validate trusted source, schema, and idempotency
+            alt Message rejected or already complete
+                Worker->>Telemetry: Safe rejection or duplicate outcome
+            else Work accepted
+                Worker->>Data: Persist approved data
+                Data-->>Worker: Result
+                Worker->>Telemetry: Completion and correlation ID
+            end
         else Synchronous completion
             API->>Data: Persist approved data
             Data-->>API: Result
@@ -686,6 +726,7 @@ sequenceDiagram
     participant Dependency
     participant Recovery
     participant Telemetry
+    participant Owner as Operational owner
 
     Caller->>Service: Request
     Service->>Dependency: Call with explicit timeout
@@ -693,17 +734,33 @@ sequenceDiagram
     Service->>Service: Classify failure
     alt Retry is safe and attempts remain
         Service->>Dependency: Bounded retry
-        Dependency-->>Service: Result or final failure
+        alt Retry succeeds
+            Dependency-->>Service: Result
+        else Retry budget is exhausted
+            Dependency--xService: Final failure
+            Service->>Recovery: Record safe recovery work
+        end
     else Durable recovery is required
         Service->>Recovery: Record safe recovery work
     else No durable recovery is required
         Service->>Service: Stop without retry
     end
     Service->>Telemetry: Failure class, attempts, correlation ID, and alarm
+    opt Durable recovery record exists
+        Recovery->>Telemetry: Recovery backlog, age, and outcome
+        Telemetry-->>Owner: Actionable alarm with correlation ID
+        opt Manual reconciliation is required
+            Owner->>Recovery: Reconcile documented recovery item
+            Recovery->>Telemetry: Reconciliation evidence
+        end
+    end
     Service-->>Caller: Safe terminal response with correlation ID
 ```
 
-Add workload-specific sequences for authentication, asynchronous processing, deployment, rollback, or other complex flows.
+Edit these sequence diagrams in place for the selected workload. Remove unused
+participants and branches. Add another sequence only when the existing primary
+and failure slots cannot accurately represent a materially different flow and
+the owner explicitly requests the additional diagram.
 
 ## 19. Error handling strategy
 

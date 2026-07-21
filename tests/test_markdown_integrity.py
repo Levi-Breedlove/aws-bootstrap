@@ -12,6 +12,11 @@ MAX_AGENT_CONTEXT_BYTES = 28 * 1024
 MERMAID_BLOCK = re.compile(r"```mermaid\s*\n(.*?)```", re.DOTALL)
 AUTHORIZATION_STEP = "Authorize, validate, and apply idempotency"
 PERSISTENCE_STEP = "Persist approved data"
+QUEUE_ACK_STEP = "Durable enqueue acknowledged"
+ACCEPTED_STEP = "Accepted response with correlation ID"
+WORKER_DELIVERY_STEP = "Deliver work"
+WORKER_VALIDATION_STEP = "Validate trusted source, schema, and idempotency"
+WORKER_PERSISTENCE_STEP = "Worker->>Data: Persist approved data"
 
 
 def github_anchor(value: str) -> str:
@@ -127,6 +132,56 @@ class MarkdownIntegrityTests(unittest.TestCase):
         self.assertNotIn("Client->>Service: Validated request", prd)
         self.assertNotIn("API->>Data: Validate or persist", prd)
         self.assertNotIn("Input[Validated input]", prd)
+
+    def test_prd_starter_diagrams_model_safe_specialization_paths(self) -> None:
+        prd = (REPOSITORY_ROOT / "docs" / "project" / "PRD.md").read_text(
+            encoding="utf-8"
+        )
+        for phrase in (
+            "Managed entry and identity boundary",
+            "Application processing boundary",
+            "Data boundary",
+            "Operations boundary",
+            "Identity verification",
+            "Application authorization, validation, and compute",
+            "Logs, metrics, traces, and alarms without secrets",
+            "Verified restore test",
+            "Recovery evidence without sensitive values",
+            "Deletion evidence without sensitive values",
+            "Operational owner",
+            "Durable recovery record exists",
+            "Actionable alarm with correlation ID",
+            "Reconciliation evidence",
+        ):
+            self.assertIn(phrase, prd)
+        self.assertNotIn("Actor --> Entry --> Identity --> App", prd)
+        self.assertIn("Entry --> App", prd)
+
+        async_block = next(
+            block
+            for block in MERMAID_BLOCK.findall(prd)
+            if ACCEPTED_STEP in block and WORKER_DELIVERY_STEP in block
+        )
+        self.assertLess(
+            async_block.index(QUEUE_ACK_STEP), async_block.index(ACCEPTED_STEP)
+        )
+        self.assertLess(
+            async_block.index(ACCEPTED_STEP),
+            async_block.index(WORKER_DELIVERY_STEP),
+        )
+        self.assertLess(
+            async_block.index(WORKER_VALIDATION_STEP),
+            async_block.index(WORKER_PERSISTENCE_STEP),
+        )
+
+    def test_prd_requires_diagrams_to_be_specialized_in_place(self) -> None:
+        prd = (REPOSITORY_ROOT / "docs" / "project" / "PRD.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("editable starter patterns", prd)
+        self.assertIn("update the existing\nblocks in place", prd)
+        self.assertIn("Do\nnot append another diagram by default", prd)
+        self.assertIn("A diagram records intended\ndesign", prd)
 
     def test_each_mermaid_block_is_checked_independently(self) -> None:
         fixture = """

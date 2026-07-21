@@ -316,6 +316,19 @@ class PromptPackContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("not a BOOT-00 gate", launch_skill)
 
+    def test_design_edits_existing_diagrams_in_place_and_gate_b_checks_them(self) -> None:
+        design = self.prompt_section("DESIGN-10")
+        gate_b = self.prompt_section("DESIGN-20")
+        self.assertIn("existing PRD Mermaid blocks in place", design)
+        self.assertIn("not append by default", design)
+        self.assertIn("Part I flow changes through REQ-10", design)
+        self.assertIn("diagram-to-design conflict", gate_b)
+        self.assertIn("unused optional\ndiagram paths", gate_b)
+        self.assertIn(
+            "existing diagram slots were specialized in place",
+            gate_b,
+        )
+
     def test_receipts_require_complete_normalized_block_equality(self) -> None:
         self.assertIn("equal to this complete", self.prompts)
         self.assertIn("after trimming surrounding whitespace", self.prompts)
