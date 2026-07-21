@@ -4,6 +4,9 @@ AWS Codex Fastlane is a reusable project template that turns an AWS idea into
 approved requirements, an AWS-informed technical PRD, an organized task plan,
 and a safely bounded build.
 
+Requires Codex and Python 3.11 or newer. AWS credentials are needed only for
+an explicitly authorized deployment or other approved AWS operation.
+
 ## Start
 
 1. Select [Use this template](https://github.com/Levi-Breedlove/aws-bootstrap/generate),
@@ -30,6 +33,10 @@ Codex asks short, plain-language questions, prefers secure pay-per-use
 serverless options when they fit, seeks the lowest practical total cost without
 weakening required safeguards, and records evidence.
 You can always answer, "I'm not sure—recommend one."
+
+When an approved requirement expresses a testable invariant, Codex records a
+`PROP-*` specification, generates framework-appropriate property tests, runs
+them during construction, and records reproducible seeds and counterexamples.
 
 AWS changes require a separate exact authorization naming the account, Region,
 environment, resources, operations, cost ceiling, rollback plan, and expiry.

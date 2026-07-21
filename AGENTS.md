@@ -295,6 +295,14 @@ deployed checks when the approved requirements make them relevant. Teaching
 mode may explain decisions and evidence, but never weakens scope, testing,
 security, gate, or AWS authorization rules and does not create extra documents.
 
+For approved `PROP-*` invariants, DESIGN-10 records applicability, generators,
+oracle, shrink focus, layer, and framework. TASK-10 traces applicable properties;
+BUILD runs them and VERIFY records runs, seed or reproduction command, minimized
+counterexample, and result. Preserve and classify failures before correction.
+Fix only within approved semantics; requirement or design changes return to the
+applicable gate. Never weaken an invariant or generator, discard a seed, or
+claim an unobserved pass. Exact rules live in the prompt pack and test guidance.
+
 ## AWS evidence and research
 
 - Use current primary AWS documentation through official AWS Core for material

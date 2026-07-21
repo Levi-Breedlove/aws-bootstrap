@@ -899,9 +899,12 @@ Complete only the design needed to build safely:
 - schemas, state transitions, idempotency, concurrency, retries, and failures;
 - observability, SLO-relevant signals, recovery, rollback, and teardown;
 - deployment approach, environments, regional constraints, and cost drivers;
-- test strategy, system properties/invariants, and acceptance traceability;
+- test strategy, PBT applicability, PROP invariants, and acceptance traceability;
 - brownfield compatibility, rollout, migration, and rollback when applicable;
 - explicit decisions, alternatives, assumptions, and Well-Architected effects.
+
+Edit existing PRD Mermaid blocks in place; do not append by default. Route
+material Part I flow changes through REQ-10.
 
 For a greenfield application, evaluate a secure managed serverless baseline
 first. Prefer the smallest pay-per-use design that satisfies the accepted
@@ -989,6 +992,8 @@ access.
 
 **Stop conditions:** Stale Gate A; incomplete design/envelope; mismatch between
 requirements, design, or IDs; placeholder approver; altered/partial receipt;
+diagram-to-design conflict; unexplained generic roles or unused optional
+diagram paths;
 or material AWS design evidence is stale or unverified.
 
 **Receipt:** Standard work receipt with WAITING_FOR_GATE_B, followed by the
@@ -1005,6 +1010,8 @@ Show a concise decision brief:
 - canonical complete construction-envelope SHA-256;
 - all ten fields from the current Gate B readiness card;
 - architecture and key tradeoffs;
+- confirmation that the existing diagram slots were specialized in place and
+  agree with the component, interface, data, and failure design;
 - material AWS facts verified through AWS Core, primary sources, and any AWS
   advisor finding the coordinator rejected with its reason;
 - requirement-to-design/test traceability;
@@ -1133,7 +1140,7 @@ task IDs.
 For every task include:
 - stable ID and outcome;
 - status: BACKLOG, READY, IN_PROGRESS, BLOCKED, DONE, or SKIPPED;
-- requirement/bug and design traceability;
+- requirement/bug, design, and applicable PROP traceability;
 - current AUTH ID, dependencies, and explicit skipped-dependency waivers or NONE;
 - exact write set and external-state set;
 - acceptance criteria;
@@ -1142,6 +1149,13 @@ For every task include:
   skip record, and checkpoint fields;
 - GitHub link or PENDING_SYNC;
 - concise execution log.
+
+For every applicable `PROP-*`, include its ID in the task's `Requirements`
+metadata, keep the property in the same implementation task when practical, and
+name the framework or suite, generated domain, exact command, run target, and
+required VERIFY evidence. A property may be omitted only when DESIGN-10 records
+`NOT_APPLICABLE` with a concrete reason. Do not add a separate property-test
+task merely to inflate the graph.
 
 Emit each record in the validator's exact human-first shape: one
 `### <TASK-ID> — <title>` heading; visible Status, Owner, Blocker, and GitHub
@@ -1231,7 +1245,17 @@ ID, base checkpoint, and the incremented persistent attempt before editing.
 Inspect before changing code and make the smallest coherent implementation.
 
 Run the task's validation plus relevant regression, security, IaC, and failure
-checks. Record observed evidence in the exact docs/project/VERIFY.md `Task completion
+checks. For every task-linked `PROP-*`, run the approved property suite and
+record its framework, observed case or run count, seed or reproduction command,
+minimized counterexample or `NONE`, result, and evidence source. On failure,
+preserve and classify the counterexample as `IMPLEMENTATION_DEFECT`,
+`SPECIFICATION_AMBIGUITY_OR_DEFECT`, `GENERATOR_OR_ORACLE_DEFECT`, or
+`ENVIRONMENT_DEFECT`. Fix implementation or test machinery and rerun when the
+approved semantics and boundary remain unchanged. If the requirement,
+invariant, or design must change, stop and route to REQ-10 or DESIGN-10; never
+weaken the property or generator simply to pass.
+
+Record observed evidence in the exact docs/project/VERIFY.md `Task completion
 evidence` table before citing its EV ID. Update docs/project/RUNBOOK.md only if a
 repeatable procedure changed. Mark DONE only when every acceptance criterion
 and required local check passes; otherwise mark BLOCKED with the next useful
@@ -1448,11 +1472,16 @@ Assess the release against the accepted REQ/DES/AUTH revisions.
 
 Verify:
 - requirement and defect acceptance traceability;
-- tests, properties/invariants, failure paths, security, IaC, and packaging;
+- example tests, required PROP evidence, failure paths, security, IaC, and packaging;
 - migration, rollback, recovery, observability, and cost readiness;
 - documentation and version consistency;
 - GitHub review and required checks when accessible;
 - which evidence is LOCAL_PASS versus PENDING_AWS.
+
+Each applicable `PROP-*` requires an observed passing result, framework or
+suite, case or run count, and reproducible seed or command. A prior failure also
+retains its minimized counterexample and classified resolution. Missing or
+unresolved property evidence keeps the release NOT_READY.
 
 Set exactly one release state in docs/project/VERIFY.md: NOT_READY when any required evidence
 is incomplete/failed/stale; READY_TO_DEPLOY when all pre-deployment evidence is

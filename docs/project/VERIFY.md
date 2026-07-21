@@ -148,9 +148,18 @@ Add rows for material workload risks, not every individual test.
 
 ## Property-based test evidence
 
-| Property ID | Framework or suite | Generated cases or runs | Seed or reproduction info | Result | Evidence source |
-|---|---|---|---|---|---|
-| PROP-001 | TODO | TODO | TODO | `NOT_STARTED` | TODO |
+| Property ID | Framework or suite | Generated cases or runs | Seed or reproduction info | Minimized counterexample | Failure class / resolution | Result | Evidence source |
+|---|---|---|---|---|---|---|---|
+| PROP-001 | TODO | TODO | TODO | `NONE` | `NONE` | `NOT_STARTED` | TODO |
+
+For a passing property, record the observed run count and reproducible seed or
+command. For a failure, preserve the smallest observed counterexample and use
+exactly one classification: `IMPLEMENTATION_DEFECT`,
+`SPECIFICATION_AMBIGUITY_OR_DEFECT`, `GENERATOR_OR_ORACLE_DEFECT`, or
+`ENVIRONMENT_DEFECT`. Link the correction evidence without deleting the
+original failure. A specification or invariant change invalidates the affected
+Gate A or Gate B revision; implementation and test-machinery corrections may
+continue only inside the current approved construction boundary.
 
 ## Construction and release readiness checks
 

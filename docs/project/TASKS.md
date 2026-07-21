@@ -161,7 +161,7 @@ routes to `TASK-10`, not construction.
 | Metadata key | Required content |
 |---|---|
 | `Status` | One status from the transition contract |
-| `Requirements` | Current REQ ID and requirement IDs |
+| `Requirements` | Current REQ ID, requirement IDs, and applicable PROP IDs |
 | `Design` | Current DES ID and applicable design sections or decisions |
 | `Authorization` | Current AUTH ID |
 | `Depends on` | Stable task IDs or `NONE` |
@@ -180,6 +180,13 @@ routes to `TASK-10`, not construction.
 | `GitHub issue` | Authorized issue URL or `PENDING_SYNC` |
 | `Last checkpoint` | Coordinator checkpoint ID or `NONE` |
 | `Last updated` | ISO 8601 timestamp or `TODO` before initialization |
+
+When a task implements or verifies an approved property, include its `PROP-*`
+IDs in `Requirements`, name the selected property-testing framework or suite in
+the task outcome or acceptance criteria, and put the exact property-test command
+in `Validation`. DONE evidence must reference the matching
+`docs/project/VERIFY.md` property row with observed runs, reproduction data, and
+result.
 
 `TASK-10` emits every real record in this exact structural shape. The four
 human-status fields remain visible and every other singleton metadata field is
