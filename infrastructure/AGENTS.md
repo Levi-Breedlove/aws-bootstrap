@@ -1,6 +1,7 @@
 # AWS Infrastructure Engineering Guide
 
 These instructions apply under `infrastructure/` and inherit root `AGENTS.md`.
+This guide narrows the root rules and never widens approval or authorization.
 Gate A and Gate B are the only routine human gates.
 
 ## Plain-language summary
