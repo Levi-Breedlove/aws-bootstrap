@@ -1,6 +1,7 @@
 # Verification Engineering Guide
 
 These instructions apply under `tests/` and inherit the root `AGENTS.md`.
+This guide narrows the root rules and never widens approval or authorization.
 
 ## Plain-language summary
 
@@ -12,6 +13,10 @@ not create a false success. Never weaken an assertion merely to obtain a pass.
 
 - Test externally observable behavior rather than private implementation details.
 - Implement approved PRD properties with the language-appropriate property-based testing framework.
+- Preserve the seed, reproduction command, and minimized counterexample for a failing property.
+- Classify a failure as implementation, specification, generator/oracle, or environment before correcting it.
+- Never narrow a generator, weaken an oracle, delete a counterexample, or change an approved invariant merely to pass.
+- Rerun the property and relevant example/regression tests after correction.
 - Cover happy paths, invalid input, authentication, authorization, boundaries, concurrency, and failures.
 - Distinguish unit, integration, end-to-end, security, reliability, performance, and AWS environment tests.
 - Do not weaken, delete, or skip assertions merely to make tests pass.

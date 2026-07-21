@@ -832,6 +832,26 @@ or recovery control.
 
 ## 24. Property-based testing specification
 
+During DESIGN-10, classify every measurable Gate A requirement. Use
+`APPLICABLE` only when a generated input or state space and a stable oracle can
+test an invariant; otherwise record `NOT_APPLICABLE` with a concrete reason.
+Property-based testing is optional until an invariant is classified as
+applicable. Every approved `PROP-*` is then required construction and release
+evidence unless a later owner-approved requirements or design revision removes
+or replaces it.
+
+| Requirement ID | Applicability | Reason or property IDs |
+|---|---|---|
+| TODO | `APPLICABLE` / `NOT_APPLICABLE` | TODO |
+
+Before Gate B, replace the applicability placeholder and select:
+
+- language-appropriate framework or suite;
+- generated case or run target and time bound;
+- seed and reproduction-command format;
+- generators, preconditions, oracle, and boundary or shrink focus;
+- test layer and required evidence destination.
+
 | Property ID | Requirement IDs | Invariant | Generated inputs or state | Preconditions | Oracle | Boundary or shrink focus | Layer |
 |---|---|---|---|---|---|---|---|
 | PROP-001 | SEC-002 | An actor never observes another actor's protected resource. | Actors, resources, roles, identifiers | Valid authenticated actors | Access allowed only when policy relation holds | Cross-tenant IDs, missing ownership, role changes | Integration |
@@ -853,6 +873,17 @@ Add workload-specific properties for:
 - redaction;
 - pagination;
 - migrations.
+
+When a property test finds a counterexample, preserve its seed, reproduction
+command, and minimized case when the framework supplies one. Classify the
+failure as one of:
+
+- `IMPLEMENTATION_DEFECT`;
+- `SPECIFICATION_AMBIGUITY_OR_DEFECT`;
+- `GENERATOR_OR_ORACLE_DEFECT`; or
+- `ENVIRONMENT_DEFECT`.
+
+Never change an approved property merely to make a valid counterexample pass.
 
 ## 25. Test data and environments
 

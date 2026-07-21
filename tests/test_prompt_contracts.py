@@ -329,6 +329,46 @@ class PromptPackContractTests(unittest.TestCase):
             gate_b,
         )
 
+    def test_property_specs_flow_through_tasks_build_and_release_evidence(self) -> None:
+        design = self.prompt_section("DESIGN-10")
+        tasks = self.prompt_section("TASK-10")
+        build = self.prompt_section("BUILD-10")
+        release = self.prompt_section("RELEASE-10")
+        test_agents = (PROJECT_ROOT / "tests/AGENTS.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("PBT applicability, PROP invariants", design)
+        self.assertIn("applicable `PROP-*`", tasks)
+        self.assertIn("framework or suite, generated domain", tasks)
+        self.assertIn("run the approved property suite", build)
+        self.assertIn("minimized counterexample", build)
+        self.assertIn("SPECIFICATION_AMBIGUITY_OR_DEFECT", build)
+        self.assertIn("route to REQ-10 or DESIGN-10", build)
+        self.assertIn("Missing or\nunresolved property evidence", release)
+
+        for phrase in (
+            "classify every measurable Gate A requirement",
+            "APPLICABLE` / `NOT_APPLICABLE",
+            "seed and reproduction-command format",
+            "Never change an approved property",
+        ):
+            self.assertIn(phrase, self.prd)
+        self.assertIn(
+            "Current REQ ID, requirement IDs, and applicable PROP IDs",
+            self.tasks,
+        )
+        for phrase in (
+            "Minimized counterexample",
+            "Failure class / resolution",
+            "preserve the smallest observed counterexample",
+        ):
+            self.assertIn(phrase, self.verify)
+        self.assertIn("Never weaken an invariant", self.agents)
+        self.assertIn("Never narrow a generator", test_agents)
+        self.assertIn("Requires Codex and Python 3.11 or newer", self.root_readme)
+        self.assertIn("reproducible seeds and counterexamples", self.root_readme)
+
     def test_receipts_require_complete_normalized_block_equality(self) -> None:
         self.assertIn("equal to this complete", self.prompts)
         self.assertIn("after trimming surrounding whitespace", self.prompts)
