@@ -37,7 +37,6 @@ authority to invoke them.
 - Installation commands are owner-run; Fastlane never installs software,
   changes plugin state, signs in, or trusts hooks.
 - Only the official Agent Toolkit source is accepted for required AWS evidence.
-- The retired local marketplace is never registered or used as a fallback.
 - Setup never inspects credentials, accesses an AWS account, or calls AWS
   account tools.
 - Login, plugin, hook, machine, username, credential, and session state are

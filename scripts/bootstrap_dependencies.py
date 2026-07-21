@@ -15,7 +15,6 @@ from typing import Any
 AWS_TOOLKIT_REPOSITORY = "https://github.com/aws/agent-toolkit-for-aws"
 AWS_TOOLKIT_MARKETPLACE = "aws/agent-toolkit-for-aws"
 AWS_CORE_PLUGIN_ID = "aws-core@agent-toolkit-for-aws"
-LEGACY_MARKETPLACE_PATH = ".agents/plugins/marketplace.json"
 AWS_CORE_MANAGEMENT_COMMAND = "/plugins"
 AWS_CORE_RUNTIME_COMMAND = "uvx"
 AWS_CORE_RUNTIME_PACKAGE = "uv"
@@ -70,18 +69,6 @@ def inspect_repository(root: Path) -> dict[str, Any]:
                 SETUP_ASSISTANT_SCRIPT,
             )
         )
-    legacy_marketplace = root / LEGACY_MARKETPLACE_PATH
-    legacy_marketplace_status = "ABSENT"
-    if legacy_marketplace.exists():
-        legacy_marketplace_status = "PRESENT"
-        diagnostics.append(
-            diagnostic(
-                "LEGACY_PINNED_MARKETPLACE_PRESENT",
-                "Remove the repository-local AWS Core marketplace; Fastlane uses the official AWS Agent Toolkit marketplace.",
-                LEGACY_MARKETPLACE_PATH,
-            )
-        )
-
     skill_states: dict[str, str] = {}
     skill_descriptions: dict[str, str] = {}
     for name in REQUIRED_SKILLS:
@@ -198,7 +185,6 @@ def inspect_repository(root: Path) -> dict[str, Any]:
             ],
             "plugin_identity": AWS_CORE_PLUGIN_ID,
             "plugin": "aws-core",
-            "legacy_repository_marketplace": legacy_marketplace_status,
             "installation_policy": "OWNER_MANAGED",
             "setup_mode": "INSTRUCTIONS_ONLY",
             "availability_policy": "DEFERRED_UNTIL_AWS_DESIGN",

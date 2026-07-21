@@ -107,7 +107,6 @@ MANDATORY_REQUIRED_FILES = {
     "bootstrap.yaml",
     "docs/adr/0000-template.md",
     "docs/DEPENDENCY-POLICY.md",
-    "docs/EXISTING-AWS-CORE.md",
     "docs/SETUP.md",
     "docs/TROUBLESHOOTING.md",
     "docs/WORKFLOW.md",

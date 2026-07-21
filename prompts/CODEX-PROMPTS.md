@@ -323,8 +323,8 @@ enabled plugin may require a new Codex session. Reuse an existing official copy
 instead of requesting another installation. If setup is needed for AWS design,
 use `/plugins`; register a missing marketplace only with the owner-run command
 `codex plugin marketplace add aws/agent-toolkit-for-aws`, restart, and resume
-with `CONTINUE AWS DESIGN`. Never use the retired repository-local marketplace.
-Fastlane does not inspect private plugin state, compare hook hashes, request
+with `CONTINUE AWS DESIGN`. Fastlane does not inspect private plugin state,
+compare hook hashes, request
 screenshots, run synthetic hook probes, or create a hook-trust receipt. For
 material decisions, require attributable live AWS Core `retrieve_skill` and
 `search_documentation` results rather than generic connectors, cached prose, or
@@ -414,8 +414,8 @@ project intake or Gate A.
 repository or explicit adoption target is locally accessible.
 
 **Accepted commands:** `init template`, `initialize template`, `start
-Fastlane`, `continue setup`, the expanded `START AWS CODEX FASTLANE`
-command, and the legacy external-target form `START AWS CODEX BOOTSTRAP`.
+Fastlane`, `continue setup`, and the expanded `START AWS CODEX FASTLANE`
+command.
 
 **Authoritative inputs:** Canonical repository and optional adoption-target
 paths; manifest and source hashes; bootstrap dry-run; dependency-check and
@@ -543,8 +543,6 @@ previous local blocker.
      `aws/agent-toolkit-for-aws`;
    - if visibly available, report `AVAILABLE`;
    - otherwise report `DEFERRED_UNTIL_DESIGN` and continue;
-   - if the retired `aws-core@aws-codex-fastlane-dependencies` copy is
-     visible, mention once that it should be removed before AWS design;
    - never install, enable, disable, update, pin, hash, probe, or trust a plugin
      or hook for the owner.
 

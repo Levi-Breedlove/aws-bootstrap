@@ -200,7 +200,7 @@ class PromptPackContractTests(unittest.TestCase):
     def test_markdown_fences_and_launch_commands_are_complete(self) -> None:
         self.assertEqual(self.prompts.count("~~~") % 2, 0)
         self.assertEqual(self.prd.count("```") % 2, 0)
-        self.assertIn("START AWS CODEX BOOTSTRAP", self.prompts)
+        self.assertIn("START AWS CODEX FASTLANE", self.prompts)
         self.assertIn("begin its questions immediately", self.prompt_section("BOOT-00"))
 
     def test_plain_language_setup_is_friendly_resumable_and_verifies_aws_core(self) -> None:
@@ -231,19 +231,6 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("aws-core@agent-toolkit-for-aws", boot)
         self.assertIn("AWS access: NOT USED", boot)
         self.assertIn("pytest", boot)
-        for obsolete in (
-            "four short setup checks",
-            "HOOK_REVIEW_REQUIRED",
-            "HOOK_PROBES_REQUIRED",
-            "AWS_CORE_HANDSHAKE_REQUIRED",
-            "FASTLANE_SYNTHETIC_DO_NOT_USE",
-            "FASTLANE_HOOK_ALLOW_PROBE",
-            "VERIFY AWS CORE AND CONTINUE FASTLANE",
-            "codex plugin marketplace add .",
-            "36f16570de2015c0f0ce94ba9e391bd703c9ffb7",
-        ):
-            self.assertNotIn(obsolete, boot)
-            self.assertNotIn(obsolete, launch_skill)
         self.assertNotIn("subprocess", (
             PROJECT_ROOT / "scripts/setup_assistant.py"
         ).read_text(encoding="utf-8"))
@@ -253,13 +240,9 @@ class PromptPackContractTests(unittest.TestCase):
         for document in (boot, self.root_readme, self.agents):
             self.assertIn("aws/agent-toolkit-for-aws", document)
             self.assertIn("aws-core@agent-toolkit-for-aws", document)
-            self.assertNotIn("36f16570de2015c0f0ce94ba9e391bd703c9ffb7", document)
-            self.assertNotIn("DECLARED_AND_PINNED", document)
-            self.assertNotIn("codex plugin marketplace add .", document)
         self.assertIn("Do not pin", self.agents)
         self.assertIn("does not pin a plugin version or commit", self.root_readme)
         self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
-        self.assertIn("retired `aws-core@aws-codex-fastlane-dependencies`", boot)
 
     def test_aws_core_advises_both_gates_without_becoming_authority(self) -> None:
         requirements = self.prompt_section("REQ-10")
@@ -558,7 +541,6 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn(path, self.root_readme)
         self.assertNotIn("codex plugin marketplace add", self.root_readme)
         self.assertNotIn("continue setup", self.root_readme)
-        self.assertNotIn("uv_setup_assistant.py", self.root_readme)
         self.assertLessEqual(len(self.root_readme.splitlines()), 90)
         self.assertFalse((REPOSITORY_ROOT / "my-project" / "README.md").exists())
 

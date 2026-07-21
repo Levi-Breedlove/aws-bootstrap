@@ -20,9 +20,6 @@ from typing import Any, Callable, Mapping, Sequence
 OFFICIAL_AWS_MARKETPLACE = "aws/agent-toolkit-for-aws"
 OFFICIAL_AWS_MARKETPLACE_NAME = "agent-toolkit-for-aws"
 OFFICIAL_AWS_CORE_IDENTITY = "aws-core@agent-toolkit-for-aws"
-LEGACY_FASTLANE_AWS_CORE_IDENTITY = (
-    "aws-core@aws-codex-fastlane-dependencies"
-)
 
 CODEX_GUIDE = "https://learn.chatgpt.com/docs/codex/cli#getting-started"
 CODEX_PLUGIN_GUIDE = "https://learn.chatgpt.com/docs/plugins"
@@ -34,9 +31,6 @@ AWS_PLUGIN_GUIDE = (
 )
 
 MARKETPLACE_COMMAND = "codex plugin marketplace add aws/agent-toolkit-for-aws"
-LEGACY_MARKETPLACE_REMOVE_COMMAND = (
-    "codex plugin marketplace remove aws-codex-fastlane-dependencies"
-)
 
 SETUP_STATES = ("LOCAL_PREREQUISITES_REQUIRED", "READY_FOR_INTAKE")
 SUPPORTED_PLUGIN_SURFACES = {
@@ -55,8 +49,6 @@ BOOLEAN_OR_NULL_EVIDENCE_FIELDS = frozenset(
         "official_plugin_enabled",
         "official_plugin_loaded_in_session",
         "official_plugin_source_verified",
-        "legacy_plugin_enabled",
-        "legacy_marketplace_registered",
     }
 )
 STRING_OR_NULL_EVIDENCE_FIELDS = frozenset(
@@ -324,30 +316,17 @@ def _aws_core_summary(evidence: Mapping[str, Any]) -> tuple[str, str, dict[str, 
         and evidence.get("observed_plugin_source") == OFFICIAL_AWS_MARKETPLACE_NAME
         and evidence.get("observed_plugin_identity") == OFFICIAL_AWS_CORE_IDENTITY
     )
-    legacy = evidence.get("legacy_plugin_enabled") is True
     unknown = evidence.get("unknown_plugin_sources")
     unknown_sources = (
         sorted({item for item in unknown if isinstance(item, str) and item.strip()})
         if isinstance(unknown, list)
         else []
     )
-    if official_ready and not legacy and not unknown_sources:
+    if official_ready and not unknown_sources:
         return (
             "AVAILABLE",
             "Official AWS Core is available for later AWS design work.",
             {"plugin_identity": OFFICIAL_AWS_CORE_IDENTITY},
-        )
-    if legacy:
-        return (
-            "DEFERRED_UNTIL_DESIGN",
-            (
-                "An older Fastlane AWS Core copy is present. Intake can continue; "
-                "before AWS design, keep only AWS Core from Agent Toolkit for AWS."
-            ),
-            {
-                "legacy_plugin_identity": LEGACY_FASTLANE_AWS_CORE_IDENTITY,
-                "cleanup_command": LEGACY_MARKETPLACE_REMOVE_COMMAND,
-            },
         )
     if unknown_sources:
         return (

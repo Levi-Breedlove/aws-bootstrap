@@ -56,21 +56,6 @@ Official references:
 - [AWS Agent Toolkit plugin setup](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/plugins.html)
 - [Codex plugins](https://learn.chatgpt.com/docs/plugins)
 
-## If an old Fastlane AWS Core appears
-
-Older template revisions registered **AWS Codex Fastlane Dependencies**. If two
-AWS Core entries appear:
-
-1. Keep **AWS Core** under **Agent Toolkit for AWS**.
-2. Uninstall or disable **AWS Core** under **AWS Codex Fastlane Dependencies**.
-3. Optionally remove the old marketplace:
-
-   ```text
-   codex plugin marketplace remove aws-codex-fastlane-dependencies
-   ```
-
-The retired command `codex plugin marketplace add .` must not be used.
-
 ## Missing local tools
 
 Install only what your chosen Codex surface actually needs.

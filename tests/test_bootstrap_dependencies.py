@@ -27,7 +27,6 @@ class BootstrapDependencyTests(unittest.TestCase):
         self.assertEqual(toolkit["version_policy"], "OFFICIAL_CURRENT_NO_TEMPLATE_PIN")
         self.assertEqual(toolkit["availability_policy"], "DEFERRED_UNTIL_AWS_DESIGN")
         self.assertNotIn("last_tested_version", toolkit)
-        self.assertEqual(toolkit["legacy_repository_marketplace"], "ABSENT")
         self.assertEqual(toolkit["installation_policy"], "OWNER_MANAGED")
         self.assertEqual(toolkit["setup_mode"], "INSTRUCTIONS_ONLY")
         self.assertEqual(
@@ -57,9 +56,6 @@ class BootstrapDependencyTests(unittest.TestCase):
         self.assertEqual(report["fastlane_skills"]["status"], "READY")
         self.assertEqual(report["project_agents"]["status"], "READY")
 
-    def test_repository_local_aws_core_marketplace_is_absent(self) -> None:
-        self.assertFalse((REPOSITORY_ROOT / dependencies.LEGACY_MARKETPLACE_PATH).exists())
-
     def test_project_agents_are_read_only_and_do_not_override_model_or_mcp(self) -> None:
         for name in dependencies.REQUIRED_AGENTS:
             content = (
@@ -74,20 +70,6 @@ class BootstrapDependencyTests(unittest.TestCase):
             ):
                 self.assertNotIn(forbidden, content)
             self.assertIn("Never", content)
-
-    def test_legacy_repository_marketplace_fails_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            project = Path(temporary) / "project"
-            shutil.copytree(REPOSITORY_ROOT, project)
-            path = project / dependencies.LEGACY_MARKETPLACE_PATH
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text('{"name":"legacy"}', encoding="utf-8")
-            report = dependencies.inspect_repository(project)
-        self.assertEqual(report["status"], "BLOCKED")
-        self.assertIn(
-            "LEGACY_PINNED_MARKETPLACE_PRESENT",
-            {item["code"] for item in report["diagnostics"]},
-        )
 
     def test_launch_skill_keeps_plain_language_init_trigger(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

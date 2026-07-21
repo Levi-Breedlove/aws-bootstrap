@@ -36,10 +36,10 @@ and resume. Never route a configured project back through setup for this.
 Plugin installation, updates, and hook trust remain owner-managed in Codex's
 native UI. Never install software, register a marketplace, change plugin state,
 trust hooks, compare hook hashes, request screenshots, run synthetic hook
-probes, inspect credentials, or persist client/plugin/trust state. The retired
-local marketplace and `aws-core@aws-codex-fastlane-dependencies` are not valid
-fallbacks. Setup never calls AWS account tools and never runs maintainer tests
-or probes for `pytest`.
+probes, inspect credentials, or persist client/plugin/trust state. Accept only
+current official `aws-core@agent-toolkit-for-aws` for required AWS evidence.
+Setup never calls AWS account tools and never runs maintainer tests or probes
+for `pytest`.
 
 ## How to use this guide
 

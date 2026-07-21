@@ -13,21 +13,6 @@ Read the doctor's `next_prompt`. If it is `INTAKE-10` or later, continue
 that prompt and do not rerun BOOT-00. Missing AWS Core is not a reason to return
 to setup.
 
-## Two AWS Core entries or four hooks appear
-
-An older template may have registered **AWS Codex Fastlane Dependencies** in
-addition to the official **Agent Toolkit for AWS** marketplace.
-
-1. Keep **AWS Core** under **Agent Toolkit for AWS**.
-2. Disable or uninstall the copy under **AWS Codex Fastlane Dependencies**.
-3. Optionally remove the retired marketplace:
-
-   ```text
-   codex plugin marketplace remove aws-codex-fastlane-dependencies
-   ```
-
-Never run the retired `codex plugin marketplace add .` command.
-
 ## AWS Core is missing during design
 
 Project intake and Gate A can continue without it. When an AWS-specific design
