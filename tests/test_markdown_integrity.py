@@ -9,6 +9,9 @@ from urllib.parse import unquote
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
 MAX_AGENT_CONTEXT_BYTES = 28 * 1024
+NESTED_AGENT_SCOPE_MARKER = (
+    "This guide narrows the root rules and never widens approval or authorization."
+)
 MERMAID_BLOCK = re.compile(r"```mermaid\s*\n(.*?)```", re.DOTALL)
 AUTHORIZATION_STEP = "Authorize, validate, and apply idempotency"
 PERSISTENCE_STEP = "Persist approved data"
@@ -156,12 +159,28 @@ sequenceDiagram
                 REPOSITORY_ROOT / "infrastructure" / "AGENTS.md",
             ],
             "tests": [root_agents, REPOSITORY_ROOT / "tests" / "AGENTS.md"],
+            "scripts": [root_agents, REPOSITORY_ROOT / "scripts" / "AGENTS.md"],
         }
         sizes = {
             name: sum(len(path.read_bytes()) for path in paths)
             for name, paths in chains.items()
         }
         self.assertLessEqual(max(sizes.values()), MAX_AGENT_CONTEXT_BYTES, sizes)
+
+    def test_nested_agent_guides_explicitly_narrow_root_authority(self) -> None:
+        root_agents = (REPOSITORY_ROOT / "AGENTS.md").resolve()
+        nested_guides = sorted(
+            path
+            for path in REPOSITORY_ROOT.rglob("AGENTS.md")
+            if path.resolve() != root_agents and ".git" not in path.parts
+        )
+        self.assertTrue(nested_guides)
+        for guide in nested_guides:
+            with self.subTest(guide=guide.relative_to(REPOSITORY_ROOT)):
+                self.assertIn(
+                    NESTED_AGENT_SCOPE_MARKER,
+                    guide.read_text(encoding="utf-8"),
+                )
 
     def test_readme_is_short_human_onboarding(self) -> None:
         readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")

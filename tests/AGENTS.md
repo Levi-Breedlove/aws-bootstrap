@@ -1,6 +1,7 @@
 # Verification Engineering Guide
 
 These instructions apply under `tests/` and inherit the root `AGENTS.md`.
+This guide narrows the root rules and never widens approval or authorization.
 
 ## Plain-language summary
 

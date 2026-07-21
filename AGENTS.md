@@ -222,18 +222,13 @@ READY_TO_DEPLOY; AWS-30 records deployed evidence and returns to RELEASE-10 for
 the RELEASE_VERIFIED decision.
 
 Task-plan state is `UNINITIALIZED`, `CURRENT`, or `STALE`; only `CURRENT` is
-runnable. Use `scripts/task_waves.py` for all run, claim, status, checkpoint,
-pause, completion, and resume transitions. Never hand-edit coordinator state.
-Use monotonic run, task, checkpoint, and evidence IDs. Reconcile every
-`IN_PROGRESS` task before pausing, and inspect a persisted `RUNNING` state before
-resuming.
+runnable. Never hand-edit coordinator state. The exact engine-maintenance,
+transition, checkpoint, and validation rules live in `scripts/AGENTS.md`, the
+`build-fastlane` skill, TASK-10, BUILD-10, BUILD-20, and
+`docs/project/TASKS.md`.
+After each validated task or wave, update `docs/project/VERIFY.md`'s
+`Task completion evidence` table with observed local evidence.
 
-After each validated task or wave, inspect the integrated diff and record the
-observed command/result, actor/time, tested commit/worktree/artifact, durable
-source, and `LOCAL_PASS` or `VERIFIED` status in docs/project/VERIFY.md's
-`Task completion evidence` table. Run the doctor before the next wave. The exact
-commands and transition rules live in the `build-fastlane` skill, TASK-10,
-BUILD-10, BUILD-20, and docs/project/TASKS.md.
 
 ## Task execution boundary
 

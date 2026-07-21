@@ -1,0 +1,47 @@
+# Fastlane Engine Maintenance Guide
+
+These instructions apply under `scripts/` and inherit the root `AGENTS.md`.
+This guide narrows the root rules and never widens approval or authorization.
+
+## Plain-language summary
+
+Fastlane scripts are the local control plane for setup, lifecycle routing, task
+state, validation, manifest integrity, and packaging. Keep them deterministic,
+cross-platform, fail-closed, and free of hidden external actions.
+
+## Agent reference: exact engine rules
+
+- Use the Python standard library unless an approved requirement explicitly
+  changes the runtime contract.
+- Never install software, change Codex plugin or hook state, inspect credentials,
+  access AWS, mutate GitHub, or launch another client from a Fastlane script.
+- Preserve documented command-line arguments, exit behavior, and JSON fields.
+  Additive schema changes require tests and matching documentation.
+- Canonicalize paths, reject unsafe overlap and symlink traversal, preserve
+  brownfield files, and use atomic writes for tracked lifecycle state.
+- Keep manifest inventory, source hashes, package bytes, and checksums
+  deterministic. A stale or unexpected source file fails closed.
+- Derive doctor and setup status from repository evidence. Never infer human
+  approval, AWS authority, plugin trust, or deployed success.
+- `task_waves.py` may return or claim only `READY` tasks with satisfied
+  dependencies. Preserve legal transitions, bounded attempts, monotonic IDs,
+  coordinator ownership, checkpoints, and resumable state.
+- Reconcile every `IN_PROGRESS` task before pausing. Inspect a persisted
+  `RUNNING` state before resuming; never blindly repeat an external action.
+- After a validated task or wave, record the observed command, result, actor,
+  time, tested revision or artifact, durable source, and evidence status in
+  `../docs/project/VERIFY.md`. Run the doctor before the next wave.
+
+## Required validation
+
+For an affected script, run its focused tests and then:
+
+```text
+python -m unittest discover -s tests -v
+python scripts/update_manifest.py --check
+python scripts/package_release.py --check
+git diff --check
+```
+
+When source files intentionally change, update the manifest with
+`python scripts/update_manifest.py --write` before running the checks.
