@@ -1,6 +1,6 @@
 ---
 name: operate-fastlane-aws
-description: Perform the Fastlane AWS read-only preflight, exactly authorized deployment, deployed-evidence reconciliation, residual-resource review, or teardown. Use only when the user explicitly invokes this skill for AWS-10, AWS-20, AWS-30, AWS-40, or AWS-50.
+description: Run Fastlane AWS preflight, authorized deployment, reconciliation, review, or teardown. Use only when the user explicitly invokes this skill.
 ---
 
 # Operate Fastlane AWS
@@ -24,11 +24,11 @@ description: Perform the Fastlane AWS read-only preflight, exactly authorized de
    immutable-artifact binding, PASS/FAIL, `Credentials inspected` = `NO`, and
    `AWS account accessed` = `NO`; the documentation row also records returned
    official AWS sources. A generic connector, unattributed row, installation
-   record, cached result, prior phase receipt, or prose claim is insufficient.
+   record, cached result, prior phase receipt, or challenger prose is insufficient.
    Missing or failed evidence blocks AWS execution planning. Record the
-   observed current version only as evidence metadata; do not pin it. Use the read-only
-   `fastlane-aws-advisor` where useful; it cannot replace the official live
-   calls.
+   observed current version only as evidence metadata; do not pin it. The
+   coordinator invokes AWS Core directly; an architecture challenger
+   cannot replace those live calls.
 4. Treat documentation access, credentials, connector access, and IAM
    permissions as capabilities only. They never authorize an AWS change.
 5. Run `AWS-10` read-only first. Reconfirm the caller, account, role or profile,

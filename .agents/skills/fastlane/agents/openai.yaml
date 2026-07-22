@@ -1,0 +1,6 @@
+interface:
+  display_name: "Fastlane"
+  short_description: "Coordinate the complete Fastlane lifecycle"
+  default_prompt: "Use $fastlane for init template, initialization, resume, planning, or approved construction through one coordinator."
+policy:
+  allow_implicit_invocation: true

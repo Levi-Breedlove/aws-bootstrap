@@ -1,0 +1,6 @@
+interface:
+  display_name: "Explain Fastlane"
+  short_description: "Explain Fastlane without changing project state"
+  default_prompt: "Use $explain-fastlane to explain the requested Fastlane topic, preserve project state, and restore the pending owner action."
+policy:
+  allow_implicit_invocation: false

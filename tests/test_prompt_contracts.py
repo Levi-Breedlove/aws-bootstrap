@@ -28,7 +28,6 @@ PROMPT_IDS = [
     "AWS-30",
     "AWS-40",
     "AWS-50",
-    "LEARN-10",
 ]
 
 CONTRACT_LABELS = [
@@ -48,7 +47,7 @@ RESERVED_GLOBAL_INSTRUCTION_HEADROOM_BYTES = 8 * 1024
 MAX_REPOSITORY_INSTRUCTION_CHAIN_BYTES = (
     min(
         DEFAULT_PROJECT_DOC_MAX_BYTES - RESERVED_GLOBAL_INSTRUCTION_HEADROOM_BYTES,
-        24_302,
+        18_000,
     )
 )
 MAX_SKILL_DESCRIPTION_CHARACTERS = 320
@@ -87,6 +86,7 @@ class PromptPackContractTests(unittest.TestCase):
     ) -> None:
         agent_files = sorted(PROJECT_ROOT.rglob("AGENTS.md"))
         self.assertGreater(len(agent_files), 0)
+        self.assertLessEqual(len((PROJECT_ROOT / "AGENTS.md").read_bytes()), 8_000)
 
         for agent_file in agent_files:
             chain: list[Path] = []
@@ -213,13 +213,16 @@ class PromptPackContractTests(unittest.TestCase):
 
     def test_plain_language_setup_is_friendly_resumable_and_verifies_aws_core(self) -> None:
         boot = self.prompt_section("BOOT-00")
-        launch_skill = (
-            PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
+        coordinator = (PROJECT_ROOT / ".agents/skills/fastlane/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        coordinator_config = (
+            PROJECT_ROOT / ".agents/skills/fastlane/agents/openai.yaml"
         ).read_text(encoding="utf-8")
         for phrase in ("init template", "initialize template", "start Fastlane"):
             self.assertIn(phrase, boot)
-            self.assertIn(phrase, launch_skill)
-            self.assertIn(phrase, self.agents)
+        self.assertIn("init template", coordinator_config)
+        self.assertIn("single coordinator", coordinator)
         self.assertIn("continue setup", boot)
         self.assertIn("python scripts/setup_assistant.py welcome", boot)
         self.assertIn("Reproduce stdout exactly once", boot)
@@ -230,15 +233,10 @@ class PromptPackContractTests(unittest.TestCase):
             "development budget posture",
         ):
             self.assertIn(phrase, boot)
-        self.assertIn("optional budget in one reply", launch_skill)
         self.assertNotIn("Technical status:", boot)
         self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
-        self.assertIn(
-            "AWS Core is advisory during planning, not a BOOT-00 gate",
-            launch_skill,
-        )
-        self.assertIn("ask its first one to three", launch_skill)
-        self.assertIn("Never restart BOOT-00 or repeat setup questions", launch_skill)
+        self.assertIn("AWS Core is not required for BOOT-00", self.agents)
+        self.assertIn("never repeat setup", self.agents)
         self.assertIn("Never ask for another `init template`", boot)
         self.assertIn("aws-core@agent-toolkit-for-aws", boot)
         self.assertIn("AWS access: NOT USED", boot)
@@ -256,45 +254,54 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("does not pin a plugin version or commit", self.root_readme)
         self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
 
-    def test_aws_core_advises_both_gates_without_becoming_authority(self) -> None:
+    def test_optional_challengers_are_conditional_and_non_authoritative(self) -> None:
         requirements = self.prompt_section("REQ-10")
-        gate_a = self.prompt_section("INTAKE-20")
         design = self.prompt_section("DESIGN-10")
+        gate_a = self.prompt_section("INTAKE-20")
         gate_b = self.prompt_section("DESIGN-20")
-        self.assertIn("fastlane-requirements-reviewer", requirements)
-        for section in (requirements, design):
-            self.assertIn("fastlane-aws-advisor", section)
-            self.assertIn("AWS Core", section)
-            self.assertIn("only writer", section)
+        self.assertIn("fastlane-requirements-challenger", requirements)
+        self.assertIn("Quick MVP uses no\nsubagent by default", requirements)
+        self.assertIn("fastlane-architecture-challenger", design)
+        self.assertIn("after completing the proposed design", design.lower())
+        self.assertIn("only writer", requirements)
+        self.assertIn("only writer", design)
         self.assertIn("continue ordinary\nrequirements work", requirements)
         self.assertIn("material AWS feasibility fact", gate_a)
         self.assertIn("material AWS design evidence", gate_b)
-        self.assertIn(
-            "AWS Core advises; it cannot approve either gate or authorize an AWS change.",
-            self.root_readme,
-        )
-        self.assertRegex(requirements, r"Neither advisor\s+can approve Gate A")
-        self.assertIn("cannot replace the\ncalls or approve Gate B", design)
 
+        for name in (
+            "fastlane-requirements-challenger",
+            "fastlane-architecture-challenger",
+        ):
+            content = (
+                PROJECT_ROOT / ".codex" / "agents" / f"{name}.toml"
+            ).read_text(encoding="utf-8")
+            self.assertIn('sandbox_mode = "read-only"', content)
+            self.assertIn("Never edit files", content)
+            self.assertRegex(content, r"Never .*approve")
     def test_aws_core_is_wired_through_planning_build_and_operations(self) -> None:
-        build_skill = (
-            PROJECT_ROOT / ".agents/skills/build-fastlane/SKILL.md"
+        deliver_reference = (
+            PROJECT_ROOT / ".agents/skills/fastlane/references/deliver.md"
         ).read_text(encoding="utf-8")
         operate_skill = (
             PROJECT_ROOT / ".agents/skills/operate-fastlane-aws/SKILL.md"
         ).read_text(encoding="utf-8")
-        aws_advisor = (
-            PROJECT_ROOT / ".codex/agents/fastlane-aws-advisor.toml"
+        architecture_challenger = (
+            PROJECT_ROOT / ".codex/agents/fastlane-architecture-challenger.toml"
         ).read_text(encoding="utf-8")
-        for surface in (self.agents, build_skill, operate_skill, aws_advisor):
+        for surface in (
+            self.agents,
+            deliver_reference,
+            operate_skill,
+            architecture_challenger,
+        ):
             self.assertIn("AWS Core", surface)
-        self.assertIn("official current AWS Core", build_skill)
-        self.assertIn("release-readiness", build_skill)
-        self.assertIn("pause only the affected AWS-specific task", build_skill)
-        self.assertIn("throughout requirements, design, construction", aws_advisor)
+        self.assertIn("official current AWS Core", deliver_reference)
+        self.assertIn("release-readiness", deliver_reference)
+        self.assertIn("pause only the affected AWS-specific task", deliver_reference)
+        self.assertIn("cannot replace those live calls", operate_skill)
         self.assertIn("aws-core@agent-toolkit-for-aws", operate_skill)
         self.assertIn("not required for BOOT-00", self.agents)
-
     def test_design_and_aws_preflight_require_fresh_aws_core_evidence(self) -> None:
         design = self.prompt_section("DESIGN-10")
         aws_preflight = self.prompt_section("AWS-10")
@@ -323,10 +330,7 @@ class PromptPackContractTests(unittest.TestCase):
             "AWS account accessed` = `NO",
         ):
             self.assertIn(phrase, operate_skill)
-        launch_skill = (
-            PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
-        ).read_text(encoding="utf-8")
-        self.assertIn("not a BOOT-00 gate", launch_skill)
+        self.assertIn("not required for BOOT-00", self.agents)
 
     def test_design_edits_existing_diagrams_in_place_and_gate_b_checks_them(self) -> None:
         design = self.prompt_section("DESIGN-10")
@@ -567,31 +571,38 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("Task-plan revision", tasks)
         self.assertIn("explicit skipped-dependency waivers", tasks)
         self.assertIn("durable coordinator run ID", build)
-        self.assertIn("isolated worktrees", build)
+        self.assertIn("No subagent may edit implementation files", build)
         self.assertIn("UNKNOWN", build)
 
     def test_run_lifecycle_commands_are_complete_and_mode_specific(self) -> None:
         single = self.prompt_section("BUILD-10")
         autonomous = self.prompt_section("BUILD-20")
-        common_claim = (
-            "--claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 "
+        coordinator_claim = (
+            "--claim TASK-0001 --owner codex-coordinator --run-id RUN-0001 "
             "--coordinator codex-coordinator --checkpoint CP-0000"
         )
         self.assertIn("--start-run RUN-0001 --coordinator codex-coordinator --run-mode SINGLE_TASK", single)
-        self.assertIn(common_claim, single)
+        self.assertIn(coordinator_claim, single)
+        self.assertNotIn("codex-worker", single)
         self.assertIn("--pause-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002", single)
         self.assertIn("--set-status TASK-0001 DONE --evidence EV-0001 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001", single)
         self.assertIn("--complete-run RUN-0001 --coordinator codex-coordinator", single)
         self.assertIn("--resume-run RUN-0001 --coordinator codex-coordinator", single)
         self.assertIn("--start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS", autonomous)
-        self.assertIn("--safe-ready --isolated-worktrees --json", autonomous)
-        self.assertIn(common_claim, autonomous)
-        self.assertIn(common_claim + " --isolated-worktrees", autonomous)
+        self.assertIn("--safe-ready --json", autonomous)
+        self.assertIn(coordinator_claim, autonomous)
+        self.assertNotIn("--isolated-worktrees", autonomous)
+        self.assertIn("No subagent may edit implementation files", autonomous)
+        self.assertNotIn("codex-worker", self.tasks)
+        self.assertNotIn("--isolated-worktrees", self.tasks)
+        self.assertIn("No subagent or worker edits files", self.tasks)
+        self.assertIn("Maximum parallel workers | `1`", self.prd)
+        self.assertIn("parallel writing is excluded", self.prd)
+        self.assertNotIn("bounded parallelism", self.prd)
         self.assertRegex(
             autonomous,
-            r"Never\s+run doctor against a persisted RUNNING snapshot",
+            r"Never run doctor against a persisted RUNNING\s+snapshot",
         )
-
     def test_aws_mutations_use_canonical_prompts_and_exact_action_receipts(self) -> None:
         build_single = self.prompt_section("BUILD-10")
         build_auto = self.prompt_section("BUILD-20")
@@ -803,9 +814,6 @@ class PromptPackContractTests(unittest.TestCase):
 
     def test_boot_resume_and_aws_core_deferral_are_single_action_contracts(self) -> None:
         boot = self.prompt_section("BOOT-00")
-        launch_skill = (
-            PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
-        ).read_text(encoding="utf-8")
         for phrase in (
             "If the project is already initialized, do not print the welcome",
             "never restart BOOT-00 because AWS Core is absent",
@@ -819,8 +827,8 @@ class PromptPackContractTests(unittest.TestCase):
             boot,
             r"report\s+`DEFERRED_UNTIL_DESIGN` and continue intake",
         )
-        self.assertIn("skip the welcome, setup questions, and\n     initializer", launch_skill)
-        self.assertIn("resume the exact\n     doctor-selected stage", launch_skill)
+        self.assertIn("never repeat setup", self.agents)
+        self.assertIn("follows the doctor-selected route", self.agents)
         self.assertIn(
             "does not compare hook hashes, request screenshots,\nrun synthetic hook probes",
             boot,
@@ -878,9 +886,12 @@ class PromptPackContractTests(unittest.TestCase):
             )
     def test_repo_scoped_skills_have_distinct_safe_trigger_contracts(self) -> None:
         implicit = {
-            "launch-fastlane": "true",
-            "plan-fastlane": "true",
-            "build-fastlane": "true",
+            "fastlane": "true",
+            "maintain-fastlane": "true",
+            "launch-fastlane": "false",
+            "plan-fastlane": "false",
+            "build-fastlane": "false",
+            "explain-fastlane": "false",
             "operate-fastlane-aws": "false",
         }
         descriptions: set[str] = set()
@@ -912,6 +923,21 @@ class PromptPackContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("Use only when the user explicitly invokes this skill", aws_skill)
         self.assertIn("They never authorize an AWS change", aws_skill)
+        explain_skill = (
+            REPOSITORY_ROOT / ".agents/skills/explain-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Activate only from an explicit owner request", explain_skill)
+        self.assertIn("restore the exact", explain_skill)
+        self.assertIn("Learning mode — explanation only", explain_skill)
+        for alias in ("launch-fastlane", "plan-fastlane", "build-fastlane"):
+            content = (
+                REPOSITORY_ROOT / ".agents" / "skills" / alias / "SKILL.md"
+            ).read_text(encoding="utf-8")
+            self.assertIn("Delegate to `$fastlane`", content)
+        maintain = (
+            REPOSITORY_ROOT / ".agents/skills/maintain-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("never adopter application planning", maintain)
 
     def test_task_cards_are_human_first_with_collapsed_exact_metadata(self) -> None:
         self.assertIn("## How to read a task card", self.tasks)
@@ -1041,11 +1067,14 @@ class PromptPackContractTests(unittest.TestCase):
         intake = self.prompt_section("INTAKE-10")
         requirements = self.prompt_section("REQ-10")
         design = self.prompt_section("DESIGN-10")
-        plan_skill = (
-            PROJECT_ROOT / ".agents/skills/plan-fastlane/SKILL.md"
-        ).read_text(encoding="utf-8")
-        aws_advisor = (
-            PROJECT_ROOT / ".codex/agents/fastlane-aws-advisor.toml"
+        planning_references = "\n".join(
+            (PROJECT_ROOT / ".agents/skills/fastlane/references" / name).read_text(
+                encoding="utf-8"
+            )
+            for name in ("define.md", "design.md")
+        )
+        architecture_challenger = (
+            PROJECT_ROOT / ".codex/agents/fastlane-architecture-challenger.toml"
         ).read_text(encoding="utf-8")
 
         self.assertIn("no more than these three values", boot)
@@ -1058,17 +1087,17 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("--cost-posture", boot)
         self.assertIn("A missing amount alone never blocks intake", intake)
         self.assertIn(
-            "MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>",
-            plan_skill,
+            "MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED",
+            planning_references,
         )
         self.assertIn("Cost posture; Intake provenance", requirements)
         self.assertIn("Do not manufacture a numeric ceiling for Gate A", requirements)
         self.assertIn("Cost posture: <exact current Gate A cost posture>", self.prompts)
 
-        for surface in (self.agents, self.prd, design, plan_skill, aws_advisor):
+        for surface in (self.agents, self.prd, design, planning_references, architecture_challenger):
             self.assertIn("serverless", surface.lower())
         self.assertIn("secure pay-per-use\nserverless options", self.root_readme)
-        for surface in (self.agents, self.prd, plan_skill):
+        for surface in (self.agents, self.prd, planning_references):
             self.assertIn("MINIMIZE_TOTAL_COST", surface)
         self.assertRegex(
             self.root_readme,

@@ -57,6 +57,17 @@ first guided-intake questions.
 For an initialized repository, use the prompt matching the current state. Do
 not skip a missing Gate A or Gate B.
 
+## Codex-native skill routing
+
+The implicit `fastlane` skill is the sole application coordinator and writer.
+It progressively loads the phase procedure selected by the doctor.
+`launch-fastlane`, `plan-fastlane`, and `build-fastlane` are explicit
+compatibility aliases that delegate to `fastlane`; they never run separate
+lifecycles. `explain-fastlane` and `operate-fastlane-aws` are explicit-only.
+`LEARN-10` remains only as a backward-compatible alias for
+`explain-fastlane`, never an automatic route. `maintain-fastlane` applies only
+to the reusable framework and must not start project intake.
+
 ## Agent reference — exact authority and operating model
 
 The repository is authoritative:
@@ -93,8 +104,8 @@ the common safety contract:
 
 | Profile | Planning and construction overlay |
 |---|---|
-| `quick-mvp` | One thin outcome, one development environment and Region where feasible, the fewest independently verifiable tasks, one worker by default, and release as soon as the approved outcome is safe and observable. |
-| `standard` | Complete operational design for the intended environments, explicit integration and migration coverage, and bounded parallelism only where task isolation is proven. |
+| `quick-mvp` | One thin outcome, one development environment and Region where feasible, the fewest independently verifiable tasks, one coordinator, and release as soon as the approved outcome is safe and observable. |
+| `standard` | Complete operational design for the intended environments, explicit integration and migration coverage, and serialized construction by one coordinator. |
 | `high-risk` | Deeper review of identity, data access, customer separation, migration, recovery, rollback, shared-resource impact, audit needs, and failure handling; stronger evidence and smaller mutation batches; production or destructive actions remain separately authorized when not already exact. |
 
 Select `high-risk` for production, sensitive or regulated data, payments,
@@ -461,7 +472,6 @@ direct evidence.
 | AWS-30 | Reconcile deployed evidence | RELEASE-10 |
 | AWS-40 | Read-only residual and teardown review | AWS-50 or STOP |
 | AWS-50 | Execute an authorized teardown | STOP |
-| LEARN-10 | Add concise teaching to another prompt | Same as wrapped prompt |
 
 ---
 
@@ -752,15 +762,17 @@ or a material AWS feasibility fact needed for Gate A remains unverified.
 [REQ-10]
 Analyze the entire intake as one requirement set before technical design.
 
-First run `python scripts/bootstrap_dependencies.py --root . --json`. Ask the
-read-only `fastlane-requirements-reviewer` to challenge the complete
-requirement set. When AWS feasibility, Region, identity, data protection,
-recovery, or cost materially affects readiness, use the read-only
-`fastlane-aws-advisor` and official AWS Core to verify those facts with current
-primary AWS documentation. If AWS Core is unavailable, continue ordinary
-requirements work and mark only the unresolved material AWS fact as open. The
-coordinator evaluates the findings and remains the only writer. Neither advisor
-can approve Gate A.
+First run `python scripts/bootstrap_dependencies.py --root . --json`. The
+coordinator challenges the complete requirement set. Quick MVP uses no
+subagent by default. Invoke the read-only
+`fastlane-requirements-challenger` only for ambiguity, contradictions,
+sensitive data, identity, payments, migrations, shared interfaces, high risk,
+or an explicit owner request. When AWS feasibility, Region, identity, data
+protection, recovery, or cost materially affects readiness, the coordinator
+uses official AWS Core directly with current primary AWS documentation. If AWS
+Core is unavailable, continue ordinary
+requirements work and mark only the unresolved material AWS fact as open. The coordinator evaluates any challenger
+findings and remains the only writer. A challenger cannot approve Gate A.
 
 Create or increment a requirements revision such as REQ-0001. Give every
 requirement, non-goal, assumption, and material open question a stable ID.
@@ -931,8 +943,12 @@ live `aws-core@agent-toolkit-for-aws`, and visibly call both
 `retrieve_skill` and `search_documentation` for material service-fit, Region,
 IAM, encryption, reliability, observability, quota, security, and cost facts.
 BOOT-00/plugin metadata, cache, generic connectors, and memory are insufficient.
-The read-only `fastlane-aws-advisor` may review results; it cannot replace the
-calls or approve Gate B. The coordinator remains the only writer.
+After completing the proposed design and attributable AWS Core evidence, invoke
+the read-only `fastlane-architecture-challenger` only for high-risk,
+hard-to-reverse, shared-infrastructure, isolation, recovery, or explicitly
+requested review. It may challenge the finished proposal; it cannot select the
+architecture, replace live AWS Core calls, write the PRD, or approve Gate B.
+The coordinator remains the only writer.
 
 Fill the two `DESIGN-10` rows in docs/project/VERIFY.md with live inputs,
 outputs, official references, actor `CODEX_LIVE_TOOL_CALL`, observed semantic
@@ -1241,14 +1257,10 @@ Keep tasks thin enough to validate independently. Mark READY only when all
 dependencies, inputs, and authorization are satisfied. A SKIPPED dependency is
 not satisfied without a current waiver naming the dependency, downstream task,
 authority, rationale, and replacement evidence. Compute structural waves, then
-compute conservative execution groups so concurrent tasks share neither files
-nor mutable application/AWS state. Anything sharing a
-manifest, lockfile, schema, stack, database, generated output, or deployment
-target must be serialized unless isolation and separate worktrees are proven.
-
-Plan a single coordinator as the writer for shared control files such as
-docs/project/TASKS.md, docs/project/VERIFY.md, docs/project/RUNBOOK.md, and bootstrap.yaml. Do not let parallel workers
-update them. Do not create
+preserve their dependency order, and execute them serially through one
+coordinator. Set `Maximum workers` to `1`. The coordinator is the only writer
+for implementation files, docs/project/TASKS.md, docs/project/VERIFY.md,
+docs/project/RUNBOOK.md, bootstrap.yaml, and shared controls. Do not create
 GitHub objects, implement code, or access AWS. Validate task graph consistency
 with `python scripts/task_waves.py docs/project/TASKS.md`, inspect candidates with
 `python scripts/task_waves.py docs/project/TASKS.md --ready --json`, commit the validated
@@ -1300,7 +1312,7 @@ the illustrative IDs below, then run this exact start-and-claim sequence:
 
 ```bash
 python scripts/task_waves.py docs/project/TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode SINGLE_TASK
-python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
+python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-coordinator --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
 ```
 
 If the same run is safely checkpointed instead of new, reconcile the checkpoint
@@ -1308,7 +1320,7 @@ and use this exact resume-and-claim sequence:
 
 ```bash
 python scripts/task_waves.py docs/project/TASKS.md --resume-run RUN-0001 --coordinator codex-coordinator
-python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002
+python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-coordinator --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002
 ```
 
 A persisted `RUNNING` run is interrupted/recovery-required and must not be
@@ -1362,13 +1374,10 @@ TASK-0001 BLOCKED --blocker "<observed blocker and next action>" --run-id
 RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001`, then pause.
 Leave AWS-only evidence PENDING_AWS until observed.
 
-Claims cite the current base checkpoint; concurrent claims may share it only
-when their isolation is proven. Each `IN_PROGRESS` reconciliation consumes the
-next unique checkpoint. Pause or completion consumes a later unique checkpoint
-and requires the newest complete checkpoint row plus docs/project/VERIFY.md reference. Run
-start and issue synchronization do not invent checkpoints. A DONE
-reconciliation at CP-0001 is therefore followed by pause or completion at
-CP-0002; never reuse CP-0001.
+Each claim cites the current base checkpoint. Each `IN_PROGRESS` reconciliation
+consumes the next unique checkpoint. Pause or completion consumes a later
+unique checkpoint and requires the newest checkpoint row plus VERIFY reference.
+Run start and issue synchronization do not invent checkpoints; never reuse one.
 
 Before pausing, inspect the final diff, record `EV-0001`-style evidence, commit
 only the authorized validated task changes, and update Last known-green commit
@@ -1424,7 +1433,7 @@ shape before selecting work:
 
 ```bash
 python scripts/task_waves.py docs/project/TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS
-python scripts/task_waves.py docs/project/TASKS.md --safe-ready --isolated-worktrees --json
+python scripts/task_waves.py docs/project/TASKS.md --safe-ready --json
 ```
 
 On a safely PAUSED or BLOCKED run, reconcile state and resume only the same run
@@ -1441,52 +1450,37 @@ framework, toolchain, command, run target, or replay method. Block the task and
 route to DESIGN-10 on any mismatch or unavailable selection.
 
 Use this loop:
-1. run doctor and reconcile PRD, docs/project/TASKS.md, bootstrap.yaml, REQ/DES/AUTH, baseline,
-   protected dirty paths, task states, and last external-operation journal;
+1. run doctor and reconcile PRD, docs/project/TASKS.md, bootstrap.yaml,
+   REQ/DES/AUTH, baseline, protected dirty paths, task states, and the external
+   operation journal;
 2. atomically acquire one durable coordinator run ID; a pre-existing RUNNING
    state is recovery-required and is never auto-cleared;
-3. select only READY tasks whose dependencies are DONE or explicitly waived
-   SKIPPED prerequisites;
-4. form a concurrency group only from disjoint file and external-state sets;
-5. require isolated worktrees for more than one worker; otherwise serialize;
-6. atomically claim each selected task with owner, run ID, base checkpoint, and
-   incremented persistent attempt count before implementation. Use this serial
-   form for one worker:
+3. select exactly one READY task whose dependencies are DONE or explicitly
+   waived SKIPPED prerequisites, then claim it as the coordinator:
 
    ```bash
-   python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
+   python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-coordinator --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
    ```
 
-   Every claim in a concurrent group uses the isolated-worktree form:
+4. implement only that task's approved write boundary, run its validations, and
+   record observed completion evidence;
+5. mark the task DONE only when acceptance evidence passes; otherwise checkpoint
+   the blocker and remaining attempt budget;
+6. after every task is reconciled out of IN_PROGRESS, inspect the integrated
+   diff, record EV evidence, and update the last known-green checkpoint;
+7. when all tasks are terminal, run
+   `--complete-run RUN-0001 --coordinator codex-coordinator --checkpoint CP-0002`.
+   Otherwise run `--pause-run RUN-0001 --coordinator codex-coordinator
+   --checkpoint CP-0002`, run doctor and aggregate tests, then resume the
+   same run and coordinator. Never run doctor against a persisted RUNNING
+   snapshot or commit protected dirty paths.
 
-   ```bash
-   python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000 --isolated-worktrees
-   ```
-
-7. implement, validate, inspect actual worker diffs, and collect evidence in
-   exact docs/project/VERIFY.md `Task completion evidence` rows;
-8. have the coordinator alone update control files and mirrors between groups;
-9. mark tasks DONE only on observed acceptance evidence;
-10. checkpoint attempts, changed paths, external operations, evidence, blockers,
-    and next safe action; after every task is reconciled out of IN_PROGRESS,
-    inspect the integrated diff, record EV evidence, commit only the authorized
-    validated wave, and update Last known-green and the checkpoint row to that
-    commit. Use `--complete-run RUN-0001 --coordinator codex-coordinator
-    --checkpoint CP-0002` only when all tasks are terminal. Otherwise run
-    `python scripts/task_waves.py docs/project/TASKS.md --pause-run RUN-0001 --coordinator
-    codex-coordinator --checkpoint CP-0002`, then run doctor and aggregate
-    tests. Resume the same run and coordinator before claiming the next group.
-    Never run doctor against a persisted RUNNING snapshot or commit protected
-    dirty paths.
-
-Workers must not edit shared control files, protected/user-dirty paths, the same
-manifest/lockfile/schema, or overlapping generated output. Reject a receipt
-whose actual diff exceeds its task boundary. Do not have multiple agents push
-the same branch. Journal every external operation before execution; an UNKNOWN
-or partial result requires read-only reconciliation and must not be blindly
-retried. Keep GitHub synchronization serialized and within authorization.
-Route AWS mutation through AWS-10/AWS-20 and serialize every mutation, even when
-tasks are otherwise eligible for parallel work.
+No subagent may edit implementation files, shared controls, protected or dirty
+paths, manifests, lockfiles, schemas, generated output, or GitHub state.
+Deterministic task and evidence checks—not reviewer prose—decide readiness and
+completion. Journal every external operation before execution. Reconcile
+UNKNOWN or partial results read-only before retrying. Keep GitHub operations
+within AUTH. Route AWS mutation through AWS-10/AWS-20.
 
 Continue through safe waves without asking routine questions. Pause only for a
 declared stop condition or authority that Gate B did not grant. Return receipts
@@ -1891,47 +1885,6 @@ Never claim deletion from a submitted request
 alone. Return the AWS authority/evidence receipt.
 ~~~
 
-## LEARN-10 — Educational Wrapper
-
-**Preconditions:** A canonical prompt ID and desired learning depth are named.
-
-**Authoritative inputs:** Same as the wrapped prompt.
-
-**Permitted writes:** Same as the wrapped prompt; no extra tutorial documents.
-
-**GitHub mode:** Same as the wrapped prompt.
-
-**AWS mode:** Same as the wrapped prompt.
-
-**Required authorization:** LEARN-10 adds explanation only and grants no new authority.
-
-**Stop conditions:** Same as wrapped prompt; explanation would expose secrets
-or distract from an active safety condition.
-
-**Receipt:** Routine status using the wrapped prompt ID and noting
-LEARN-10 in Open risks only if teaching affected pace or scope.
-
-**Next:** Same as wrapped prompt.
-
-~~~text
-[LEARN-10]
-Run <CANONICAL-PROMPT-ID> under its unchanged contract and authorization, with
-concise educational guidance.
-
-At meaningful milestones:
-- explain the relevant AWS or software-engineering concept in plain language;
-- distinguish repository facts, documentation-backed facts, recommendations,
-  assumptions, and observed evidence;
-- explain important tradeoffs and why the chosen option fits the accepted
-  requirements;
-- give a short practical recap at completion.
-
-Do not narrate every tool call, create tutorial documents, weaken validation,
-or broaden scope. LEARN-10 never changes a gate, write boundary, GitHub mode,
-AWS mode, stop condition, or authorization. Return the wrapped prompt's
-routine status.
-~~~
-
 ## Suggested model selection
 
 Model availability changes; verify current options with /model and the official
@@ -1948,6 +1901,5 @@ Use the lowest reasoning level that reliably handles the risk. Prefer Sol with
 high or extra-high reasoning for requirements, architecture, release review,
 security, IAM, migrations, concurrency, destructive work, and difficult
 failures. Prefer Terra medium/high for normal implementation and read-only AWS
-preflight. Use Luna for bounded mechanical synchronization. Use subagents only
-for genuinely independent work with disjoint write and external-state sets;
-otherwise serialize.
+preflight. Use Luna for bounded mechanical synchronization. Use optional read-only challengers only at their defined planning checkpoints;
+the coordinator remains the sole repository writer.

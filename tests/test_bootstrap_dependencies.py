@@ -54,10 +54,12 @@ class BootstrapDependencyTests(unittest.TestCase):
         )
         self.assertNotIn("hook_review", toolkit)
         self.assertEqual(report["fastlane_skills"]["status"], "READY")
-        self.assertEqual(report["project_agents"]["status"], "READY")
 
-    def test_project_agents_are_read_only_and_do_not_override_model_or_mcp(self) -> None:
-        for name in dependencies.REQUIRED_AGENTS:
+    def test_optional_challengers_are_read_only_and_do_not_override_model_or_mcp(self) -> None:
+        for name in (
+            "fastlane-requirements-challenger",
+            "fastlane-architecture-challenger",
+        ):
             content = (
                 REPOSITORY_ROOT / ".codex" / "agents" / f"{name}.toml"
             ).read_text(encoding="utf-8")
@@ -71,11 +73,25 @@ class BootstrapDependencyTests(unittest.TestCase):
                 self.assertNotIn(forbidden, content)
             self.assertIn("Never", content)
 
-    def test_launch_skill_keeps_plain_language_init_trigger(self) -> None:
+        report = dependencies.inspect_repository(REPOSITORY_ROOT)
+        self.assertNotIn("project_agents", report)
+        self.assertEqual(
+            set(report["fastlane_skills"]["items"]),
+            {
+                "build-fastlane",
+                "explain-fastlane",
+                "fastlane",
+                "launch-fastlane",
+                "maintain-fastlane",
+                "operate-fastlane-aws",
+                "plan-fastlane",
+            },
+        )
+    def test_coordinator_skill_keeps_plain_language_init_trigger(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary) / "project"
             shutil.copytree(REPOSITORY_ROOT, project)
-            path = project / ".agents/skills/launch-fastlane/agents/openai.yaml"
+            path = project / ".agents/skills/fastlane/agents/openai.yaml"
             path.write_text(
                 path.read_text(encoding="utf-8").replace(
                     "init template", "begin setup"

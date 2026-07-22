@@ -80,8 +80,8 @@ number of lifecycle gates.
 
 | Profile | Required overlay |
 |---|---|
-| `quick-mvp` | One thin, observable outcome; one development environment and Region where feasible; minimal independently verifiable tasks; one worker by default; explicit rollback or teardown. |
-| `standard` | Intended-environment operations, integration and migration coverage, and bounded parallelism only where isolation is proven. |
+| `quick-mvp` | One thin, observable outcome; one development environment and Region where feasible; minimal independently verifiable tasks; one coordinator; explicit rollback or teardown. |
+| `standard` | Intended-environment operations, integration and migration coverage, with serialized construction by one coordinator. |
 | `high-risk` | Deeper review of identity, data access, customer separation, migration, recovery, rollback, shared-resource impact, audit needs, and failure handling; smaller mutation batches; stronger evidence. |
 
 If the recorded risk is `high` or `critical`, select `high-risk`. Every profile
@@ -1096,8 +1096,8 @@ it, never undecided.
 | Maximum generated tasks | TODO (positive integer) |
 | Eligible task status | `READY` |
 | Autonomous construction | `ALLOWED` / `PROHIBITED` |
-| Maximum parallel workers | TODO (positive integer; default `1`) |
-| Parallelism rule | Disjoint write sets, dependencies, and mutable state; otherwise serialize |
+| Maximum parallel workers | `1` (v1 compatibility field; parallel writing is excluded) |
+| Parallelism rule | One coordinator is the sole writer; tasks execute serially |
 | Attempt budget | TODO (maximum implementation-validation cycles per task before stopping) |
 | Checkpoint cadence | `COMMIT_AFTER_EACH_VALIDATED_WAVE_BEFORE_PAUSE` |
 | Required checkpoint contents | Task status, changed paths, commands/evidence, commit, last-known-green, blockers, next safe action |

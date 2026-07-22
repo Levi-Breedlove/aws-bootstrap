@@ -1,6 +1,6 @@
 interface:
-  display_name: "Plan Fastlane"
-  short_description: "Guide intake, design, and both approvals"
-  default_prompt: "Use $plan-fastlane to turn my AWS idea into Gate A and Gate B-ready project plans."
+  display_name: "Plan Fastlane (compatibility)"
+  short_description: "Delegate planning to the Fastlane coordinator"
+  default_prompt: "Use $fastlane to continue this requirements or design request through the single Fastlane coordinator."
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false
