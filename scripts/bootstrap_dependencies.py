@@ -7,7 +7,6 @@ import argparse
 import json
 import re
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -27,26 +26,21 @@ SETUP_STATES = (
 
 REQUIRED_SKILLS = (
     "build-fastlane",
+    "explain-fastlane",
+    "fastlane",
     "launch-fastlane",
+    "maintain-fastlane",
     "operate-fastlane-aws",
     "plan-fastlane",
 )
 SKILL_IMPLICIT_POLICY = {
-    "build-fastlane": "true",
-    "launch-fastlane": "true",
+    "build-fastlane": "false",
+    "explain-fastlane": "false",
+    "fastlane": "true",
+    "launch-fastlane": "false",
+    "maintain-fastlane": "true",
     "operate-fastlane-aws": "false",
-    "plan-fastlane": "true",
-}
-REQUIRED_AGENTS = (
-    "fastlane-aws-advisor",
-    "fastlane-evidence-reviewer",
-    "fastlane-requirements-reviewer",
-)
-FORBIDDEN_AGENT_KEYS = {
-    "approval_policy",
-    "model",
-    "model_reasoning_effort",
-    "mcp_servers",
+    "plan-fastlane": "false",
 }
 
 
@@ -117,8 +111,8 @@ def inspect_repository(root: Path) -> dict[str, Any]:
                     raise ValueError(
                         f"openai.yaml allow_implicit_invocation must be {policy}"
                     )
-                if name == "launch-fastlane" and "init template" not in yaml_text:
-                    raise ValueError("launch-fastlane default prompt must expose init template")
+                if name == "fastlane" and "init template" not in yaml_text:
+                    raise ValueError("fastlane default prompt must expose init template")
             except (OSError, ValueError) as exc:
                 state = "BLOCKED"
                 diagnostics.append(
@@ -134,38 +128,6 @@ def inspect_repository(root: Path) -> dict[str, Any]:
                 ".agents/skills",
             )
         )
-
-    agent_states: dict[str, str] = {}
-    for name in REQUIRED_AGENTS:
-        relative = f".codex/agents/{name}.toml"
-        path = root / relative
-        state = "READY"
-        if not path.is_file() or path.is_symlink():
-            state = "BLOCKED"
-            diagnostics.append(
-                diagnostic(
-                    "FASTLANE_AGENT_MISSING",
-                    f"Required project agent is missing or unsafe: {name}.",
-                    relative,
-                )
-            )
-        else:
-            try:
-                value = tomllib.loads(path.read_text(encoding="utf-8"))
-                for field in ("name", "description", "developer_instructions"):
-                    if not isinstance(value.get(field), str) or not value[field].strip():
-                        raise ValueError(f"{field} must be a non-empty string")
-                if value["name"] != name:
-                    raise ValueError("name must match the project-agent filename")
-                if value.get("sandbox_mode") != "read-only":
-                    raise ValueError("project advisory agents must be read-only")
-                forbidden = sorted(FORBIDDEN_AGENT_KEYS.intersection(value))
-                if forbidden:
-                    raise ValueError("forbidden overrides: " + ", ".join(forbidden))
-            except (OSError, ValueError, tomllib.TOMLDecodeError) as exc:
-                state = "BLOCKED"
-                diagnostics.append(diagnostic("FASTLANE_AGENT_INVALID", str(exc), relative))
-        agent_states[name] = state
 
     ready = not diagnostics
     return {
@@ -217,10 +179,6 @@ def inspect_repository(root: Path) -> dict[str, Any]:
             "status": "READY" if all(state == "READY" for state in skill_states.values()) else "BLOCKED",
             "items": skill_states,
         },
-        "project_agents": {
-            "status": "READY" if all(state == "READY" for state in agent_states.values()) else "BLOCKED",
-            "items": agent_states,
-        },
         "diagnostics": diagnostics,
     }
 
@@ -229,7 +187,6 @@ def print_human(report: dict[str, Any]) -> None:
     toolkit = report["aws_agent_toolkit"]
     print(f"Bootstrap dependencies: {report['status']}")
     print(f"Fastlane skills: {report['fastlane_skills']['status']}")
-    print(f"Project agents: {report['project_agents']['status']}")
     print(
         "AWS Core dependency: OFFICIAL_CURRENT_NO_TEMPLATE_PIN from "
         f"{toolkit['marketplace_slug']}"

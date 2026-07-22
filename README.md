@@ -64,7 +64,7 @@ AWS Core advises; it cannot approve either gate or authorize an AWS change.
 ├── docs/project/RUNBOOK.md    Deploy, rollback, recovery, and teardown
 ├── bootstrap.yaml             Derived lifecycle state
 ├── .agents/skills/            Fastlane workflows
-├── .codex/agents/             Read-only specialist agents
+├── .codex/agents/             Optional read-only challengers
 ├── prompts/CODEX-PROMPTS.md   Exact lifecycle contracts
 └── scripts/                   Doctor, task runtime, and packaging tools
 ```

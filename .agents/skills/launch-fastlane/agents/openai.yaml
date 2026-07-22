@@ -1,6 +1,6 @@
 interface:
-  display_name: "Launch Fastlane"
-  short_description: "Initialize or resume a Fastlane project"
-  default_prompt: "Use $launch-fastlane to init template, welcome me, ask for project name, Region, and budget, then begin the doctor-selected Fastlane prompt."
+  display_name: "Launch Fastlane (compatibility)"
+  short_description: "Delegate setup and resume to Fastlane"
+  default_prompt: "Use $fastlane to handle this init template or resume request through the single Fastlane coordinator."
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

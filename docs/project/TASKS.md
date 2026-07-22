@@ -55,7 +55,7 @@ snapshot only at a coordinator checkpoint.
 Lifecycle prompts update this snapshot before task generation. REQ-10 copies a
 new requirements identity and makes construction non-runnable; an agent-ready
 Gate A is `PENDING_OWNER_APPROVAL`. DESIGN-10 copies the current REQ/DES/AUTH,
-authorized worker limit, baseline, and protected dirty paths and sets an
+authorized single-writer limit, baseline, and protected dirty paths and sets an
 agent-ready Gate B to `PENDING_OWNER_APPROVAL`. DESIGN-20 acceptance changes the
 snapshot to `APPROVED_FOR_CONSTRUCTION` in the same checkpoint as docs/project/PRD.md and
 bootstrap.yaml. A stale gate or identity mismatch sets the run to `BLOCKED` and
@@ -65,22 +65,18 @@ observed revision blocker, checkpoint and commit the stale ledger, then stop all
 claims. After a new Gate B, TASK-10 archives the stale plan by commit, replaces
 its graph with tasks for the current IDs, and sets the new plan `CURRENT`.
 
-## Coordinator and worker contract
+## Coordinator contract
 
-- One coordinator owns task selection, worker assignment, checkpoints, and all
-  writes to `docs/project/TASKS.md`, `docs/project/VERIFY.md`, `docs/project/RUNBOOK.md`, shared manifests, lockfiles,
-  schemas, generated output, and GitHub metadata.
-- A worker edits only the exact disjoint code, test, or infrastructure paths
-  assigned from one `READY` task. A worker never changes a shared control file
-  or expands its write or external-state boundary.
-- Each path and mutable external target has exactly one writer at a time. Treat
-  ambiguous globs, shared generated output, the same branch, the same stack or
-  state backend, and the same database as overlapping.
-- Workers return a receipt containing task ID, base checkpoint, current
-  REQ/DES/AUTH IDs, changed paths, commands and observed results, evidence IDs,
-  GitHub or AWS actions, deviations, and recommended next status.
-- The coordinator reconciles every worker receipt before recording evidence or
-  selecting another wave. Workers do not mark their own tasks `DONE`.
+- One coordinator owns task selection, claims, implementation, checkpoints, and
+  every write to application, infrastructure, project ledgers, manifests,
+  lockfiles, schemas, generated output, and GitHub metadata.
+- `Maximum workers` remains `1`. No subagent or worker edits files or mutable
+  external state in v1.1.0.
+- Each path and mutable target has exactly one writer. Treat ambiguous globs,
+  generated output, the same branch, stack, state backend, or database as
+  overlapping.
+- The coordinator records task ID, checkpoint, REQ/DES/AUTH IDs, changed paths,
+  commands/results, evidence IDs, external actions, and deviations before DONE.
 - GitHub writes occur only when the current AUTH names the repository and
   operation. Otherwise retain `PENDING_SYNC`.
 - AWS mutations occur only within a complete current AUTH or action-specific AWS
@@ -119,7 +115,7 @@ python scripts/task_waves.py docs/project/TASKS.md
 python scripts/task_waves.py docs/project/TASKS.md --ready --json
 ```
 
-The ready result is a candidate list, not a parallel-safe batch.
+The ready result is a candidate list; the coordinator claims one task at a time.
 
 Use the next unused monotonic IDs and these command shapes; do not hand-edit
 claim or run fields:
@@ -130,10 +126,7 @@ python scripts/task_waves.py docs/project/TASKS.md --start-run RUN-0001 --coordi
 python scripts/task_waves.py docs/project/TASKS.md --start-run RUN-0001 --coordinator codex-coordinator --run-mode AUTONOMOUS
 
 # Claim one serialized task only after the run is RUNNING.
-python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-worker-1 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
-
-# For a proven-disjoint concurrent group, every claim includes this flag.
-python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0002 --owner codex-worker-2 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000 --isolated-worktrees
+python scripts/task_waves.py docs/project/TASKS.md --claim TASK-0001 --owner codex-coordinator --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0000
 
 # Reconcile every IN_PROGRESS task, then pause or complete.
 python scripts/task_waves.py docs/project/TASKS.md --set-status TASK-0001 DONE --evidence EV-0001 --run-id RUN-0001 --coordinator codex-coordinator --checkpoint CP-0001
@@ -145,8 +138,8 @@ python scripts/task_waves.py docs/project/TASKS.md --resume-run RUN-0001 --coord
 
 Use `--complete-run RUN-0001 --coordinator codex-coordinator --checkpoint
 CP-0002` only when all tasks are terminal. Every mutation names the exact active
-coordinator. Claims cite the current base checkpoint and concurrent claims may
-share it. Each `IN_PROGRESS` reconciliation advances to the next unique
+coordinator. Each claim cites the current base checkpoint and each
+`IN_PROGRESS` reconciliation advances to the next unique
 checkpoint. Pause or completion then consumes a later unique checkpoint and
 requires its newest complete row and docs/project/VERIFY.md reference; do not reuse CP-0001.
 Run start and issue synchronization do not create fictional checkpoints. A
@@ -166,7 +159,7 @@ routes to `TASK-10`, not construction.
 | `Authorization` | Current AUTH ID |
 | `Depends on` | Stable task IDs or `NONE` |
 | `Dependency waivers` | `TASK-nnn=WAIVER-nnn` entries or `NONE` |
-| `Owner` | Assigned worker/coordinator or `UNASSIGNED` |
+| `Owner` | Assigned coordinator or `UNASSIGNED` |
 | `Run ID` | Active run ID while `IN_PROGRESS`, otherwise `NONE` |
 | `Risk` | Objective task risk classification |
 | `Write set` | Exact paths or narrow globs |
@@ -314,8 +307,8 @@ Stop affected work and checkpoint when any of the following occurs:
 - the requested outcome, task, path, command, GitHub operation, AWS target, or
   external-state mutation is outside AUTH;
 - an attempt budget is exhausted without a materially new authorized approach;
-- a worker discovers overlapping ownership, protected dirty work, unexpected
-  generated changes, or a failing baseline it cannot safely attribute;
+- the coordinator discovers overlapping ownership, protected dirty work,
+  unexpected generated changes, or an unattributable failing baseline;
 - a new requirement, design decision, migration, destructive action, public
   exposure, IAM broadening, production/shared-resource impact, sensitive-data
   concern, or material cost change is required;

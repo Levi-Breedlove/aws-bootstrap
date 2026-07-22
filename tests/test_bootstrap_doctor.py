@@ -893,7 +893,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             text = set_table_value(
                 text,
                 "## Active execution snapshot",
-                "## Coordinator and worker contract",
+                "## Coordinator contract",
                 field,
                 value,
             )
@@ -3635,7 +3635,7 @@ class BootstrapDoctorTests(unittest.TestCase):
                 set_table_value(
                     tasks_path.read_text(encoding="utf-8"),
                     "## Active execution snapshot",
-                    "## Coordinator and worker contract",
+                    "## Coordinator contract",
                     "Baseline commit",
                     "`ffffffffffffffffffffffffffffffffffffffff`",
                 ),
