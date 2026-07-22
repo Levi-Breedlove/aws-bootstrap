@@ -181,7 +181,11 @@ order; trailing whitespace removed per line; LF separators and one final LF;
 UTF-8 bytes; SHA-256 lowercase hex. The agent review, owner record, proposed
 receipt, and returned receipt must all contain the same digest. Any envelope
 change increments AUTH, makes Gate B stale, and requires a new digest and owner
-receipt.
+receipt. Before hashing, set the envelope's `Design contract SHA-256` to the
+doctor-derived current value. A changed Technology decision, Property
+applicability, Property definition, or Property execution table therefore
+invalidates that row; correcting it changes the envelope digest and requires
+new Gate B approval.
 
 ### Exact conditional AWS action receipts
 
@@ -292,7 +296,10 @@ documentation before relying on model memory whenever material AWS facts affect
 requirements, architecture, Gate B readiness, release planning, deployment,
 operations, or teardown. The plugin is a research and tool layer; it does not
 replace `docs/project/PRD.md`, the human gates, IAM, or an AWS authorization
-record. Its absence never blocks BOOT-00, intake, or ordinary Gate A discovery.
+record. Its advisory evidence may use the PRD's exact `Design` syntax to bind a
+current DES and influenced TECH IDs, but it never selects technology or grants
+approval. Its observed version is metadata, not a pin. Its absence never blocks
+BOOT-00, intake, or ordinary Gate A discovery.
 When current AWS facts are required at DESIGN-10 or an AWS operating prompt,
 pause only that affected step and provide one concise official setup action.
 AWS operations remain blocked without the required evidence and authorization.
@@ -861,10 +868,10 @@ authorized and necessary to validate an existing brownfield environment.
 mutation.
 
 **Stop conditions:** Missing/invalid Gate A; requirements/design conflict;
-unresolved high-impact decision; unavailable or wrong-source AWS Core; missing,
-failed, cached, generic, or stale DESIGN-10 `retrieve_skill` or
-`search_documentation` evidence; or an unverified AWS claim material to service
-fit, identity, data protection, recovery, Region, operations, quota, or cost.
+unresolved TECH selection or property execution contract; unavailable or
+wrong-source AWS Core; missing, failed, cached, generic, or stale DESIGN-10
+`retrieve_skill` or `search_documentation` evidence; or an unverified material
+AWS claim.
 
 **Receipt:** Standard work receipt with REQ, DES, and proposed AUTH IDs.
 
@@ -876,62 +883,55 @@ Complete a build-ready technical PRD for the accepted requirements.
 
 Create or increment a design revision such as DES-0001 and a proposed
 construction authorization such as AUTH-0001. Run the dependency checker and
-confirm the live identity `aws-core@agent-toolkit-for-aws`. In this DESIGN-10
-run, visibly call both `retrieve_skill` for architecture-relevant official AWS
-guidance and `search_documentation` for the consequential service-fit, Region,
+confirm live `aws-core@agent-toolkit-for-aws`. Visibly call both
+`retrieve_skill` and `search_documentation` for material service-fit, Region,
 IAM, encryption, reliability, observability, quota, security, and cost facts.
-A prior BOOT-00 result, generic connector, plugin metadata, cached content, or
-model memory is not fresh design evidence. Ask the read-only
-`fastlane-aws-advisor` to review the results where useful; it cannot replace the
+BOOT-00 evidence, plugin metadata, cached content, generic connectors, and model
+memory are insufficient. The read-only `fastlane-aws-advisor` may review these
+results; it cannot replace the
 calls or approve Gate B. The coordinator remains the only writer.
 
-Fill two `DESIGN-10` capability rows in docs/project/VERIFY.md. Record observation actor
-`CODEX_LIVE_TOOL_CALL`, exact source/identity, observed current semantic
-version, capability input/output, decision, ISO 8601 time, current DES binding,
-PASS/FAIL, `Credentials inspected` = `NO`, and `AWS account accessed` = `NO`.
-The documentation row includes returned official AWS references. Record facts
-and sources in the design; store no credentials or private machine data. Gate B
-requires both rows fresh, official, attributed, successful, and DES-bound.
+Fill the two `DESIGN-10` rows in docs/project/VERIFY.md with live inputs,
+outputs, official references, actor `CODEX_LIVE_TOOL_CALL`, observed semantic
+version, ISO 8601 time, PASS/FAIL, and `Credentials inspected` and `AWS account
+accessed` both `NO`. Use `DES-0001; TECH: TECH-0001, TECH-0002` or
+`DES-0001; TECH: NONE — no technology/toolchain impact` for the advisory Design
+binding. The observed AWS Core version is metadata, never a pin. Missing,
+failed, stale, or unattributed rows block Gate B.
 
-Complete only the design needed to build safely:
-- context, boundaries, components, interfaces, and data flow;
-- identity, authorization, secrets, encryption, validation, and audit behavior;
-- schemas, state transitions, idempotency, concurrency, retries, and failures;
-- observability, SLO-relevant signals, recovery, rollback, and teardown;
-- deployment approach, environments, regional constraints, and cost drivers;
-- test strategy, PBT applicability, PROP invariants, and acceptance traceability;
-- brownfield compatibility, rollout, migration, and rollback when applicable;
-- explicit decisions, alternatives, assumptions, and Well-Architected effects.
+Before Gate B:
+- complete the authoritative Technology and toolchain decision register; select
+  all in-scope TECH rows, version policies, sources, basis IDs, alternatives,
+  compatibility/migration, and validation. Only `EXACT` accepts opaque
+  versions. Active `PROPERTY_TESTING` uses `EXACT`, `COMPATIBLE_MAJOR`, or
+  numeric `MINIMUM` so evidence is machine-checkable;
+- complete architecture, interfaces, data, identity, failure, operations,
+  deployment, rollback, recovery, cost, and Well-Architected effects;
+- classify every measurable Gate A requirement exactly once for PBT, preserve
+  PROP invariants, and fill one Property execution row per applicable property
+  with framework TECH ID, exact command, `MIN_CASES: <positive integer>`,
+  `MAX_SECONDS: <positive integer>`, or both in that order, seed/reproduction
+  format, and VERIFY destination. The replay format must explicitly declare a
+  seed or exact-command method so VERIFY can record a concrete seed or the exact
+  approved command. Use one runnable local command without shell-control
+  chaining, and never use `NONE`, `PENDING`, or placeholder prose in a property
+  definition or execution row; and
+- resolve brownfield compatibility, migration, and protected behavior.
 
 Edit existing PRD Mermaid blocks in place; do not append by default. Route
-material Part I flow changes through REQ-10.
-
-For a greenfield application, evaluate a secure managed serverless baseline
-first. Prefer the smallest pay-per-use design that satisfies the accepted
-requirements, minimizes idle infrastructure and operational burden, and
-includes least-privilege IAM, approved encryption, secrets outside code and
-logs, bounded input validation, safe failure handling, and useful telemetry.
-Never weaken one of those required controls to lower cost.
-
-Serverless-first is a hypothesis, not a forced answer. Record why another
-architecture is better when current AWS evidence shows a material latency,
-sustained-utilization, service-limit, networking, compliance, portability, or
-total-cost advantage. Document expected low-usage cost, primary billing
-dimensions, scaling breakpoints, and measurable expansion or migration
-triggers. Do not provision future capacity before a trigger is reached.
+material Part I flow changes through REQ-10. Prefer the simplest secure managed
+serverless design that fits. Include least-privilege IAM, approved encryption,
+protected secrets, input validation, safe failures, telemetry, low-usage cost,
+billing dimensions, scaling breakpoints, and measurable expansion or migration
+triggers. Never weaken one of those required controls to lower cost.
 
 Fill the Gate B readiness card with these exact fields: Design basis IDs;
-Architecture/components; Interfaces/data flow; Identity/secrets;
-Failure/retry/concurrency; Deployment/operations; Validation/evidence;
-Rollback/recovery/teardown; Brownfield compatibility/migration; Outstanding
-gaps. Use explicit values and stable IDs; `NOT_APPLICABLE — <reason>` is allowed
-only when genuinely inapplicable. Outstanding gaps is exactly `NONE` or stable
-gap IDs, and any gap keeps Gate B BLOCKED.
-
-Prefer the simplest architecture satisfying the accepted requirements. In
-quick-mvp, do not add VPCs, NAT Gateways, public IPv4, container platforms,
-always-on compute, or provisioned databases unless a requirement or verified
-workload-fit decision demands one.
+Architecture/components; Technology/toolchains/version policy; Interfaces/data
+flow; Identity/secrets; Failure/retry/concurrency; Deployment/operations;
+Validation/evidence; Rollback/recovery/teardown; Brownfield
+compatibility/migration; Outstanding gaps. Use explicit stable IDs.
+`NOT_APPLICABLE — <reason>` is allowed only when genuine; Outstanding gaps is
+`NONE` or stable gap IDs, and any gap keeps Gate B BLOCKED.
 
 Propose a complete construction envelope with the fields defined in this pack.
 GitHub writes default to branch/commit/push/pull-request only when explicitly
@@ -950,7 +950,9 @@ authorized commit>; <deterministic rule>`, and
 
 Use every exact envelope row and grammar in docs/project/PRD.md. Require a local Git
 repository and resolvable baseline commit before readiness. Compute and record
-the canonical complete-envelope SHA-256 after the final table edit; copy the
+the derived Design contract SHA-256, copy it into the envelope, and include every
+current `TECH-*` and applicable `PROP-*` in authorized `SCOPE_IDS`. Then compute
+the canonical complete-envelope SHA-256 after the final table edit and copy the
 same digest into the Gate B agent review and proposed owner receipt.
 
 If the PRD or envelope is incomplete, keep Gate B `BLOCKED`. When the design and
@@ -1008,7 +1010,7 @@ Review the complete PRD and proposed construction envelope for human Gate B.
 Show a concise decision brief:
 - REQ, DES, and AUTH IDs;
 - canonical complete construction-envelope SHA-256;
-- all ten fields from the current Gate B readiness card;
+- all current readiness-card fields;
 - architecture and key tradeoffs;
 - confirmation that the existing diagram slots were specialized in place and
   agree with the component, interface, data, and failure design;
@@ -1119,7 +1121,8 @@ as one checkpoint; no implementation.
 **Required authorization:** Task planning within active AUTH scope.
 
 **Stop conditions:** Gate/revision mismatch; task would exceed envelope; unsafe
-dependency; validation cannot objectively prove acceptance.
+dependency; validation cannot objectively prove acceptance; or planning would
+select or substitute a technology, version policy, or property execution value.
 
 **Receipt:** Standard work receipt.
 
@@ -1140,7 +1143,9 @@ task IDs.
 For every task include:
 - stable ID and outcome;
 - status: BACKLOG, READY, IN_PROGRESS, BLOCKED, DONE, or SKIPPED;
-- requirement/bug, design, and applicable PROP traceability;
+- requirement/bug and applicable PROP traceability, plus the existing `Design`
+  value as `DES-0001; TECH: TECH-0001, TECH-0002` or
+  `DES-0001; TECH: NONE — no technology/toolchain impact`;
 - current AUTH ID, dependencies, and explicit skipped-dependency waivers or NONE;
 - exact write set and external-state set;
 - acceptance criteria;
@@ -1150,12 +1155,24 @@ For every task include:
 - GitHub link or PENDING_SYNC;
 - concise execution log.
 
-For every applicable `PROP-*`, include its ID in the task's `Requirements`
-metadata, keep the property in the same implementation task when practical, and
-name the framework or suite, generated domain, exact command, run target, and
-required VERIFY evidence. A property may be omitted only when DESIGN-10 records
-`NOT_APPLICABLE` with a concrete reason. Do not add a separate property-test
-task merely to inflate the graph.
+TASK-10 is copy-only for design decisions. Copy relevant TECH IDs and every
+applicable property execution value exactly from the approved PRD. Never choose
+or substitute a technology, framework, version policy, command, run target,
+seed/reproduction format, or evidence destination. Missing or incompatible
+values route to DESIGN-10.
+
+For every applicable `PROP-*`, include its ID in `Requirements`, keep it in the
+same implementation task when practical, and copy its exact command, run
+target/time bound, seed or reproduction format, framework TECH ID, and VERIFY
+destination into an exact Property execution projection table under
+`#### Validation`; also put the exact command once in that section's fenced
+command list. The table uses the PRD Property execution headers and one copied
+row per referenced property:
+`Property ID | Framework TECH ID | Exact command | Run target/time bound | Seed or reproduction format | Evidence destination`.
+A
+property may be omitted only when DESIGN-10 records `NOT_APPLICABLE` with a
+concrete reason. Do not add a separate property-test task merely to inflate the
+graph.
 
 Emit each record in the validator's exact human-first shape: one
 `### <TASK-ID> — <title>` heading; visible Status, Owner, Blocker, and GitHub
@@ -1166,6 +1183,14 @@ task record schema, spelled exactly once. A READY task cannot contain TODO in it
 acceptance criteria, validation, boundary, or traceability. Acceptance criteria
 must be checkboxes, and a DONE task must have every acceptance checkbox checked,
 non-NONE Evidence, and an observed execution-log entry.
+
+In a CURRENT plan, fully resolve the outcome, acceptance criteria, validation,
+boundaries, REQ/DES/AUTH trace, applicable TECH decisions, and property
+projection for every BACKLOG task as well. BACKLOG means dependency-gated, not
+undefined: it contributes to approved plan coverage, never appears in
+`--ready`, and cannot be claimed until it explicitly becomes READY. The stock
+UNINITIALIZED placeholder is exempt, and SKIPPED tasks do not satisfy property
+coverage.
 
 Keep tasks thin enough to validate independently. Mark READY only when all
 dependencies, inputs, and authorization are satisfied. A SKIPPED dependency is
@@ -1209,8 +1234,10 @@ active mutation boundary.
 **Required authorization:** One named task inside AUTH scope.
 
 **Stop conditions:** Scope drift; unexpected shared writer; failed safety check;
-new requirement/design decision; missing authorization; destructive/billable
-impact outside boundary; repeated failure without a new hypothesis.
+new requirement/design decision; technology, toolchain, framework, version
+policy, or property-execution substitution; missing authorization;
+destructive/billable impact outside boundary; repeated failure without a new
+hypothesis.
 
 **Receipt:** Standard work receipt with validation evidence.
 
@@ -1243,15 +1270,31 @@ A persisted `RUNNING` run is interrupted/recovery-required and must not be
 started over or automatically resumed. Claiming atomically records owner, run
 ID, base checkpoint, and the incremented persistent attempt before editing.
 Inspect before changing code and make the smallest coherent implementation.
+Confirm the task's `Design` value and copied property execution values exactly
+match the approved PRD. Resolve an exact installed version only within its
+selected version policy. If a selected technology, framework, toolchain,
+version, command, run target, or replay method is unavailable or incompatible,
+mark the task BLOCKED and route to DESIGN-10; never substitute it during BUILD.
 
 Run the task's validation plus relevant regression, security, IaC, and failure
-checks. For every task-linked `PROP-*`, run the approved property suite and
-record its framework, observed case or run count, seed or reproduction command,
-minimized counterexample or `NONE`, result, and evidence source. On failure,
-preserve and classify the counterexample as `IMPLEMENTATION_DEFECT`,
+checks. For every task-linked `PROP-*`, run the approved property suite with the
+exact PRD command and run target/time bound. Record one `EV-nnnn` property row
+using the exact VERIFY schema: same task and REQ/DES/AUTH trace, property,
+framework TECH ID and selection, observed exact version, command, `CASES: <n>;
+ELAPSED_SECONDS: <seconds>`, replay data, minimized counterexample, failure resolution,
+result, observed ISO time, commit/worktree/artifact, and durable source. The
+observed version must satisfy the approved version policy. A PASS must meet the
+planned threshold and use `NONE` for counterexample and failure. On failure,
+preserve and classify the counterexample as
+`IMPLEMENTATION_DEFECT`,
 `SPECIFICATION_AMBIGUITY_OR_DEFECT`, `GENERATOR_OR_ORACLE_DEFECT`, or
 `ENVIRONMENT_DEFECT`. Fix implementation or test machinery and rerun when the
-approved semantics and boundary remain unchanged. If the requirement,
+approved semantics and boundary remain unchanged; never delete the failure.
+The latest uniquely timed row for the task/property pair must PASS before DONE.
+Give every property row a matching Task completion evidence row: `FAILED` for a
+failed observation, and `LOCAL_PASS` or `VERIFIED` for a passing observation.
+Only the passing status may be cited to complete the task.
+If the requirement,
 invariant, or design must change, stop and route to REQ-10 or DESIGN-10; never
 weaken the property or generator simply to pass.
 
@@ -1317,9 +1360,10 @@ deletion unless named.
 task boundary, or stop condition.
 
 **Stop conditions:** No READY task; envelope exhausted/expired; revision drift;
-shared-write collision; failing mainline; new material decision; unexpected
-cost/security/data impact; AWS identity mismatch; destructive step not explicit;
-approved attempt budget exhausted without a materially new hypothesis.
+shared-write collision; failing mainline; new material decision; any technology,
+version-policy, or property-execution substitution; unexpected cost/security/data
+impact; AWS identity mismatch; destructive step not explicit; approved attempt
+budget exhausted without a materially new hypothesis.
 
 **Receipt:** One standard work receipt per completed wave and a final receipt.
 
@@ -1344,6 +1388,12 @@ and coordinator:
 ```bash
 python scripts/task_waves.py docs/project/TASKS.md --resume-run RUN-0001 --coordinator codex-coordinator
 ```
+
+Before each claim, require the task's `Design` value and copied property
+execution values to match the approved PRD. BUILD-20 may resolve an installed
+version only within the selected policy; it cannot substitute a technology,
+framework, toolchain, command, run target, or replay method. Block the task and
+route to DESIGN-10 on any mismatch or unavailable selection.
 
 Use this loop:
 1. run doctor and reconcile PRD, docs/project/TASKS.md, bootstrap.yaml, REQ/DES/AUTH, baseline,
@@ -1534,8 +1584,9 @@ model memory are insufficient for AWS-10.
 Fill the two `AWS-10` capability rows under `## AWS Core evidence` in
 docs/project/VERIFY.md. Record each live observation's observation actor,
 official source and invoked identity, observed current semantic plugin version,
-capability input/output, decision influenced, ISO 8601 observation time,
-current immutable-artifact binding, PASS/FAIL, `Credentials inspected` =
+capability input/output, advisory Design binding when relevant, ISO 8601
+observation time, current immutable-artifact binding, PASS/FAIL,
+`Credentials inspected` =
 `NO`, and `AWS account accessed` = `NO`. The actor is
 `CODEX_LIVE_TOOL_CALL` and the `search_documentation` row records returned
 official AWS references. Missing, failed, stale, unattributed, or wrong-binding

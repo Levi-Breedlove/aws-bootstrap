@@ -89,6 +89,10 @@ def task_block(
     skip_record: str | None = None,
     checkpoint: str | None = None,
     authorization: str = "AUTH-0001",
+    design: str = "DES-0001; TECH: TECH-0001",
+    requirements: str = "REQ-0001, FR-001",
+    validation_command: str = "python -m unittest",
+    property_execution_rows: tuple[str, ...] = (),
 ) -> str:
     owner = owner or ("worker-1" if status == "IN_PROGRESS" else "UNASSIGNED")
     run_id = run_id or ("RUN-0001" if status == "IN_PROGRESS" else "NONE")
@@ -104,11 +108,20 @@ def task_block(
     )
     checkpoint = checkpoint or ("CP-0001" if status == "IN_PROGRESS" else "NONE")
     write_set = write_set or f"app/{task_id.lower()}.py"
+    property_projection = ""
+    if property_execution_rows:
+        property_projection = (
+            "| Property ID | Framework TECH ID | Exact command | Run target/time bound | "
+            "Seed or reproduction format | Evidence destination |\n"
+            "|---|---|---|---|---|---|\n"
+            + "\n".join(property_execution_rows)
+            + "\n\n"
+        )
     return f"""### {task_id} — Test task
 
 - Status: `{status}`
-- Requirements: `REQ-0001, FR-001`
-- Design: `DES-0001, Section 10`
+- Requirements: `{requirements}`
+- Design: `{design}`
 - Authorization: `{authorization}`
 - Depends on: `{dependencies}`
 - Dependency waivers: `{waivers}`
@@ -137,8 +150,8 @@ The task's bounded behavior is implemented and observable.
 
 #### Validation
 
-```bash
-python -m unittest
+{property_projection}```bash
+{validation_command}
 ```
 
 #### Execution log
@@ -251,6 +264,127 @@ def write_task_project(root: Path, tasks_text: str) -> tuple[Path, Path]:
     tasks_path = root / "TASKS.md"
     tasks_path.write_text(tasks_text, encoding="utf-8")
     return tasks_path, write_matching_state(root, tasks_text)
+
+
+def write_technology_register(
+    root: Path,
+    *tech_ids: str,
+    property_rows: tuple[str, ...] = (),
+    property_version_policy: str = "MINIMUM: 6.0",
+) -> Path:
+    prd_path = root / "docs" / "project" / "PRD.md"
+    prd_path.parent.mkdir(parents=True, exist_ok=True)
+    rows = "\n".join(
+        (
+            f"| {tech_id} | "
+            f"{'PROPERTY_TESTING' if tech_id == 'TECH-0007' else 'TEST_TOOLING'} | "
+            f"{'Hypothesis' if tech_id == 'TECH-0007' else 'Python unittest'} | "
+            f"{property_version_policy if tech_id == 'TECH-0007' else 'MINIMUM: 3.11'} | "
+            "REPOSITORY_FACT | REQ-0001, DES-0001 | Selected for fixture validation | "
+            "NONE | Run the exact validation command |"
+        )
+        for tech_id in tech_ids
+    )
+    property_section = ""
+    if property_rows:
+        property_section = (
+            "### Property execution contract\n\n"
+            "| Property ID | Framework TECH ID | Exact command | Run target/time bound | "
+            "Seed or reproduction format | Evidence destination |\n"
+            "|---|---|---|---|---|---|\n"
+            + "\n".join(property_rows)
+            + "\n\n"
+        )
+    prd_path.write_text(
+        "# PRD\n\n"
+        "### Technology and toolchain decision register\n\n"
+        "| Decision ID | Concern | Selection | Version policy | Source | Basis IDs | Alternatives and rationale | Compatibility/migration | Validation |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
+        f"{rows}\n\n"
+        f"{property_section}"
+        "## Next section\n",
+        encoding="utf-8",
+    )
+    return prd_path
+
+
+def property_execution_values(
+    property_id: str = "PROP-001",
+    framework_tech_id: str = "TECH-0007",
+    command: str = "python -m unittest tests.test_properties",
+    run_bound: str = "MIN_CASES: 100; MAX_SECONDS: 30",
+    seed_format: str = "integer seed; reproduce with the recorded --seed value",
+    evidence_destination: str = "docs/project/VERIFY.md#property-based-test-evidence",
+) -> tuple[str, task_waves.PropertyExecutionRow]:
+    values = (
+        property_id,
+        framework_tech_id,
+        command,
+        run_bound,
+        seed_format,
+        evidence_destination,
+    )
+    return "| " + " | ".join(values) + " |", task_waves.PropertyExecutionRow(*values)
+
+
+def write_gate_b_bound_project(
+    root: Path,
+    tasks_text: str,
+) -> tuple[Path, Path]:
+    """Write a canonical project whose Gate B hash binds the current PRD."""
+
+    from tests import test_bootstrap_doctor as doctor_fixtures
+
+    tasks_path = root / "docs" / "project" / "TASKS.md"
+    tasks_path.parent.mkdir(parents=True, exist_ok=True)
+    tasks_path.write_text(tasks_text, encoding="utf-8")
+    prd = (REPOSITORY_ROOT / "docs" / "project" / "PRD.md").read_text(
+        encoding="utf-8"
+    )
+    # This synthetic approval fixture activates only PROP-001. Remove the
+    # template's other candidate property definitions so the approved contract
+    # has an exact applicability/definition/execution inverse mapping.
+    prd = "\n".join(
+        line
+        for line in prd.splitlines()
+        if not any(line.startswith(f"| PROP-{number:03d} |") for number in range(2, 6))
+    ) + "\n"
+    prd = doctor_fixtures.approve_gate_b(doctor_fixtures.approve_gate_a(prd))
+    (tasks_path.parent / "PRD.md").write_text(prd, encoding="utf-8")
+    (root / "bootstrap.manifest.json").write_text("{}\n", encoding="utf-8")
+    return tasks_path, write_matching_state(root, tasks_text)
+
+
+def property_evidence_row(
+    *,
+    evidence_id: str = "EV-1001",
+    task_id: str = "TASK-001",
+    result: str = "PASS",
+    command: str = "python -m unittest tests.test_properties",
+    counterexample: str = "NONE",
+    failure: str = "NONE",
+    observed_at: str = "2026-07-17T00:00:00+00:00",
+    observed_version: str = "6.112.1",
+) -> str:
+    return (
+        f"| {evidence_id} | {task_id} | REQ-0001 / DES-0001 / AUTH-0001 | "
+        f"PROP-001 | TECH-0007 | Hypothesis | {observed_version} | "
+        f"{command} | CASES: 100; ELAPSED_SECONDS: 0.50 | SEED: 12345 | "
+        f"{counterexample} | {failure} | {result} | {observed_at} | Worktree: abc1234; "
+        "artifact: tests/artifacts/property-PROP-001.json | "
+        "tests/artifacts/property-PROP-001.json |"
+    )
+
+
+def property_evidence_document(*rows: str) -> str:
+    content = rows or (property_evidence_row(),)
+    return (
+        "\n## Property-based test evidence\n\n"
+        "| Evidence ID | Task ID | REQ / DES / AUTH | Property ID | Framework TECH ID | Framework selection | Observed exact version | Exact command | Observed run | Replay seed or exact command | Minimized counterexample | Failure class / resolution | Result | Observed at | Commit / worktree / artifact | Durable source |\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"
+        + "\n".join(content)
+        + "\n"
+    )
 
 
 def observed_task_text(text: str, *, count: int = 1) -> str:
@@ -415,7 +549,7 @@ Not started.
 <summary>Exact metadata used by Codex and task_waves.py</summary>
 
 - Requirements: `REQ-0001, FR-001`
-- Design: `DES-0001, Section 10`
+- Design: `DES-0001; TECH: TECH-0001`
 - Authorization: `AUTH-0001`
 - Depends on: `NONE`
 - Dependency waivers: `NONE`
@@ -437,10 +571,1034 @@ Not started.
         tasks, _snap, waivers, by_id = parse_document(document([block]))
 
         self.assertEqual(set(tasks[0].metadata), set(task_waves.REQUIRED_METADATA))
+        self.assertNotIn("Technologies", task_waves.REQUIRED_METADATA)
         self.assertEqual(
             [task.task_id for task in task_waves.ready_tasks(tasks, by_id, waivers)],
             ["TASK-9001"],
         )
+
+    def test_design_trace_parses_and_serializes_technology_refs(self) -> None:
+        task = task_waves.parse_tasks(
+            task_block(
+                "TASK-001",
+                "READY",
+                design="DES-0001; TECH: TECH-0001, TECH-0002",
+            )
+        )[0]
+
+        task_waves.validate([task])
+
+        self.assertEqual(task.design_revision, "DES-0001")
+        self.assertEqual(task.technology_refs, ["TECH-0001", "TECH-0002"])
+        self.assertEqual(
+            task_waves.task_to_dict(task, 1)["technology_refs"],
+            ["TECH-0001", "TECH-0002"],
+        )
+
+        no_impact = task_waves.parse_tasks(
+            task_block(
+                "TASK-002",
+                "READY",
+                design="DES-0001; TECH: NONE — no technology/toolchain impact",
+            )
+        )[0]
+        task_waves.validate([no_impact])
+        self.assertEqual(no_impact.technology_refs, [])
+        self.assertEqual(task_waves.task_to_dict(no_impact, 1)["technology_refs"], [])
+
+    def test_executable_and_terminal_tasks_require_exact_design_trace_grammar(self) -> None:
+        malformed_values = (
+            "DES-0001, Section 10",
+            "DES-0001; TECH: TECH-0001,TECH-0002",
+            "DES-0001; TECH: TECH-nnnn",
+            "DES-0001; TECH: NONE",
+            "DES-0001; TECH: NONE — no technology/toolchain impact, TECH-0001",
+        )
+        for status in ("READY", "IN_PROGRESS", "BLOCKED", "DONE"):
+            for design in malformed_values:
+                with self.subTest(status=status, design=design), self.assertRaisesRegex(
+                    ValueError, "Design must exactly match"
+                ):
+                    task_waves.validate(
+                        task_waves.parse_tasks(
+                            task_block("TASK-001", status, design=design)
+                        )
+                    )
+
+        backlog = task_waves.parse_tasks(
+            task_block("TASK-001", "BACKLOG", design="TODO")
+        )
+        task_waves.validate(backlog)
+        self.assertEqual(task_waves.ready_tasks(backlog, {"TASK-001": backlog[0]}), [])
+
+    def test_design_trace_rejects_duplicate_or_unapproved_tech_ids(self) -> None:
+        duplicate = task_waves.parse_tasks(
+            task_block(
+                "TASK-001",
+                "READY",
+                design="DES-0001; TECH: TECH-0001, TECH-0001",
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate TECH reference"):
+            task_waves.validate(duplicate)
+
+        task = task_waves.parse_tasks(
+            task_block(
+                "TASK-001",
+                "READY",
+                design="DES-0001; TECH: TECH-0001, TECH-0002",
+            )
+        )
+        task_waves.validate(
+            task,
+            approved_tech_ids={"TECH-0001", "TECH-0002"},
+        )
+        with self.assertRaisesRegex(ValueError, "unapproved TECH IDs: TECH-0002"):
+            task_waves.validate(task, approved_tech_ids={"TECH-0001"})
+
+    def test_property_projection_is_exact_for_every_executable_status(self) -> None:
+        row, execution = property_execution_values()
+        approved = {execution.property_id: execution}
+        for status in ("READY", "IN_PROGRESS", "BLOCKED", "DONE"):
+            with self.subTest(status=status):
+                task = task_waves.parse_tasks(
+                    task_block(
+                        "TASK-001",
+                        status,
+                        requirements="REQ-0001, FR-001, PROP-001",
+                        design="DES-0001; TECH: TECH-0001, TECH-0007",
+                        validation_command=execution.exact_command,
+                        property_execution_rows=(row,),
+                    )
+                )
+                task_waves.validate(
+                    task,
+                    approved_tech_ids={"TECH-0001", "TECH-0007"},
+                    approved_property_execution=approved,
+                )
+
+    def test_property_execution_rejects_sentinels_and_prose_commands(self) -> None:
+        headers = (
+            "| Property ID | Framework TECH ID | Exact command | Run target/time bound | "
+            "Seed or reproduction format | Evidence destination |\n"
+            "|---|---|---|---|---|---|\n"
+        )
+        execution = property_execution_values()[1]
+        valid_values = [
+            execution.property_id,
+            execution.framework_tech_id,
+            execution.exact_command,
+            execution.run_target_time_bound,
+            execution.seed_or_reproduction_format,
+            execution.evidence_destination,
+        ]
+        semantic_indexes = range(2, 6)
+        for sentinel in ("NONE", "PENDING", "PLACEHOLDER"):
+            for index in semantic_indexes:
+                with self.subTest(sentinel=sentinel, column=index):
+                    values = valid_values.copy()
+                    values[index] = sentinel
+                    with self.assertRaisesRegex(
+                        ValueError, "property execution row is unresolved"
+                    ):
+                        task_waves.parse_property_execution_rows(
+                            headers + "| " + " | ".join(values) + " |\n",
+                            "test contract",
+                        )
+
+        for prose in (
+            "Run the exact property tests",
+            "Execute the validation command",
+            "The exact command",
+        ):
+            with self.subTest(prose=prose):
+                values = valid_values.copy()
+                values[2] = prose
+                with self.assertRaisesRegex(
+                    ValueError, "Exact command must be a concrete command"
+                ):
+                    task_waves.parse_property_execution_rows(
+                        headers + "| " + " | ".join(values) + " |\n",
+                        "test contract",
+                    )
+
+        bad_row, bad_execution = property_execution_values(command="NONE")
+        bad_task = task_waves.parse_tasks(
+            task_block(
+                "TASK-001",
+                "READY",
+                requirements="REQ-0001, FR-001, PROP-001",
+                design="DES-0001; TECH: TECH-0001, TECH-0007",
+                validation_command="NONE",
+                property_execution_rows=(bad_row,),
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "property execution row is unresolved"):
+            task_waves.validate(
+                bad_task,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                approved_property_execution={"PROP-001": bad_execution},
+            )
+
+    def test_property_projection_rejects_missing_altered_extra_and_duplicate_values(self) -> None:
+        row, execution = property_execution_values()
+        approved = {execution.property_id: execution}
+
+        def validate_row(
+            observed_rows: tuple[str, ...],
+            *,
+            requirements: str = "REQ-0001, FR-001, PROP-001",
+            design: str = "DES-0001; TECH: TECH-0001, TECH-0007, TECH-0008",
+            command: str = execution.exact_command,
+            approved_rows: dict[str, task_waves.PropertyExecutionRow] = approved,
+        ) -> None:
+            task_waves.validate(
+                task_waves.parse_tasks(
+                    task_block(
+                        "TASK-001",
+                        "READY",
+                        requirements=requirements,
+                        design=design,
+                        validation_command=command,
+                        property_execution_rows=observed_rows,
+                    )
+                ),
+                approved_tech_ids={"TECH-0001", "TECH-0007", "TECH-0008"},
+                approved_property_execution=approved_rows,
+            )
+
+        with self.assertRaisesRegex(ValueError, "missing the property execution projection"):
+            validate_row(())
+
+        alterations = (
+            ("Framework TECH ID", row.replace("TECH-0007", "TECH-0008", 1)),
+            ("Exact command", row.replace(execution.exact_command, "python -m unittest tests.other", 1)),
+            (
+                "Run target/time bound",
+                row.replace(
+                    execution.run_target_time_bound,
+                    "MIN_CASES: 101; MAX_SECONDS: 30",
+                    1,
+                ),
+            ),
+            ("Seed or reproduction format", row.replace(execution.seed_or_reproduction_format, "UUID seed; record exact value", 1)),
+            ("Evidence destination", row.replace(execution.evidence_destination, "docs/project/VERIFY.md#other", 1)),
+        )
+        for label, altered in alterations:
+            with self.subTest(label=label), self.assertRaisesRegex(
+                ValueError, "does not exactly match the approved PRD row"
+            ):
+                validate_row((altered,))
+
+        extra_row, extra_execution = property_execution_values(
+            property_id="PROP-002",
+            command="python -m unittest tests.test_other_properties",
+        )
+        with self.assertRaisesRegex(ValueError, "unreferenced property execution rows: PROP-002"):
+            validate_row(
+                (row, extra_row),
+                command=execution.exact_command + "\n" + extra_execution.exact_command,
+                approved_rows={
+                    execution.property_id: execution,
+                    extra_execution.property_id: extra_execution,
+                },
+            )
+
+        with self.assertRaisesRegex(ValueError, "duplicate property execution ID PROP-001"):
+            validate_row((row, row))
+
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            validate_row(
+                (row,),
+                command=execution.exact_command + "\n" + execution.exact_command,
+            )
+
+        with self.assertRaisesRegex(ValueError, "Framework TECH ID is missing from Design"):
+            validate_row((row,), design="DES-0001; TECH: TECH-0001")
+
+    def test_property_projection_order_matches_requirements(self) -> None:
+        row_one, execution_one = property_execution_values()
+        row_two, execution_two = property_execution_values(
+            property_id="PROP-002",
+            command="python -m unittest tests.test_other_properties",
+        )
+        task = task_waves.parse_tasks(
+            task_block(
+                "TASK-001",
+                "READY",
+                requirements="REQ-0001, FR-001, PROP-001, PROP-002",
+                design="DES-0001; TECH: TECH-0001, TECH-0007",
+                validation_command=(
+                    execution_one.exact_command + "\n" + execution_two.exact_command
+                ),
+                property_execution_rows=(row_two, row_one),
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "order must exactly match Requirements"):
+            task_waves.validate(
+                task,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                approved_property_execution={
+                    execution_one.property_id: execution_one,
+                    execution_two.property_id: execution_two,
+                },
+            )
+
+    def test_current_plan_requires_aggregate_property_coverage(self) -> None:
+        row, execution = property_execution_values()
+        approved = {execution.property_id: execution}
+        tasks = task_waves.parse_tasks(document([task_block("TASK-001", "READY")]))
+        snap = task_waves.parse_snapshot(document([task_block("TASK-001", "READY")]))
+        with self.assertRaisesRegex(
+            ValueError, "does not cover approved property execution IDs: PROP-001"
+        ):
+            task_waves.validate(
+                tasks,
+                snap,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                approved_property_execution=approved,
+            )
+
+        malformed_blocked = document(
+            [
+                task_block(
+                    "TASK-001",
+                    "BLOCKED",
+                    requirements="REQ-0001, FR-001, PROP-001",
+                    design="DES-0001; TECH: TECH-0001, TECH-0007",
+                )
+            ]
+        )
+        with self.assertRaisesRegex(
+            ValueError, "missing the property execution projection"
+        ):
+            task_waves.validate(
+                task_waves.parse_tasks(malformed_blocked),
+                task_waves.parse_snapshot(malformed_blocked),
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                approved_property_execution=approved,
+            )
+
+        repeated = document(
+            [
+                task_block(
+                    task_id,
+                    "READY",
+                    requirements="REQ-0001, FR-001, PROP-001",
+                    design="DES-0001; TECH: TECH-0001, TECH-0007",
+                    validation_command=execution.exact_command,
+                    property_execution_rows=(row,),
+                )
+                for task_id in ("TASK-001", "TASK-002")
+            ]
+        )
+        task_waves.validate(
+            task_waves.parse_tasks(repeated),
+            task_waves.parse_snapshot(repeated),
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            approved_property_execution=approved,
+        )
+
+        skipped_only = document(
+            [
+                task_block(
+                    "TASK-001",
+                    "SKIPPED",
+                    requirements="REQ-0001, FR-001, PROP-001",
+                ),
+            ]
+        )
+        with self.assertRaisesRegex(
+            ValueError, "does not cover approved property execution IDs: PROP-001"
+        ):
+            task_waves.validate(
+                task_waves.parse_tasks(skipped_only),
+                task_waves.parse_snapshot(skipped_only),
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                approved_property_execution=approved,
+            )
+
+    def test_resolved_backlog_property_counts_coverage_but_is_not_runnable(self) -> None:
+        row, execution = property_execution_values()
+        approved = {execution.property_id: execution}
+        tasks_text = document(
+            [
+                task_block("TASK-001", "READY"),
+                task_block(
+                    "TASK-002",
+                    "BACKLOG",
+                    dependencies="TASK-001",
+                    requirements="REQ-0001, FR-001, PROP-001",
+                    design="DES-0001; TECH: TECH-0001, TECH-0007",
+                    validation_command=execution.exact_command,
+                    property_execution_rows=(row,),
+                ),
+            ],
+            snapshot_text=snapshot(
+                run_state="RUNNING", run_id="RUN-0001", coordinator="lead"
+            ),
+        )
+        tasks = task_waves.parse_tasks(tasks_text)
+        snap = task_waves.parse_snapshot(tasks_text)
+        by_id = task_waves.validate(
+            tasks,
+            snap,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            approved_property_execution=approved,
+        )
+        self.assertEqual(
+            [task.task_id for task in task_waves.ready_tasks(tasks, by_id)],
+            ["TASK-001"],
+        )
+        with self.assertRaisesRegex(ValueError, "incomplete dependencies: TASK-001"):
+            task_waves.validate_status_transition(by_id["TASK-002"], "READY", by_id)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs" / "project" / "TASKS.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(tasks_text, encoding="utf-8")
+            write_matching_state(root, tasks_text)
+            write_technology_register(
+                root, "TECH-0001", "TECH-0007", property_rows=(row,)
+            )
+            with self.assertRaisesRegex(ValueError, "only READY tasks may be claimed"):
+                task_waves.claim_task_file(
+                    path,
+                    "TASK-002",
+                    owner="worker-b",
+                    coordinator="lead",
+                    run_id="RUN-0001",
+                    checkpoint="CP-0000",
+                )
+
+    def test_property_contract_survives_start_claim_and_status_preflight(self) -> None:
+        row, execution = property_execution_values()
+        tasks_text = document(
+            [
+                task_block(
+                    "TASK-001",
+                    "READY",
+                    requirements="REQ-0001, FR-001, PROP-001",
+                    design="DES-0001; TECH: TECH-0001, TECH-0007",
+                    validation_command=execution.exact_command,
+                    property_execution_rows=(row,),
+                )
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs" / "project" / "TASKS.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(tasks_text, encoding="utf-8")
+            write_matching_state(root, tasks_text)
+            write_technology_register(
+                root, "TECH-0001", "TECH-0007", property_rows=(row,)
+            )
+            _approved_ids, approved_properties = task_waves.approved_contract_values(
+                path, tasks_text
+            )
+            self.assertIsNotNone(approved_properties)
+            self.assertEqual(
+                approved_properties["PROP-001"].framework_selection,
+                "Hypothesis",
+            )
+            self.assertEqual(
+                approved_properties["PROP-001"].framework_version_policy,
+                "MINIMUM: 6.0",
+            )
+
+            task_waves.mutate_run_snapshot(
+                path,
+                operation="start",
+                run_id="RUN-0001",
+                coordinator="lead",
+            )
+            task_waves.claim_task_file(
+                path,
+                "TASK-001",
+                owner="worker-a",
+                coordinator="lead",
+                run_id="RUN-0001",
+                checkpoint="CP-0000",
+            )
+            task_waves.update_task_file(
+                path,
+                "TASK-001",
+                coordinator="lead",
+                status="BLOCKED",
+                blocker="Observed dependency failure; route to DESIGN-10",
+                run_id="RUN-0001",
+                checkpoint="CP-0001",
+            )
+            self.assertEqual(
+                task_waves.parse_tasks(path.read_text(encoding="utf-8"))[0].status,
+                "BLOCKED",
+            )
+
+    def test_gate_b_design_hash_staleness_blocks_query_start_claim_and_status(self) -> None:
+        row, execution = property_execution_values()
+
+        def property_task(status: str, *, running: bool = False) -> str:
+            return document(
+                [
+                    task_block(
+                        "TASK-001",
+                        status,
+                        requirements="REQ-0001, FR-001, PROP-001",
+                        design="DES-0001; TECH: TECH-0001, TECH-0007",
+                        validation_command=execution.exact_command,
+                        property_execution_rows=(row,),
+                    )
+                ],
+                snapshot_text=snapshot(
+                    run_state="RUNNING" if running else "NOT_STARTED",
+                    run_id="RUN-0001" if running else "NONE",
+                    coordinator="lead" if running else "UNASSIGNED",
+                ),
+            )
+
+        def make_stale(root: Path, text: str) -> tuple[Path, Path]:
+            path, state_path = write_gate_b_bound_project(root, text)
+            prd_path = path.with_name("PRD.md")
+            prd = prd_path.read_text(encoding="utf-8").replace(
+                "| TECH-0007 | PROPERTY_TESTING | Hypothesis |",
+                "| TECH-0007 | PROPERTY_TESTING | Hypothesis 7 |",
+                1,
+            )
+            prd_path.write_text(prd, encoding="utf-8")
+            return path, state_path
+
+        with tempfile.TemporaryDirectory() as directory:
+            path, _state = make_stale(Path(directory), property_task("READY"))
+            query_arguments = (
+                (),
+                ("--ready",),
+                ("--safe-ready",),
+                ("--task", "TASK-001"),
+                ("--json",),
+            )
+            for arguments in query_arguments:
+                with self.subTest(query=arguments), mock.patch.object(
+                    sys, "argv", ["task_waves.py", str(path), *arguments]
+                ):
+                    stderr = io.StringIO()
+                    with redirect_stderr(stderr):
+                        result = task_waves.main()
+                    self.assertEqual(result, 1)
+                    self.assertIn("design contract hash is stale", stderr.getvalue())
+            with self.assertRaisesRegex(ValueError, "design contract hash is stale"):
+                task_waves.approved_contract_values(
+                    path, path.read_text(encoding="utf-8")
+                )
+
+        operations = (
+            (
+                "start",
+                property_task("READY"),
+                lambda path: task_waves.mutate_run_snapshot(
+                    path,
+                    operation="start",
+                    run_id="RUN-0001",
+                    coordinator="lead",
+                ),
+            ),
+            (
+                "claim",
+                property_task("READY", running=True),
+                lambda path: task_waves.claim_task_file(
+                    path,
+                    "TASK-001",
+                    owner="worker-a",
+                    coordinator="lead",
+                    run_id="RUN-0001",
+                    checkpoint="CP-0000",
+                ),
+            ),
+            (
+                "status",
+                property_task("IN_PROGRESS", running=True),
+                lambda path: task_waves.update_task_file(
+                    path,
+                    "TASK-001",
+                    coordinator="lead",
+                    status="BLOCKED",
+                    blocker="Observed dependency failure; route to DESIGN-10",
+                    run_id="RUN-0001",
+                    checkpoint="CP-0002",
+                ),
+            ),
+            (
+                "issue",
+                property_task("READY"),
+                lambda path: task_waves.update_task_file(
+                    path,
+                    "TASK-001",
+                    coordinator="lead",
+                    issue="https://example.test/tasks/1",
+                ),
+            ),
+            *(
+                (
+                    operation,
+                    property_task("READY"),
+                    lambda path, operation=operation: task_waves.mutate_run_snapshot(
+                        path,
+                        operation=operation,
+                        run_id="RUN-0001",
+                        coordinator="lead",
+                        checkpoint="CP-0001"
+                        if operation in {"pause", "complete"}
+                        else None,
+                    ),
+                )
+                for operation in ("resume", "pause", "complete")
+            ),
+        )
+        for name, tasks_text, operation in operations:
+            with self.subTest(operation=name), tempfile.TemporaryDirectory() as directory:
+                path, state_path = make_stale(Path(directory), tasks_text)
+                original_tasks = path.read_text(encoding="utf-8")
+                original_state = state_path.read_text(encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "design contract hash is stale"):
+                    operation(path)
+                self.assertEqual(path.read_text(encoding="utf-8"), original_tasks)
+                self.assertEqual(state_path.read_text(encoding="utf-8"), original_state)
+
+    def test_same_id_property_contract_change_invalidates_gate_b_hash(self) -> None:
+        row, execution = property_execution_values()
+        original = document(
+            [
+                task_block(
+                    "TASK-001",
+                    "READY",
+                    requirements="REQ-0001, FR-001, PROP-001",
+                    design="DES-0001; TECH: TECH-0001, TECH-0007",
+                    validation_command=execution.exact_command,
+                    property_execution_rows=(row,),
+                )
+            ]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path, _state = write_gate_b_bound_project(root, original)
+            old_bound = execution.run_target_time_bound
+            new_bound = "MIN_CASES: 250; MAX_SECONDS: 45"
+            prd_path = path.with_name("PRD.md")
+            prd_path.write_text(
+                prd_path.read_text(encoding="utf-8").replace(
+                    old_bound, new_bound, 1
+                ),
+                encoding="utf-8",
+            )
+            path.write_text(
+                path.read_text(encoding="utf-8").replace(old_bound, new_bound, 1),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "design contract hash is stale"):
+                task_waves.approved_contract_values(
+                    path, path.read_text(encoding="utf-8")
+                )
+
+            from tests import test_bootstrap_doctor as doctor_fixtures
+
+            prd = prd_path.read_text(encoding="utf-8")
+            contract, issues = task_waves.load_bootstrap_doctor().derive_design_contract(
+                prd, "DES-0001", required=True
+            )
+            self.assertEqual(issues, [])
+            self.assertIsNotNone(contract.canonical_sha256)
+            prd_path.write_text(
+                doctor_fixtures.set_table_value(
+                    prd,
+                    "## 28. Construction envelope",
+                    "## 29. Gate B owner authorization record",
+                    "Design contract SHA-256",
+                    f"`{contract.canonical_sha256}`",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "Gate B approval binding is stale"):
+                task_waves.approved_contract_values(
+                    path, path.read_text(encoding="utf-8")
+                )
+
+    def test_property_done_requires_structured_evidence_and_later_pass_atomically(self) -> None:
+        row, execution = property_execution_values()
+        text = observed_task_text(
+            document(
+                [
+                    task_block(
+                        "TASK-001",
+                        "IN_PROGRESS",
+                        requirements="REQ-0001, FR-001, PROP-001",
+                        design="DES-0001; TECH: TECH-0001, TECH-0007",
+                        validation_command=execution.exact_command,
+                        property_execution_rows=(row,),
+                    )
+                ],
+                snapshot_text=snapshot(
+                    run_state="RUNNING", run_id="RUN-0001", coordinator="lead"
+                ),
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs" / "project" / "TASKS.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(text, encoding="utf-8")
+            state_path = write_matching_state(root, text)
+            write_technology_register(
+                root, "TECH-0001", "TECH-0007", property_rows=(row,)
+            )
+            verify_path = path.with_name("VERIFY.md")
+            property_material = (
+                "Worktree: abc1234; "
+                "artifact: tests/artifacts/property-PROP-001.json"
+            )
+            property_source = "tests/artifacts/property-PROP-001.json"
+
+            def completion(
+                evidence_id: str,
+                observed_at: str,
+                *,
+                status: str,
+            ) -> str:
+                return completion_evidence_row(
+                    evidence_id=evidence_id,
+                    command_or_observation=execution.exact_command,
+                    result="property test observed",
+                    observed_at=observed_at,
+                    material=property_material,
+                    durable_source=property_source,
+                    status=status,
+                )
+
+            first_pass_time = "2026-07-17T00:00:00+00:00"
+            failure_time = "2026-07-17T00:01:00+00:00"
+            later_pass_time = "2026-07-17T00:02:00+00:00"
+            generic = completion_evidence_document(
+                completion("EV-1001", first_pass_time, status="LOCAL_PASS")
+            )
+            verify_path.write_text(generic, encoding="utf-8")
+            original_tasks = path.read_text(encoding="utf-8")
+            original_state = state_path.read_text(encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError, "Property-based test evidence"
+            ):
+                task_waves.update_task_file(
+                    path,
+                    "TASK-001",
+                    coordinator="lead",
+                    status="DONE",
+                    evidence="EV-1001",
+                    run_id="RUN-0001",
+                    checkpoint="CP-0002",
+                )
+            self.assertEqual(path.read_text(encoding="utf-8"), original_tasks)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original_state)
+
+            failure = property_evidence_row(
+                evidence_id="EV-1002",
+                result="FAIL",
+                counterexample="user=''; car_id=0",
+                failure="IMPLEMENTATION_DEFECT — corrected in worktree abc1234",
+                observed_at=failure_time,
+            )
+            first_pass = property_evidence_row(
+                evidence_id="EV-1001",
+                observed_at=first_pass_time,
+            )
+            verify_path.write_text(
+                completion_evidence_document(
+                    completion("EV-1001", first_pass_time, status="LOCAL_PASS"),
+                    completion("EV-1002", failure_time, status="FAILED"),
+                )
+                + property_evidence_document(first_pass, failure),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                ValueError, "Status must be LOCAL_PASS or VERIFIED"
+            ):
+                task_waves.update_task_file(
+                    path,
+                    "TASK-001",
+                    coordinator="lead",
+                    status="DONE",
+                    evidence="EV-1002",
+                    run_id="RUN-0001",
+                    checkpoint="CP-0002",
+                )
+            self.assertEqual(path.read_text(encoding="utf-8"), original_tasks)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original_state)
+            with self.assertRaisesRegex(ValueError, "latest observed.*PASS"):
+                task_waves.update_task_file(
+                    path,
+                    "TASK-001",
+                    coordinator="lead",
+                    status="DONE",
+                    evidence="EV-1001",
+                    run_id="RUN-0001",
+                    checkpoint="CP-0002",
+                )
+            self.assertEqual(path.read_text(encoding="utf-8"), original_tasks)
+            self.assertEqual(state_path.read_text(encoding="utf-8"), original_state)
+
+            later_pass = property_evidence_row(
+                evidence_id="EV-1003",
+                observed_at=later_pass_time,
+            )
+            verify_path.write_text(
+                completion_evidence_document(
+                    completion("EV-1002", failure_time, status="FAILED"),
+                    completion("EV-1003", later_pass_time, status="LOCAL_PASS"),
+                )
+                + property_evidence_document(
+                    failure,
+                    later_pass,
+                ),
+                encoding="utf-8",
+            )
+            task_waves.update_task_file(
+                path,
+                "TASK-001",
+                coordinator="lead",
+                status="DONE",
+                evidence="EV-1003",
+                run_id="RUN-0001",
+                checkpoint="CP-0002",
+            )
+            self.assertEqual(
+                task_waves.parse_tasks(path.read_text(encoding="utf-8"))[0].status,
+                "DONE",
+            )
+
+    def test_property_done_rejects_noncomparable_version_policy_atomically(self) -> None:
+        row, execution = property_execution_values()
+        text = observed_task_text(
+            document(
+                [
+                    task_block(
+                        "TASK-001",
+                        "IN_PROGRESS",
+                        requirements="REQ-0001, FR-001, PROP-001",
+                        design="DES-0001; TECH: TECH-0001, TECH-0007",
+                        validation_command=execution.exact_command,
+                        property_execution_rows=(row,),
+                    )
+                ],
+                snapshot_text=snapshot(
+                    run_state="RUNNING", run_id="RUN-0001", coordinator="lead"
+                ),
+            )
+        )
+        for policy in (
+            "CURRENT_LTS_AS_OF: 2026-07-01",
+            "ORG_MANAGED: company baseline",
+        ):
+            with self.subTest(policy=policy), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                path = root / "docs" / "project" / "TASKS.md"
+                path.parent.mkdir(parents=True)
+                path.write_text(text, encoding="utf-8")
+                state_path = write_matching_state(root, text)
+                write_technology_register(
+                    root,
+                    "TECH-0001",
+                    "TECH-0007",
+                    property_rows=(row,),
+                    property_version_policy=policy,
+                )
+                observed_at = "2026-07-17T00:00:00+00:00"
+                material = (
+                    "Worktree: abc1234; "
+                    "artifact: tests/artifacts/property-PROP-001.json"
+                )
+                durable_source = "tests/artifacts/property-PROP-001.json"
+                path.with_name("VERIFY.md").write_text(
+                    completion_evidence_document(
+                        completion_evidence_row(
+                            evidence_id="EV-1001",
+                            command_or_observation=execution.exact_command,
+                            result="property test observed",
+                            observed_at=observed_at,
+                            material=material,
+                            durable_source=durable_source,
+                            status="LOCAL_PASS",
+                        )
+                    )
+                    + property_evidence_document(
+                        property_evidence_row(
+                            evidence_id="EV-1001",
+                            observed_at=observed_at,
+                            observed_version="0.0.1",
+                        )
+                    ),
+                    encoding="utf-8",
+                )
+                original_tasks = path.read_text(encoding="utf-8")
+                original_state = state_path.read_text(encoding="utf-8")
+
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "observed exact version does not satisfy",
+                ):
+                    task_waves.update_task_file(
+                        path,
+                        "TASK-001",
+                        coordinator="lead",
+                        status="DONE",
+                        evidence="EV-1001",
+                        run_id="RUN-0001",
+                        checkpoint="CP-0002",
+                    )
+                self.assertEqual(path.read_text(encoding="utf-8"), original_tasks)
+                self.assertEqual(
+                    state_path.read_text(encoding="utf-8"), original_state
+                )
+
+    def test_property_projection_mutation_failure_is_atomic(self) -> None:
+        row, execution = property_execution_values()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tasks_path = root / "docs" / "project" / "TASKS.md"
+            tasks_path.parent.mkdir(parents=True)
+            altered_row = row.replace(
+                execution.run_target_time_bound,
+                "MIN_CASES: 101; MAX_SECONDS: 30",
+                1,
+            )
+            tasks_path.write_text(
+                document(
+                    [
+                        task_block(
+                            "TASK-001",
+                            "READY",
+                            requirements="REQ-0001, FR-001, PROP-001",
+                            design="DES-0001; TECH: TECH-0001, TECH-0007",
+                            validation_command=execution.exact_command,
+                            property_execution_rows=(altered_row,),
+                        )
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            write_technology_register(
+                root,
+                "TECH-0001",
+                "TECH-0007",
+                property_rows=(row,),
+            )
+            with mock.patch.object(sys, "argv", ["task_waves.py", str(tasks_path)]):
+                stderr = io.StringIO()
+                with redirect_stderr(stderr):
+                    result = task_waves.main()
+            self.assertEqual(result, 1)
+            self.assertIn("does not exactly match", stderr.getvalue())
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tasks_path = root / "docs" / "project" / "TASKS.md"
+            tasks_path.parent.mkdir(parents=True)
+            altered_row = row.replace(
+                execution.run_target_time_bound,
+                "MIN_CASES: 101; MAX_SECONDS: 30",
+                1,
+            )
+            original = document(
+                [
+                    task_block(
+                        "TASK-001",
+                        "BACKLOG",
+                        requirements="REQ-0001, FR-001, PROP-001",
+                        design="DES-0001; TECH: TECH-0001, TECH-0007",
+                        validation_command=execution.exact_command,
+                        property_execution_rows=(altered_row,),
+                    ),
+                    task_block(
+                        "TASK-002",
+                        "READY",
+                        requirements="REQ-0001, FR-001, PROP-001",
+                        design="DES-0001; TECH: TECH-0001, TECH-0007",
+                        validation_command=execution.exact_command,
+                        property_execution_rows=(row,),
+                    ),
+                ],
+                snapshot_text=snapshot(
+                    run_state="RUNNING", run_id="RUN-0001", coordinator="lead"
+                ),
+            )
+            tasks_path.write_text(original, encoding="utf-8")
+            write_matching_state(root, original)
+            write_technology_register(
+                root,
+                "TECH-0001",
+                "TECH-0007",
+                property_rows=(row,),
+            )
+
+            with self.assertRaisesRegex(ValueError, "does not exactly match"):
+                task_waves.update_task_file(
+                    tasks_path,
+                    "TASK-001",
+                    coordinator="lead",
+                    status="READY",
+                )
+            self.assertEqual(tasks_path.read_text(encoding="utf-8"), original)
+
+    def test_cli_and_atomic_mutation_enforce_prd_tech_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tasks_path = root / "docs" / "project" / "TASKS.md"
+            tasks_path.parent.mkdir(parents=True)
+            tasks_text = document(
+                [
+                    task_block(
+                        "TASK-001",
+                        "READY",
+                        design="DES-0001; TECH: TECH-0002",
+                    )
+                ]
+            )
+            tasks_path.write_text(tasks_text, encoding="utf-8")
+            write_technology_register(root, "TECH-0001")
+            with mock.patch.object(sys, "argv", ["task_waves.py", str(tasks_path)]):
+                stderr = io.StringIO()
+                with redirect_stderr(stderr):
+                    result = task_waves.main()
+            self.assertEqual(result, 1)
+            self.assertIn("unapproved TECH IDs: TECH-0002", stderr.getvalue())
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tasks_path = root / "docs" / "project" / "TASKS.md"
+            tasks_path.parent.mkdir(parents=True)
+            original = document(
+                [
+                    task_block(
+                        "TASK-001",
+                        "BACKLOG",
+                        design="DES-0001; TECH: TECH-0002",
+                    )
+                ],
+                snapshot_text=snapshot(
+                    run_state="RUNNING", run_id="RUN-0001", coordinator="lead"
+                ),
+            )
+            tasks_path.write_text(original, encoding="utf-8")
+            write_matching_state(root, original)
+            write_technology_register(root, "TECH-0001")
+
+            with self.assertRaisesRegex(ValueError, "unapproved TECH IDs: TECH-0002"):
+                task_waves.update_task_file(
+                    tasks_path,
+                    "TASK-001",
+                    coordinator="lead",
+                    status="READY",
+                )
+
+            self.assertEqual(tasks_path.read_text(encoding="utf-8"), original)
 
     def test_missing_status_metadata_is_invalid(self) -> None:
         text = task_block("TASK-001", "READY").replace("- Status: `READY`\n", "")

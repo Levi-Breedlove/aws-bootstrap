@@ -52,6 +52,7 @@ MAX_SKILL_DESCRIPTION_CHARACTERS = 320
 MAX_REPOSITORY_SKILL_INDEX_CHARACTERS = 1_200
 MAX_BOOT_PROMPT_BYTES = 32 * 1024
 MAX_PHASE_PROMPT_BYTES = 8 * 1024
+MAX_DESIGN_PROMPT_BYTES = 8_000
 
 
 class PromptPackContractTests(unittest.TestCase):
@@ -143,6 +144,10 @@ class PromptPackContractTests(unittest.TestCase):
                     "instructions phase-scoped instead of loading the full pack"
                 ),
             )
+
+    def test_design_prompt_stays_within_strict_contract_budget(self) -> None:
+        section_bytes = len(self.prompt_section("DESIGN-10").encode("utf-8"))
+        self.assertLessEqual(section_bytes, MAX_DESIGN_PROMPT_BYTES)
 
     def test_stable_prompt_ids_are_unique_and_ordered(self) -> None:
         positions: list[int] = []
@@ -329,41 +334,153 @@ class PromptPackContractTests(unittest.TestCase):
             gate_b,
         )
 
+    def test_technology_register_is_authoritative_and_exact(self) -> None:
+        heading = "### Technology and toolchain decision register"
+        self.assertIn(heading, self.prd)
+        register = self.prd.split(heading, 1)[1].split("\n## 14.", 1)[0]
+        self.assertIn("authoritative register", register)
+        self.assertIn(
+            "| Decision ID | Concern | Selection | Version policy | Source | "
+            "Basis IDs | Alternatives and rationale | Compatibility/migration | "
+            "Validation |",
+            register,
+        )
+        expected = [
+            ("TECH-0001", "APPLICATION_RUNTIME"),
+            ("TECH-0002", "APPLICATION_FRAMEWORK"),
+            ("TECH-0003", "FRONTEND_FRAMEWORK"),
+            ("TECH-0004", "INFRASTRUCTURE_AS_CODE"),
+            ("TECH-0005", "PACKAGE_BUILD_TOOLING"),
+            ("TECH-0006", "TEST_TOOLING"),
+            ("TECH-0007", "PROPERTY_TESTING"),
+            ("TECH-0008", "SECURITY_VALIDATION"),
+            ("TECH-0009", "DEPLOYMENT_TOOLING"),
+        ]
+        rows = re.findall(r"(?m)^\| (TECH-\d{4}) \| ([A-Z_]+) \|", register)
+        self.assertEqual(rows, expected)
+        for decision_id, concern in expected:
+            self.assertIn(
+                f"| {decision_id} | {concern} | TODO | TODO | TODO | TODO | "
+                "TODO | TODO | TODO |",
+                register,
+            )
+        self.assertIn("DES-0001; TECH: TECH-0001, TECH-0002", register)
+        self.assertIn(
+            "DES-0001; TECH: NONE — no technology/toolchain impact", register
+        )
+        self.assertIn("OFFICIAL_CURRENT_NO_TEMPLATE_PIN", register)
+        self.assertRegex(register, r"observed\s+version is evidence metadata")
+        self.assertIn("exact comma-space-separated stable IDs", register)
+        self.assertIn("never prose, duplicate IDs", register)
+        self.assertIn("`EXACT` may use an opaque ecosystem version", register)
+        self.assertIn("`MINIMUM`\nuses a machine-comparable numeric dotted version", register)
+        self.assertIn("An active `PROPERTY_TESTING` decision must use", register)
+        self.assertRegex(
+            register,
+            r"`Selection` names the chosen technology or uses exactly\s+"
+            r"`NOT_APPLICABLE — <reason>` when no technology applies",
+        )
+        self.assertRegex(
+            register,
+            r"ordinary dependency addition does not invalidate Gate\s+B unless "
+            r"it changes\s+architecture, validation, security, cost, or deployment\s+"
+            r"behavior",
+        )
+
     def test_property_specs_flow_through_tasks_build_and_release_evidence(self) -> None:
         design = self.prompt_section("DESIGN-10")
         tasks = self.prompt_section("TASK-10")
         build = self.prompt_section("BUILD-10")
+        autonomous = self.prompt_section("BUILD-20")
         release = self.prompt_section("RELEASE-10")
         test_agents = (PROJECT_ROOT / "tests/AGENTS.md").read_text(
             encoding="utf-8"
         )
 
-        self.assertIn("PBT applicability, PROP invariants", design)
+        self.assertIn("classify every measurable Gate A requirement exactly once", design)
+        self.assertIn("replay format must explicitly declare a", design)
+        self.assertIn("Only `EXACT` accepts opaque", design)
+        self.assertIn("Active `PROPERTY_TESTING` uses", design)
         self.assertIn("applicable `PROP-*`", tasks)
-        self.assertIn("framework or suite, generated domain", tasks)
+        self.assertIn("TASK-10 is copy-only for design decisions", tasks)
+        self.assertIn("DES-0001; TECH: TECH-0001, TECH-0002", tasks)
         self.assertIn("run the approved property suite", build)
         self.assertIn("minimized counterexample", build)
         self.assertIn("SPECIFICATION_AMBIGUITY_OR_DEFECT", build)
         self.assertIn("route to REQ-10 or DESIGN-10", build)
+        for section in (build, autonomous):
+            self.assertIn("route to DESIGN-10", section)
+            self.assertRegex(section, r"(?i)(?:never|cannot) substitute")
         self.assertIn("Missing or\nunresolved property evidence", release)
 
         for phrase in (
             "classify every measurable Gate A requirement",
             "APPLICABLE` / `NOT_APPLICABLE",
-            "seed and reproduction-command format",
+            "### Property execution contract",
+            "Seed or reproduction format",
+            "MIN_CASES: <positive integer>",
+            "MAX_SECONDS: <positive integer>",
             "Never change an approved property",
         ):
             self.assertIn(phrase, self.prd)
+        property_section = self.prd.split(
+            "## 24. Property-based testing specification", 1
+        )[1].split("\n## 25.", 1)[0]
+        self.assertLess(
+            property_section.index("| PROP-005 |"),
+            property_section.index("### Property execution contract"),
+        )
+        self.assertIn(
+            "| Property ID | Framework TECH ID | Exact command | Run target/time "
+            "bound | Seed or reproduction format | Evidence destination |",
+            property_section,
+        )
+        self.assertIn(
+            "| PROP-001 | TODO | TODO | TODO | TODO | TODO |", property_section
+        )
+        self.assertIn(
+            "replay format must explicitly declare either a seed", property_section
+        )
+        self.assertIn("Every applicable property definition must contain concrete", property_section)
+        self.assertIn("one runnable local\ncommand, not prose", property_section)
+        self.assertIn("without shell-control\n  chaining", design)
+        for redundant in (
+            "- language-appropriate framework or suite;",
+            "- generated case or run target and time bound;",
+            "- seed and reproduction-command format;",
+        ):
+            self.assertNotIn(redundant, property_section)
         self.assertIn(
             "Current REQ ID, requirement IDs, and applicable PROP IDs",
             self.tasks,
         )
         for phrase in (
+            "Evidence ID",
+            "Task ID",
+            "REQ / DES / AUTH",
+            "Framework selection",
+            "Observed exact version",
+            "Exact command",
+            "Observed run",
+            "Replay seed or exact command",
             "Minimized counterexample",
             "Failure class / resolution",
-            "preserve the smallest observed counterexample",
+            "Commit / worktree / artifact",
+            "Durable source",
         ):
             self.assertIn(phrase, self.verify)
+        self.assertIn("CASES: <positive integer>; ELAPSED_SECONDS:", self.verify)
+        self.assertIn("latest uniquely timed row", self.verify)
+        self.assertRegex(
+            self.verify, r"preserve the smallest observed\s+counterexample"
+        )
+        self.assertIn("`FAILED` preserves\na property-test failure", self.verify)
+        self.assertIn("matching Task completion evidence row", self.verify)
+        self.assertIn("`BACKLOG` is a fully specified dependency-gated task", self.tasks)
+        self.assertIn("`BACKLOG` contributes to plan coverage", self.tasks)
+        self.assertIn("BACKLOG means dependency-gated, not", tasks)
+        self.assertIn("SKIPPED tasks do not satisfy property", tasks)
+        self.assertIn("Only the passing status may be cited", build)
         self.assertIn("Never weaken an invariant", self.agents)
         self.assertIn("Never narrow a generator", test_agents)
         self.assertIn("Requires Codex and Python 3.11 or newer", self.root_readme)
@@ -720,10 +837,15 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("every remaining singleton metadata line", task_prompt)
         self.assertIn("A READY task cannot contain `TODO`", self.tasks)
         self.assertIn("- Dependency waivers: NONE", self.tasks)
-        self.assertRegex(
-            self.tasks,
-            r"#### Validation\n\n```bash\n<exact validation command>\n```",
+        projection_header = (
+            "| Property ID | Framework TECH ID | Exact command | "
+            "Run target/time bound | Seed or reproduction format | "
+            "Evidence destination |"
         )
+        self.assertIn(projection_header, self.tasks)
+        self.assertIn(projection_header.strip("| "), task_prompt)
+        self.assertIn("```bash\n<exact validation command>\n```", self.tasks)
+        self.assertIn("exact Property execution projection table", task_prompt)
 
     def test_readiness_cards_are_complete_and_prompt_filled(self) -> None:
         gate_a_fields = (
@@ -741,6 +863,7 @@ class PromptPackContractTests(unittest.TestCase):
         gate_b_fields = (
             "Design basis IDs",
             "Architecture/components",
+            "Technology/toolchains/version policy",
             "Interfaces/data flow",
             "Identity/secrets",
             "Failure/retry/concurrency",
@@ -757,7 +880,21 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("| Authorized cost posture |", self.prd)
         self.assertIn("Fill the Gate A readiness card with these exact fields", self.prompt_section("REQ-10"))
         self.assertIn("Fill the Gate B readiness card with these exact fields", self.prompt_section("DESIGN-10"))
+        gate_b = self.prompt_section("DESIGN-20")
+        self.assertIn("all current readiness-card fields", gate_b)
+        self.assertNotIn("all ten fields from the current Gate B readiness card", gate_b)
         self.assertIn("`NOT_APPLICABLE — <reason>`", self.prd)
+
+    def test_aws_core_design_evidence_is_advisory_and_tech_bindable(self) -> None:
+        design = self.prompt_section("DESIGN-10")
+        for document in (self.verify, design):
+            self.assertIn("DES-0001; TECH: TECH-0001, TECH-0002", document)
+            self.assertIn(
+                "DES-0001; TECH: NONE — no technology/toolchain impact", document
+            )
+        self.assertIn("Advisory Design binding", self.verify)
+        self.assertRegex(self.verify, r"never\s+selects a technology")
+        self.assertIn("observed AWS Core version is metadata, never a pin", design)
 
     def test_cost_posture_and_secure_serverless_first_contract(self) -> None:
         boot = self.prompt_section("BOOT-00")
@@ -816,6 +953,16 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertEqual(self.prompts.count(receipt_line), 2)
         self.assertIn("header, separator, and every boundary row", self.prd)
         self.assertIn("append one final LF", self.prd)
+        self.assertIn("| Design contract SHA-256 |", self.prd)
+        self.assertIn("doctor-derived current value", self.prompts)
+        for table_name in (
+            "Technology decision",
+            "Property applicability",
+            "Property definition",
+            "Property execution",
+        ):
+            self.assertIn(table_name, self.prd)
+            self.assertRegex(self.prompts, table_name.replace(" ", r"\s+"))
 
     def test_construction_envelope_uses_bindable_grammars(self) -> None:
         required_rows = (
@@ -823,6 +970,7 @@ class PromptPackContractTests(unittest.TestCase):
             "Delivery profile and effective risk",
             "Project AWS lane",
             "Authorized requirement and design IDs",
+            "Design contract SHA-256",
             "Authorized baseline commit",
             "Protected dirty paths",
             "Allowed external-state targets",

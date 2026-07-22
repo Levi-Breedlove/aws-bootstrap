@@ -179,6 +179,15 @@ def approve_gate_a(text: str) -> str:
 
 
 def approve_gate_b(text: str, *, baseline: str = "a" * 40) -> str:
+    text = complete_design_contract(text)
+    design_contract, design_issues = doctor.derive_design_contract(
+        text, "DES-0001", required=True
+    )
+    if design_issues or design_contract.canonical_sha256 is None:
+        raise AssertionError(
+            "Test Gate B requires a complete design contract: "
+            + "; ".join(design_issues)
+        )
     text = set_table_value(
         text,
         "## Document status",
@@ -206,6 +215,10 @@ def approve_gate_b(text: str, *, baseline: str = "a" * 40) -> str:
     gate_b_card = {
         "Design basis IDs": "`DES-0001, FR-001`",
         "Architecture/components": "`Bounded app and focused tests`",
+        "Technology/toolchains/version policy": (
+            "`TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, "
+            "TECH-0006, TECH-0007, TECH-0008, TECH-0009`"
+        ),
         "Interfaces/data flow": "`Local request and response flow`",
         "Identity/secrets": "`No secrets; local development identity`",
         "Failure/retry/concurrency": "`Fail closed; bounded retries; serialized state`",
@@ -228,7 +241,12 @@ def approve_gate_b(text: str, *, baseline: str = "a" * 40) -> str:
         "Delivery profile and effective risk": "`quick-mvp / low`",
         "Project AWS lane": "`documentation-only`",
         "Authorized outcome": "`OUT-001 — Deliver the FR-001 outcome`",
-        "Authorized requirement and design IDs": "`REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001`",
+        "Authorized requirement and design IDs": (
+            "`REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001, "
+            "TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, "
+            "TECH-0006, TECH-0007, TECH-0008, TECH-0009, PROP-001`"
+        ),
+        "Design contract SHA-256": f"`{design_contract.canonical_sha256}`",
         "Authorized baseline commit": f"`{baseline}`",
         "Protected dirty paths": "`NONE`",
         "In-scope components and environments": "`app and tests in development`",
@@ -307,6 +325,23 @@ def approve_gate_b(text: str, *, baseline: str = "a" * 40) -> str:
 
 
 def rebind_gate_b_envelope(text: str) -> str:
+    design_revision = doctor.table_after_heading(
+        text, "## Document status"
+    )["Current design revision"]
+    design_contract, design_issues = doctor.derive_design_contract(
+        text, design_revision, required=True
+    )
+    if design_issues or design_contract.canonical_sha256 is None:
+        raise AssertionError(
+            "Cannot rebind an invalid design contract: " + "; ".join(design_issues)
+        )
+    text = set_table_value(
+        text,
+        "## 28. Construction envelope",
+        "## 29. Gate B owner authorization record",
+        "Design contract SHA-256",
+        f"`{design_contract.canonical_sha256}`",
+    )
     digest = doctor.canonical_envelope_sha256(text)
     text = set_table_value(
         text,
@@ -372,6 +407,7 @@ def record_aws_core_evidence(
     binding: str | None = None,
     actor: str = "CODEX_LIVE_TOOL_CALL",
     plugin_version: str = "1.2.0",
+    advisory_design_binding: str = "DES-0001; TECH: NONE — no technology/toolchain impact",
 ) -> str:
     if binding is None:
         binding = {
@@ -387,6 +423,7 @@ def record_aws_core_evidence(
             binding=binding,
             actor=actor,
             plugin_version=plugin_version,
+            advisory_design_binding=advisory_design_binding,
         )
     return text
 
@@ -406,6 +443,7 @@ def record_aws_core_capability_evidence(
     returned_skill_identifier: str | None = None,
     documentation_query: str | None = None,
     source_references: str | None = None,
+    advisory_design_binding: str = "DES-0001; TECH: NONE — no technology/toolchain impact",
     credentials_inspected: str = "NO",
     aws_account_accessed: str = "NO",
 ) -> str:
@@ -426,7 +464,7 @@ def record_aws_core_capability_evidence(
         f"`{plugin_version}` | `{capability}` | `{actor}` | "
         f"`{requested_skill}` | `{returned_skill_identifier}` | "
         f"`{documentation_query}` | `{source_references}` | "
-        f"`DES-0001 architecture review` | `{credentials_inspected}` | "
+        f"`{advisory_design_binding}` | `{credentials_inspected}` | "
         f"`{aws_account_accessed}` | `2026-07-20T12:00:00Z` | "
         f"`{binding}` | `{status}` |"
     )
@@ -467,11 +505,12 @@ def ready_task(
     write_set: str = "app/main.py",
     *,
     requirements: str = "REQ-0001; FR-001",
-    design: str = "DES-0001; implementation design",
+    design: str = "DES-0001; TECH: TECH-0001",
     outcome: str = "The authorized slice is implemented without expanding scope.",
     external_state: str = "NONE",
     command: str = "python -m unittest",
     github_issue: str = "PENDING_SYNC",
+    property_projection: str = "",
 ) -> str:
     return f"""
 
@@ -508,6 +547,8 @@ def ready_task(
 
 #### Validation
 
+{property_projection}
+
 ```bash
 {command}
 ```
@@ -516,6 +557,191 @@ def ready_task(
 
 Not started.
 """
+
+
+def put_contract_table(
+    text: str,
+    heading: str,
+    table: str,
+    insertion_marker: str,
+) -> str:
+    if heading not in text:
+        replacement = f"{heading}\n\n{table.rstrip()}\n\n{insertion_marker}"
+        if text.count(insertion_marker) != 1:
+            raise AssertionError(f"Expected one insertion marker {insertion_marker!r}")
+        return text.replace(insertion_marker, replacement, 1)
+    start = text.index(heading) + len(heading)
+    match = re.search(r"(?m)(?:^\|.*\|(?:\r?\n|$))+", text[start:])
+    if match is None:
+        raise AssertionError(f"Missing table after {heading!r}")
+    table_start = start + match.start()
+    table_end = start + match.end()
+    return text[:table_start] + table.rstrip() + "\n" + text[table_end:]
+
+
+def complete_design_contract(text: str) -> str:
+    technology_rows = (
+        ("TECH-0001", "APPLICATION_RUNTIME", "Python", "CURRENT_LTS_AS_OF: 2026-07-01"),
+        ("TECH-0002", "APPLICATION_FRAMEWORK", "FastAPI", "COMPATIBLE_MAJOR: 1"),
+        (
+            "TECH-0003",
+            "FRONTEND_FRAMEWORK",
+            "NOT_APPLICABLE — server-rendered interface",
+            "NOT_APPLICABLE — server-rendered interface",
+        ),
+        ("TECH-0004", "INFRASTRUCTURE_AS_CODE", "AWS SAM", "COMPATIBLE_MAJOR: 1"),
+        ("TECH-0005", "PACKAGE_BUILD_TOOLING", "pip", "MINIMUM: 24.0"),
+        ("TECH-0006", "TEST_TOOLING", "unittest", "ORG_MANAGED: Python standard library"),
+        ("TECH-0007", "PROPERTY_TESTING", "Hypothesis", "MINIMUM: 6.0"),
+        ("TECH-0008", "SECURITY_VALIDATION", "Bandit", "EXACT: 1.7.9"),
+        ("TECH-0009", "DEPLOYMENT_TOOLING", "AWS SAM CLI", "MINIMUM: 1.120"),
+    )
+    technology_table = "\n".join(
+        [
+            "| Decision ID | Concern | Selection | Version policy | Source | Basis IDs | Alternatives and rationale | Compatibility/migration | Validation |",
+            "|---|---|---|---|---|---|---|---|---|",
+            *(
+                f"| {decision_id} | {concern} | {selection} | {policy} | "
+                "AGENT_RECOMMENDATION | DES-0001, FR-001 | Selected for the approved slice | "
+                "No migration required | Validate with the task command |"
+                for decision_id, concern, selection, policy in technology_rows
+            ),
+        ]
+    )
+    text = put_contract_table(
+        text,
+        doctor.TECHNOLOGY_DECISION_HEADING,
+        technology_table,
+        "## 14. Architecture overview",
+    )
+    applicability = "\n".join(
+        [
+            "| Requirement ID | Applicability | Reason or property IDs |",
+            "|---|---|---|",
+            *(
+                (
+                    "| FR-001 | APPLICABLE | PROP-001 |"
+                    if requirement_id == "FR-001"
+                    else (
+                        f"| {requirement_id} | NOT_APPLICABLE | "
+                        "No stable generated-input oracle is approved for this requirement |"
+                    )
+                )
+                for requirement_id in sorted(
+                    doctor.authoritative_requirement_ids(text)
+                )
+            ),
+        ]
+    )
+    applicability_pattern = re.compile(
+        r"(?m)^\| Requirement ID \| Applicability \| Reason or property IDs \|\r?\n"
+        r"^\|[-:| ]+\|\r?\n(?:^\|.*\|\r?\n?)+"
+    )
+    text, count = applicability_pattern.subn(applicability + "\n", text, count=1)
+    if count != 1:
+        raise AssertionError("Missing property applicability table")
+    text = text.replace("| PROP-001 | SEC-002 |", "| PROP-001 | FR-001 |", 1)
+    text = re.sub(r"(?m)^\| PROP-00[2-5] \|.*\|\r?\n?", "", text)
+    execution_table = property_execution_projection()
+    return put_contract_table(
+        text,
+        doctor.PROPERTY_EXECUTION_HEADING,
+        execution_table,
+        "Add workload-specific properties for:",
+    )
+
+
+def property_execution_projection() -> str:
+    return "\n".join(
+        [
+            "| Property ID | Framework TECH ID | Exact command | Run target/time bound | Seed or reproduction format | Evidence destination |",
+            "|---|---|---|---|---|---|",
+            "| PROP-001 | TECH-0007 | python -m unittest tests.test_properties | MIN_CASES: 100; MAX_SECONDS: 30 | integer seed; reproduce with the recorded --seed value | docs/project/VERIFY.md#property-based-test-evidence |",
+        ]
+    )
+
+
+def property_test_evidence_row(
+    *,
+    evidence_id: str = "EV-0001",
+    task_id: str = "TASK-001",
+    property_id: str = "PROP-001",
+    basis: str = "REQ-0001 / DES-0001 / AUTH-0001",
+    result: str = "PASS",
+    exact_command: str = "python -m unittest tests.test_properties",
+    framework_tech_id: str = "TECH-0007",
+    framework_selection: str = "Hypothesis",
+    observed_version: str = "6.112.1",
+    observed_run: str = "CASES: 100; ELAPSED_SECONDS: 1.25",
+    replay: str = "seed: 12345",
+    counterexample: str = "NONE",
+    failure: str = "NONE",
+    observed_at: str = "2026-07-17T12:00:00-07:00",
+    material: str = "commit: " + "a" * 40,
+    source: str = "docs/project/VERIFY.md#ev-0001",
+) -> str:
+    return (
+        f"| {evidence_id} | {task_id} | {basis} | {property_id} | "
+        f"{framework_tech_id} | {framework_selection} | {observed_version} | "
+        f"{exact_command} | {observed_run} | {replay} | {counterexample} | "
+        f"{failure} | {result} | {observed_at} | {material} | {source} |"
+    )
+
+
+def property_test_evidence_section(**row_options: str) -> str:
+    return "\n".join(
+        [
+            "## Property-based test evidence",
+            "",
+            "| Evidence ID | Task ID | REQ / DES / AUTH | Property ID | Framework TECH ID | Framework selection | Observed exact version | Exact command | Observed run | Replay seed or exact command | Minimized counterexample | Failure class / resolution | Result | Observed at | Commit / worktree / artifact | Durable source |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+            property_test_evidence_row(**row_options),
+        ]
+    )
+
+
+def task_completion_evidence_section(
+    *rows: tuple[str, str, str, str, str, str],
+) -> str:
+    """Build exact task-completion rows that bind property-test evidence."""
+
+    if not rows:
+        rows = (
+            (
+                "EV-0001",
+                "python -m unittest tests.test_properties",
+                "2026-07-17T12:00:00-07:00",
+                "commit: " + "a" * 40,
+                "docs/project/VERIFY.md#ev-0001",
+                "LOCAL_PASS",
+            ),
+        )
+    rendered_rows = [
+        (
+            f"| {evidence_id} | TASK-001 | {command} | observed property run | "
+            f"alice | {observed_at} | {material} | {source} | {status} |"
+        )
+        for evidence_id, command, observed_at, material, source, status in rows
+    ]
+    return "\n".join(
+        [
+            "## Task completion evidence",
+            "",
+            "| Evidence ID | Task | Command or observation | Result | Actor | Observed at | Commit / worktree / artifact | Durable source | Status |",
+            "|---|---|---|---|---|---|---|---|---|",
+            *rendered_rows,
+        ]
+    )
+
+
+def refresh_control_hashes(project: Path) -> None:
+    manifest_path = project / "bootstrap.manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["control_sha256"] = {
+        relative: hashlib.sha256((project / relative).read_bytes()).hexdigest()
+        for relative in doctor.CONTROL_HASH_FILES
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
 
 class BootstrapDoctorTests(unittest.TestCase):
@@ -621,7 +847,15 @@ class BootstrapDoctorTests(unittest.TestCase):
             capture_output=True,
             text=True,
         ).stdout.strip()
-        self.initialize_task_plan(project, ready_task())
+        self.initialize_task_plan(
+            project,
+            ready_task(
+                requirements="REQ-0001; FR-001; PROP-001",
+                design="DES-0001; TECH: TECH-0001, TECH-0007",
+                command="python -m unittest tests.test_properties",
+                property_projection=property_execution_projection(),
+            ),
+        )
 
         state_path = project / "bootstrap.yaml"
         state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -698,6 +932,527 @@ class BootstrapDoctorTests(unittest.TestCase):
         self.assertEqual(
             report["authorizations"],
             {"construction": "NONE", "aws": "NONE"},
+        )
+        self.assertEqual(report["design_contract"]["schema_version"], 1)
+        self.assertIn(
+            report["design_contract"]["status"],
+            {"UNINITIALIZED", "BLOCKED"},
+        )
+
+    def test_design_contract_parser_is_deterministic_and_fail_closed(self) -> None:
+        template = (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
+        initial, _initial_issues = doctor.derive_design_contract(template, "DES-0001")
+        self.assertIn(initial.status, {"UNINITIALIZED", "BLOCKED"})
+        absent, _absent_issues = doctor.derive_design_contract("", "DES-0001")
+        required_absent, _required_absent_issues = doctor.derive_design_contract(
+            "", "DES-0001", required=True
+        )
+        self.assertEqual(absent.status, "UNINITIALIZED")
+        self.assertEqual(required_absent.status, "BLOCKED")
+
+        complete = complete_design_contract(template)
+        ready, issues = doctor.derive_design_contract(complete, "DES-0001")
+        self.assertEqual(issues, [])
+        self.assertEqual(ready.status, "READY")
+        self.assertEqual(len(ready.technology_decisions), 9)
+        self.assertEqual(len(ready.property_execution), 1)
+        self.assertRegex(ready.canonical_sha256 or "", r"^sha256:[0-9a-f]{64}$")
+        self.assertTrue(
+            doctor.technology_version_policy_allows(
+                "EXACT: nodejs20.x",
+                "nodejs20.x",
+            )
+        )
+        self.assertFalse(
+            doctor.technology_version_policy_allows(
+                "EXACT: nodejs20.x",
+                "nodejs22.x",
+            )
+        )
+        self.assertTrue(
+            doctor.technology_version_policy_allows("MINIMUM: 6.0", "6.112.1")
+        )
+        self.assertFalse(
+            doctor.technology_version_policy_allows("MINIMUM: 6.0", "6.0rc1")
+        )
+        self.assertFalse(
+            doctor.technology_version_policy_allows(
+                "CURRENT_LTS_AS_OF: 2026-07-01",
+                "0.0.1",
+            )
+        )
+        self.assertFalse(
+            doctor.technology_version_policy_allows(
+                "ORG_MANAGED: company baseline",
+                "0.0.1",
+            )
+        )
+        self.assertFalse(doctor.valid_technology_version_policy("MINIMUM: latest"))
+        for sentinel in (
+            "TODO",
+            "TBD",
+            "TBC",
+            "UNKNOWN",
+            "UNASSIGNED",
+            "PENDING",
+            "PLACEHOLDER",
+            "NOT_STARTED",
+            "NONE",
+            "N/A",
+        ):
+            with self.subTest(technology_sentinel=sentinel):
+                self.assertFalse(doctor.valid_technology_selection(sentinel))
+                self.assertFalse(
+                    doctor.valid_technology_version_policy(f"EXACT: {sentinel}")
+                )
+                self.assertFalse(
+                    doctor.valid_technology_version_policy(f"ORG_MANAGED: {sentinel}")
+                )
+                self.assertFalse(
+                    doctor.machine_comparable_property_version_policy(
+                        f"EXACT: {sentinel}"
+                    )
+                )
+                self.assertFalse(
+                    doctor.technology_version_policy_allows(
+                        f"EXACT: {sentinel}", sentinel
+                    )
+                )
+        self.assertFalse(
+            doctor.valid_technology_version_policy("NOT_APPLICABLE \u2014 N/A")
+        )
+        self.assertTrue(
+            doctor.replay_evidence_matches_contract(
+                "record the exact command",
+                "python -m unittest tests.test_properties",
+                "python -m unittest tests.test_properties",
+            )
+        )
+        self.assertFalse(
+            doctor.replay_evidence_matches_contract(
+                "record the exact command",
+                "python -m unittest wrong",
+                "python -m unittest tests.test_properties",
+            )
+        )
+        self.assertTrue(
+            doctor.valid_property_execution_command(
+                "python -m unittest tests.test_properties"
+            )
+        )
+        self.assertFalse(doctor.valid_property_execution_command("PENDING"))
+        self.assertFalse(
+            doctor.valid_property_execution_command("Run property tests")
+        )
+
+        technology_header = (
+            "| Decision ID | Concern | Selection | Version policy | Source | Basis IDs | "
+            "Alternatives and rationale | Compatibility/migration | Validation |"
+        )
+        with_trailing_space = complete.replace(
+            technology_header, technology_header + "   ", 1
+        )
+        normalized, normalized_issues = doctor.derive_design_contract(
+            with_trailing_space, "DES-0001"
+        )
+        self.assertEqual(normalized_issues, [])
+        self.assertEqual(normalized.canonical_sha256, ready.canonical_sha256)
+        changed, changed_issues = doctor.derive_design_contract(
+            complete.replace("| TECH-0007 | PROPERTY_TESTING | Hypothesis |", "| TECH-0007 | PROPERTY_TESTING | Hypothesis 7 |", 1),
+            "DES-0001",
+        )
+        self.assertEqual(changed_issues, [])
+        self.assertNotEqual(changed.canonical_sha256, ready.canonical_sha256)
+
+        property_row = (
+            "| PROP-001 | TECH-0007 | python -m unittest tests.test_properties | "
+            "MIN_CASES: 100; MAX_SECONDS: 30 | integer seed; reproduce with the recorded "
+            "--seed value | docs/project/VERIFY.md#property-based-test-evidence |"
+        )
+        technology_row = next(
+            line for line in complete.splitlines() if line.startswith("| TECH-0007 |")
+        )
+        cases = {
+            "malformed header": (
+                complete.replace("| Decision ID | Concern |", "| ID | Concern |", 1),
+                "headers must be exactly",
+            ),
+            "duplicate stable ID": (
+                complete.replace(technology_row, technology_row + "\n" + technology_row, 1),
+                "Duplicate technology decision ID",
+            ),
+            "unresolved cell": (
+                complete.replace("| TECH-0007 | PROPERTY_TESTING | Hypothesis |", "| TECH-0007 | PROPERTY_TESTING | TODO |", 1),
+                "unresolved technology decision cell",
+            ),
+            "pending selection sentinel": (
+                complete.replace(
+                    "| TECH-0007 | PROPERTY_TESTING | Hypothesis |",
+                    "| TECH-0007 | PROPERTY_TESTING | PENDING |",
+                    1,
+                ),
+                "unresolved technology decision cell",
+            ),
+            "placeholder version-policy payload": (
+                complete.replace("MINIMUM: 6.0", "EXACT: PLACEHOLDER", 1),
+                "unresolved technology decision cell",
+            ),
+            "pending basis sentinel": (
+                complete.replace("DES-0001, FR-001", "PENDING", 1),
+                "unresolved technology decision cell",
+            ),
+            "placeholder rationale sentinel": (
+                complete.replace(
+                    "Selected for the approved slice",
+                    "PLACEHOLDER",
+                    1,
+                ),
+                "unresolved technology decision cell",
+            ),
+            "not-applicable compatibility sentinel": (
+                complete.replace("No migration required", "N/A", 1),
+                "unresolved technology decision cell",
+            ),
+            "none validation sentinel": (
+                complete.replace(
+                    "Validate with the task command",
+                    "NONE",
+                    1,
+                ),
+                "unresolved technology decision cell",
+            ),
+            "non-canonical not applicable selection": (
+                complete.replace(
+                    "| TECH-0003 | FRONTEND_FRAMEWORK | NOT_APPLICABLE — server-rendered interface |",
+                    "| TECH-0003 | FRONTEND_FRAMEWORK | N/A |",
+                    1,
+                ),
+                "invalid selection",
+            ),
+            "placeholder not applicable reason": (
+                complete.replace(
+                    "| TECH-0003 | FRONTEND_FRAMEWORK | NOT_APPLICABLE — server-rendered interface |",
+                    "| TECH-0003 | FRONTEND_FRAMEWORK | NOT_APPLICABLE — N/A |",
+                    1,
+                ),
+                "invalid selection",
+            ),
+            "active property framework marked not applicable": (
+                complete.replace(
+                    "| TECH-0007 | PROPERTY_TESTING | Hypothesis |",
+                    "| TECH-0007 | PROPERTY_TESTING | NOT_APPLICABLE — no property tests |",
+                    1,
+                ),
+                "active property execution cannot use a NOT_APPLICABLE",
+            ),
+            "invalid version policy": (
+                complete.replace("MINIMUM: 6.0", "LATEST", 1),
+                "invalid version policy",
+            ),
+            "minimum policy cannot be compared": (
+                complete.replace("MINIMUM: 6.0", "MINIMUM: latest", 1),
+                "invalid version policy",
+            ),
+            "current lts cannot govern active property evidence": (
+                complete.replace(
+                    "| TECH-0007 | PROPERTY_TESTING | Hypothesis | MINIMUM: 6.0 |",
+                    "| TECH-0007 | PROPERTY_TESTING | Hypothesis | CURRENT_LTS_AS_OF: 2026-07-01 |",
+                    1,
+                ),
+                "active property execution requires an EXACT, COMPATIBLE_MAJOR, or numeric MINIMUM version policy",
+            ),
+            "organization managed cannot govern active property evidence": (
+                complete.replace(
+                    "| TECH-0007 | PROPERTY_TESTING | Hypothesis | MINIMUM: 6.0 |",
+                    "| TECH-0007 | PROPERTY_TESTING | Hypothesis | ORG_MANAGED: organization baseline |",
+                    1,
+                ),
+                "active property execution requires an EXACT, COMPATIBLE_MAJOR, or numeric MINIMUM version policy",
+            ),
+            "invalid source": (
+                complete.replace(
+                    "CURRENT_LTS_AS_OF: 2026-07-01 | AGENT_RECOMMENDATION |",
+                    "CURRENT_LTS_AS_OF: 2026-07-01 | INTERNET_SEARCH |",
+                    1,
+                ),
+                "invalid source",
+            ),
+            "prose basis IDs": (
+                complete.replace("DES-0001, FR-001", "DES-0001 and FR-001", 1),
+                "Basis IDs must be exact comma-separated stable IDs",
+            ),
+            "duplicate basis IDs": (
+                complete.replace(
+                    "DES-0001, FR-001",
+                    "DES-0001, FR-001, FR-001",
+                    1,
+                ),
+                "Basis IDs must be exact comma-separated stable IDs",
+            ),
+            "wrong framework cross-reference": (
+                complete.replace(property_row, property_row.replace("TECH-0007", "TECH-0006"), 1),
+                "PROPERTY_TESTING decision",
+            ),
+            "replay format has no machine-checkable mode": (
+                complete.replace(
+                    property_row,
+                    property_row.replace(
+                        "integer seed; reproduce with the recorded --seed value",
+                        "capture replay information",
+                    ),
+                    1,
+                ),
+                "declare a seed or exact-command replay mode",
+            ),
+            "not-applicable applicability without reason": (
+                complete.replace(
+                    "| FR-001 | APPLICABLE | PROP-001 |",
+                    "| FR-001 | NOT_APPLICABLE | NONE |",
+                    1,
+                ),
+                "NOT_APPLICABLE requires a concrete reason",
+            ),
+            "property definition references stale requirement": (
+                complete.replace(
+                    "| PROP-001 | FR-001 |",
+                    "| PROP-001 | FR-999 |",
+                    1,
+                ),
+                "Requirement IDs must exactly match the applicability table's current inverse mapping",
+            ),
+            "property definition duplicates requirement": (
+                complete.replace(
+                    "| PROP-001 | FR-001 |",
+                    "| PROP-001 | FR-001, FR-001 |",
+                    1,
+                ),
+                "Requirement IDs must exactly match the applicability table's current inverse mapping",
+            ),
+            "placeholder property invariant": (
+                complete.replace(
+                    "An actor never observes another actor's protected resource.",
+                    "PENDING",
+                    1,
+                ),
+                "Invariant must be concrete semantic content",
+            ),
+            "sentinel property oracle": (
+                complete.replace(
+                    "Access allowed only when policy relation holds",
+                    "NONE",
+                    1,
+                ),
+                "Oracle must be concrete semantic content",
+            ),
+            "placeholder property layer": (
+                complete.replace(
+                    "Cross-tenant IDs, missing ownership, role changes | Integration |",
+                    "Cross-tenant IDs, missing ownership, role changes | PLACEHOLDER |",
+                    1,
+                ),
+                "Layer must be concrete semantic content",
+            ),
+            "placeholder exact command": (
+                complete.replace(
+                    "python -m unittest tests.test_properties",
+                    "PENDING",
+                    1,
+                ),
+                "Exact command must be one explicit local command",
+            ),
+            "prose exact command": (
+                complete.replace(
+                    "python -m unittest tests.test_properties",
+                    "Run property tests",
+                    1,
+                ),
+                "Exact command must be one explicit local command",
+            ),
+        }
+        for label, (text, expected) in cases.items():
+            with self.subTest(label=label):
+                contract, contract_issues = doctor.derive_design_contract(text, "DES-0001")
+                self.assertEqual(contract.status, "BLOCKED")
+                self.assertIn(expected, "\n".join(contract_issues))
+
+        no_applicable_properties = complete.replace(
+            "| FR-001 | APPLICABLE | PROP-001 |",
+            "| FR-001 | NOT_APPLICABLE | The requirement has no broad input space |",
+            1,
+        )
+        no_applicable_properties = re.sub(
+            r"(?m)^\| PROP-001 \|.*\|\r?\n?",
+            "",
+            no_applicable_properties,
+        )
+        no_applicable_properties = put_contract_table(
+            no_applicable_properties,
+            doctor.PROPERTY_EXECUTION_HEADING,
+            "\n".join(
+                [
+                    "| Property ID | Framework TECH ID | Exact command | Run target/time bound | Seed or reproduction format | Evidence destination |",
+                    "|---|---|---|---|---|---|",
+                ]
+            ),
+            "Add workload-specific properties for:",
+        )
+        no_property_contract, no_property_issues = doctor.derive_design_contract(
+            no_applicable_properties,
+            "DES-0001",
+        )
+        self.assertEqual(no_property_issues, [])
+        self.assertEqual(no_property_contract.status, "READY")
+
+        shared_property = complete.replace(
+            "| FR-002 | NOT_APPLICABLE | No stable generated-input oracle is approved for this requirement |",
+            "| FR-002 | APPLICABLE | PROP-001 |",
+            1,
+        ).replace(
+            "| PROP-001 | FR-001 |",
+            "| PROP-001 | FR-001, FR-002 |",
+            1,
+        )
+        shared_contract, shared_issues = doctor.derive_design_contract(
+            shared_property,
+            "DES-0001",
+        )
+        self.assertEqual(shared_issues, [])
+        self.assertEqual(shared_contract.status, "READY")
+        reversed_requirement_ids = shared_property.replace(
+            "| PROP-001 | FR-001, FR-002 |",
+            "| PROP-001 | FR-002, FR-001 |",
+            1,
+        )
+        reversed_contract, reversed_issues = doctor.derive_design_contract(
+            reversed_requirement_ids,
+            "DES-0001",
+        )
+        self.assertEqual(reversed_contract.status, "BLOCKED")
+        self.assertTrue(
+            any(
+                "Requirement IDs must exactly match" in issue
+                for issue in reversed_issues
+            )
+        )
+        self.assertEqual(no_property_contract.property_execution, ())
+
+    def test_all_part_one_requirement_families_have_stable_ids(self) -> None:
+        prd = (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
+        identifiers = doctor.authoritative_requirement_ids(prd)
+        expected = {
+            *(f"DATA-{number:03d}" for number in range(1, 6)),
+            *(f"PERF-{number:03d}" for number in range(1, 5)),
+            *(f"COST-{number:03d}" for number in range(1, 6)),
+            *(f"SUS-{number:03d}" for number in range(1, 5)),
+            *(f"OPS-{number:03d}" for number in range(1, 6)),
+        }
+        self.assertTrue(expected.issubset(identifiers))
+        for retired_bullet in (
+            "- Latency target: TODO",
+            "- Hard monthly ceiling: TODO",
+            "- Infrastructure as code: TODO",
+        ):
+            self.assertNotIn(retired_bullet, prd)
+
+    def test_design_contract_json_and_gate_b_readiness(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            refresh_control_hashes(project)
+            self.approve_project(project)
+
+            ready_report = doctor.inspect_project(project)
+            contract = ready_report["design_contract"]
+            self.assertTrue(ready_report["ok"], ready_report["diagnostics"])
+            self.assertEqual(ready_report["status"], "RESUME")
+            self.assertEqual(ready_report["next_prompt"], "TASK-10")
+            self.assertEqual(contract["schema_version"], 1)
+            self.assertEqual(contract["status"], "READY")
+            self.assertEqual(contract["design_revision"], "DES-0001")
+            self.assertEqual(len(contract["technology_decisions"]), 9)
+            self.assertEqual(contract["technology_decisions"][6]["concern"], "PROPERTY_TESTING")
+            self.assertEqual(contract["property_execution"][0]["framework_tech_id"], "TECH-0007")
+            self.assertRegex(contract["canonical_sha256"], r"^sha256:[0-9a-f]{64}$")
+
+            prd_path = project / "docs/project/PRD.md"
+            text = prd_path.read_text(encoding="utf-8").replace(
+                "| PROP-001 | TECH-0007 | python -m unittest tests.test_properties |",
+                "| PROP-001 | TECH-0006 | python -m unittest tests.test_properties |",
+                1,
+            )
+            prd_path.write_text(text, encoding="utf-8")
+            blocked_report = doctor.inspect_project(project)
+
+        self.assertFalse(blocked_report["ok"])
+        self.assertEqual(blocked_report["status"], "BLOCKED")
+        self.assertIn("DESIGN_CONTRACT_INVALID", codes(blocked_report))
+        self.assertEqual(blocked_report["design_contract"]["status"], "BLOCKED")
+        self.assertEqual(blocked_report["gates"]["gate_b"], "APPROVED_FOR_CONSTRUCTION")
+        self.assertEqual(blocked_report["next_prompt"], "STOP")
+
+    def test_gate_b_binds_live_design_contract_hash_and_required_scope_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            refresh_control_hashes(project)
+            self.approve_project(project)
+            prd_path = project / "docs/project/PRD.md"
+            text = prd_path.read_text(encoding="utf-8").replace(
+                "| TECH-0007 | PROPERTY_TESTING | Hypothesis |",
+                "| TECH-0007 | PROPERTY_TESTING | Hypothesis 7 |",
+                1,
+            )
+            prd_path.write_text(text, encoding="utf-8")
+            stale_hash_report = doctor.inspect_project(project)
+
+        self.assertFalse(stale_hash_report["ok"])
+        self.assertIn("GATE_B_DESIGN_CONTRACT_HASH", codes(stale_hash_report))
+        self.assertEqual(stale_hash_report["next_prompt"], "STOP")
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            refresh_control_hashes(project)
+            self.approve_project(project)
+            prd_path = project / "docs/project/PRD.md"
+            text = prd_path.read_text(encoding="utf-8").replace(
+                ", TECH-0009, PROP-001`",
+                ", TECH-0009`",
+                1,
+            )
+            prd_path.write_text(rebind_gate_b_envelope(text), encoding="utf-8")
+            missing_scope_report = doctor.inspect_project(project)
+
+        self.assertFalse(missing_scope_report["ok"])
+        self.assertIn("GATE_B_ENVELOPE", codes(missing_scope_report))
+        self.assertTrue(
+            any(
+                "missing current design contract IDs: PROP-001" in diagnostic["message"]
+                for diagnostic in missing_scope_report["diagnostics"]
+            )
+        )
+
+    def test_gate_b_readiness_card_exactly_enumerates_current_technology_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            refresh_control_hashes(project)
+            self.approve_project(project)
+            prd_path = project / "docs/project/PRD.md"
+            text = set_table_value(
+                prd_path.read_text(encoding="utf-8"),
+                "### Gate B — readiness card",
+                "## 28. Construction envelope",
+                "Technology/toolchains/version policy",
+                "`TECH-0001, TECH-0002, TECH-0003`",
+            )
+            prd_path.write_text(text, encoding="utf-8")
+
+            report = doctor.inspect_project(project)
+
+        self.assertIn("GATE_B_READINESS_CARD", codes(report))
+        self.assertTrue(
+            any(
+                "must exactly enumerate the current technology decision IDs"
+                in diagnostic["message"]
+                for diagnostic in report["diagnostics"]
+            )
         )
 
     def test_doctor_does_not_mutate_project(self) -> None:
@@ -963,6 +1718,709 @@ class BootstrapDoctorTests(unittest.TestCase):
             with self.subTest(label=label), self.assertRaises(ValueError):
                 doctor.validate_task_records(text, snapshot)
 
+    def test_embedded_task_parser_enforces_approved_technology_trace(self) -> None:
+        snapshot = {
+            "Requirements revision": "REQ-0001",
+            "Design revision": "DES-0001",
+            "Construction authorization": "AUTH-0001",
+            "Gate B state": "APPROVED_FOR_CONSTRUCTION",
+            "Task-plan state": "CURRENT",
+            "Run state": "NOT_STARTED",
+            "Active run ID": "NONE",
+        }
+        ledger = (PROJECT_ROOT / "docs/project/TASKS.md").read_text(encoding="utf-8")
+        approved = ledger + ready_task(design="DES-0001; TECH: TECH-0001")
+        tasks, _by_id, ready = doctor.validate_task_records(
+            approved,
+            snapshot,
+            approved_tech_ids={"TECH-0001"},
+        )
+        self.assertEqual([task.task_id for task in tasks], ["TASK-001"])
+        self.assertEqual(ready, ["TASK-001"])
+
+        unapproved = ledger + ready_task(design="DES-0001; TECH: TECH-9999")
+        with self.assertRaisesRegex(ValueError, "unapproved TECH IDs: TECH-9999"):
+            doctor.validate_task_records(
+                unapproved,
+                snapshot,
+                approved_tech_ids={"TECH-0001"},
+            )
+
+        malformed = ledger + ready_task(design="DES-0001; TECH: TECH-0001,TECH-0002")
+        with self.assertRaisesRegex(ValueError, "Design must exactly match"):
+            doctor.validate_task_records(
+                malformed,
+                snapshot,
+                approved_tech_ids={"TECH-0001", "TECH-0002"},
+            )
+
+    def test_task_property_projection_is_exact_for_every_executable_status(self) -> None:
+        snapshot = {
+            "Requirements revision": "REQ-0001",
+            "Design revision": "DES-0001",
+            "Construction authorization": "AUTH-0001",
+            "Gate B state": "APPROVED_FOR_CONSTRUCTION",
+            "Task-plan state": "CURRENT",
+            "Run state": "NOT_STARTED",
+            "Active run ID": "NONE",
+        }
+        ledger = (PROJECT_ROOT / "docs/project/TASKS.md").read_text(encoding="utf-8")
+        prd = complete_design_contract(
+            (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
+        )
+        contract, issues = doctor.derive_design_contract(prd, "DES-0001", required=True)
+        self.assertEqual(issues, [])
+        executions = {item.property_id: item for item in contract.property_execution}
+        technologies = {
+            item.decision_id: item for item in contract.technology_decisions
+        }
+        task = ready_task(
+            requirements="REQ-0001; FR-001; PROP-001",
+            design="DES-0001; TECH: TECH-0001, TECH-0007",
+            command="python -m unittest tests.test_properties",
+            property_projection=property_execution_projection(),
+        )
+        doctor.validate_task_records(
+            ledger + task,
+            snapshot,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id=executions,
+            technology_decisions_by_id=technologies,
+        )
+
+        running = (
+            task.replace("- Status: `READY`", "- Status: `IN_PROGRESS`", 1)
+            .replace("- Owner: `UNASSIGNED`", "- Owner: `alice`", 1)
+            .replace("- Run ID: `NONE`", "- Run ID: `RUN-0001`", 1)
+            .replace("- Attempts used: `0`", "- Attempts used: `1`", 1)
+            .replace("- Last checkpoint: `NONE`", "- Last checkpoint: `CP-0001`", 1)
+        )
+        running_snapshot = dict(snapshot)
+        running_snapshot.update({"Run state": "RUNNING", "Active run ID": "RUN-0001"})
+        doctor.validate_task_records(
+            ledger + running,
+            running_snapshot,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id=executions,
+        )
+
+        done = (
+            task.replace("- Status: `READY`", "- Status: `DONE`", 1)
+            .replace("- Evidence: `NONE`", "- Evidence: `EV-0001`", 1)
+            .replace("- [ ]", "- [x]", 1)
+            .replace(
+                "Not started.",
+                "2026-07-17T12:00:00-07:00 coordinator observed validation pass.",
+                1,
+            )
+        )
+        verify = """## Task completion evidence
+
+| Evidence ID | Task | Command or observation | Result | Actor | Observed at | Commit / worktree / artifact | Durable source | Status |
+|---|---|---|---|---|---|---|---|---|
+| EV-0001 | TASK-001 | python -m unittest tests.test_properties | passed | alice | 2026-07-17T12:00:00-07:00 | commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | docs/project/VERIFY.md#ev-0001 | LOCAL_PASS |
+""" + "\n" + property_test_evidence_section()
+        doctor.validate_task_records(
+            ledger + done,
+            snapshot,
+            verify,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id=executions,
+            technology_decisions_by_id=technologies,
+        )
+
+        invalid_cases = {
+            "requires the exact property execution projection": ready_task(
+                requirements="REQ-0001; FR-001; PROP-001",
+                design="DES-0001; TECH: TECH-0001, TECH-0007",
+                command="python -m unittest tests.test_properties",
+            ),
+            "does not match the PRD contract": task.replace(
+                "MIN_CASES: 100; MAX_SECONDS: 30",
+                "MIN_CASES: 100; MAX_SECONDS: 31",
+                1,
+            ),
+            "must appear exactly once": task.replace(
+                "python -m unittest tests.test_properties\n```",
+                "python -m unittest tests.test_properties\npython -m unittest tests.test_properties\n```",
+                1,
+            ),
+        }
+        for expected, invalid in invalid_cases.items():
+            with self.subTest(expected=expected), self.assertRaisesRegex(ValueError, expected):
+                doctor.validate_task_records(
+                    ledger + invalid,
+                    snapshot,
+                    approved_tech_ids={"TECH-0001", "TECH-0007"},
+                    property_execution_by_id=executions,
+                )
+
+        prose_expected = doctor.PropertyExecution(
+            "PROP-001",
+            "TECH-0007",
+            "Run property tests",
+            "MIN_CASES: 100; MAX_SECONDS: 30",
+            "integer seed; reproduce with the recorded --seed value",
+            "docs/project/VERIFY.md#property-based-test-evidence",
+        )
+        prose_projection = property_execution_projection().replace(
+            "python -m unittest tests.test_properties",
+            "Run property tests",
+        )
+        with self.assertRaisesRegex(ValueError, "not an executable local command"):
+            doctor.validate_task_records(
+                ledger
+                + ready_task(
+                    requirements="REQ-0001; FR-001; PROP-001",
+                    design="DES-0001; TECH: TECH-0001, TECH-0007",
+                    command="Run property tests",
+                    property_projection=prose_projection,
+                ),
+                snapshot,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                property_execution_by_id={"PROP-001": prose_expected},
+            )
+
+    def test_done_property_task_requires_exact_observed_property_evidence(self) -> None:
+        snapshot = {
+            "Requirements revision": "REQ-0001",
+            "Design revision": "DES-0001",
+            "Construction authorization": "AUTH-0001",
+            "Gate B state": "APPROVED_FOR_CONSTRUCTION",
+            "Task-plan state": "CURRENT",
+            "Run state": "NOT_STARTED",
+            "Active run ID": "NONE",
+        }
+        ledger = (PROJECT_ROOT / "docs/project/TASKS.md").read_text(encoding="utf-8")
+        prd = complete_design_contract(
+            (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
+        )
+        contract, issues = doctor.derive_design_contract(prd, "DES-0001", required=True)
+        self.assertEqual(issues, [])
+        executions = {item.property_id: item for item in contract.property_execution}
+        technologies = {
+            item.decision_id: item for item in contract.technology_decisions
+        }
+        done = (
+            ready_task(
+                requirements="REQ-0001; FR-001; PROP-001",
+                design="DES-0001; TECH: TECH-0001, TECH-0007",
+                command="python -m unittest tests.test_properties",
+                property_projection=property_execution_projection(),
+            )
+            .replace("- Status: `READY`", "- Status: `DONE`", 1)
+            .replace("- Evidence: `NONE`", "- Evidence: `EV-0001`", 1)
+            .replace("- [ ]", "- [x]", 1)
+            .replace(
+                "Not started.",
+                "2026-07-17T12:00:00-07:00 coordinator observed validation pass.",
+                1,
+            )
+        )
+        task_evidence = task_completion_evidence_section()
+        valid_verify = task_evidence + "\n" + property_test_evidence_section()
+        doctor.validate_task_records(
+            ledger + done,
+            snapshot,
+            valid_verify,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id=executions,
+            technology_decisions_by_id=technologies,
+        )
+
+        invalid_cases = {
+            "Property-based test evidence section": task_evidence,
+            "Exact command does not match": task_evidence
+            + "\n"
+            + property_test_evidence_section(exact_command="python -m unittest wrong"),
+            "observed exact version does not satisfy": task_evidence
+            + "\n"
+            + property_test_evidence_section(observed_version="latest"),
+            "observed exact version does not satisfy MINIMUM": task_evidence
+            + "\n"
+            + property_test_evidence_section(observed_version="6.0rc1"),
+            "Observed run must be": task_evidence
+            + "\n"
+            + property_test_evidence_section(observed_run="TODO"),
+            "replay evidence does not match the approved PRD": task_evidence
+            + "\n"
+            + property_test_evidence_section(replay="random replay token"),
+            "PASS must record Minimized counterexample as NONE": task_evidence
+            + "\n"
+            + property_test_evidence_section(counterexample="user_id=''"),
+            "durable source is not a local durable reference": task_evidence
+            + "\n"
+            + property_test_evidence_section(source="observed by the coordinator"),
+        }
+        for expected, verify_text in invalid_cases.items():
+            with self.subTest(expected=expected), self.assertRaisesRegex(
+                ValueError, expected
+            ):
+                doctor.validate_task_records(
+                    ledger + done,
+                    snapshot,
+                    verify_text,
+                    approved_tech_ids={"TECH-0001", "TECH-0007"},
+                    property_execution_by_id=executions,
+                    technology_decisions_by_id=technologies,
+                )
+
+        for replay in ("seed unavailable", "seed: unavailable", "seed: abc"):
+            with self.subTest(replay=replay), self.assertRaisesRegex(
+                ValueError,
+                "replay evidence does not match the approved PRD",
+            ):
+                doctor.validate_task_records(
+                    ledger + done,
+                    snapshot,
+                    task_evidence
+                    + "\n"
+                    + property_test_evidence_section(replay=replay),
+                    approved_tech_ids={"TECH-0001", "TECH-0007"},
+                    property_execution_by_id=executions,
+                    technology_decisions_by_id=technologies,
+                )
+
+        failure_material = "commit: " + "b" * 40
+        failure_source = "tests/artifacts/property-PROP-001-failure.json"
+        failure_then_pass = (
+            task_completion_evidence_section(
+                (
+                    "EV-0002",
+                    "python -m unittest tests.test_properties",
+                    "2026-07-17T11:00:00-07:00",
+                    failure_material,
+                    failure_source,
+                    "FAILED",
+                ),
+                (
+                    "EV-0001",
+                    "python -m unittest tests.test_properties",
+                    "2026-07-17T12:00:00-07:00",
+                    "commit: " + "a" * 40,
+                    "docs/project/VERIFY.md#ev-0001",
+                    "LOCAL_PASS",
+                ),
+            )
+            + "\n"
+            + property_test_evidence_section(
+                evidence_id="EV-0002",
+                result="FAIL",
+                observed_at="2026-07-17T11:00:00-07:00",
+                material=failure_material,
+                counterexample="user_id=''",
+                failure=(
+                    "IMPLEMENTATION_DEFECT — corrected input normalization; "
+                    "evidence EV-0002"
+                ),
+                source=failure_source,
+            )
+            + "\n"
+            + property_test_evidence_row(evidence_id="EV-0001")
+        )
+        doctor.validate_task_records(
+            ledger + done,
+            snapshot,
+            failure_then_pass,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id=executions,
+            technology_decisions_by_id=technologies,
+        )
+
+        failure_only_source = "tests/artifacts/property-PROP-001-open-failure.json"
+        failure_only_material = "commit: " + "d" * 40
+        failure_only = (
+            task_completion_evidence_section(
+                (
+                    "EV-0001",
+                    "python -m unittest tests.test_properties",
+                    "2026-07-17T12:00:00-07:00",
+                    "commit: " + "a" * 40,
+                    "docs/project/VERIFY.md#ev-0001",
+                    "LOCAL_PASS",
+                ),
+                (
+                    "EV-0002",
+                    "python -m unittest tests.test_properties",
+                    "2026-07-17T13:00:00-07:00",
+                    failure_only_material,
+                    failure_only_source,
+                    "FAILED",
+                ),
+            )
+            + "\n"
+            + property_test_evidence_section(
+                evidence_id="EV-0002",
+                result="FAIL",
+                observed_at="2026-07-17T13:00:00-07:00",
+                material=failure_only_material,
+                counterexample="user_id=''",
+                failure="IMPLEMENTATION_DEFECT — correction remains open",
+                source=failure_only_source,
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "requires preserved failure rows"):
+            doctor.validate_task_records(
+                ledger + done,
+                snapshot,
+                failure_only,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                property_execution_by_id=executions,
+                technology_decisions_by_id=technologies,
+            )
+
+        later_failure_material = "commit: " + "c" * 40
+        later_failure_source = "tests/artifacts/property-PROP-001-latest-failure.json"
+        pass_then_failure = (
+            task_completion_evidence_section(
+                (
+                    "EV-0001",
+                    "python -m unittest tests.test_properties",
+                    "2026-07-17T12:00:00-07:00",
+                    "commit: " + "a" * 40,
+                    "docs/project/VERIFY.md#ev-0001",
+                    "LOCAL_PASS",
+                ),
+                (
+                    "EV-0002",
+                    "python -m unittest tests.test_properties",
+                    "2026-07-17T13:00:00-07:00",
+                    later_failure_material,
+                    later_failure_source,
+                    "FAILED",
+                ),
+            )
+            + "\n"
+            + property_test_evidence_section()
+            + "\n"
+            + property_test_evidence_row(
+                evidence_id="EV-0002",
+                result="FAIL",
+                observed_at="2026-07-17T13:00:00-07:00",
+                material=later_failure_material,
+                replay="seed: 99999",
+                counterexample="user_id=''",
+                failure="IMPLEMENTATION_DEFECT — a new regression remains open",
+                source=later_failure_source,
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "latest observed property-test result"):
+            doctor.validate_task_records(
+                ledger + done,
+                snapshot,
+                pass_then_failure,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                property_execution_by_id=executions,
+                technology_decisions_by_id=technologies,
+            )
+
+        duplicate_property_evidence = (
+            valid_verify + "\n" + property_test_evidence_row(evidence_id="EV-0001")
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "Property-based test evidence Evidence IDs must be unique",
+        ):
+            doctor.validate_task_records(
+                ledger + done,
+                snapshot,
+                duplicate_property_evidence,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                property_execution_by_id=executions,
+                technology_decisions_by_id=technologies,
+            )
+
+    def test_observed_property_evidence_is_validated_before_done(self) -> None:
+        snapshot = {
+            "Requirements revision": "REQ-0001",
+            "Design revision": "DES-0001",
+            "Construction authorization": "AUTH-0001",
+            "Gate B state": "APPROVED_FOR_CONSTRUCTION",
+            "Task-plan state": "CURRENT",
+            "Run state": "NOT_STARTED",
+            "Active run ID": "NONE",
+        }
+        ledger = (PROJECT_ROOT / "docs/project/TASKS.md").read_text(
+            encoding="utf-8"
+        )
+        prd = complete_design_contract(
+            (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
+        )
+        contract, issues = doctor.derive_design_contract(
+            prd, "DES-0001", required=True
+        )
+        self.assertEqual(issues, [])
+        executions = {
+            item.property_id: item for item in contract.property_execution
+        }
+        technologies = {
+            item.decision_id: item for item in contract.technology_decisions
+        }
+        ready = ready_task(
+            requirements="REQ-0001; FR-001; PROP-001",
+            design="DES-0001; TECH: TECH-0001, TECH-0007",
+            command="python -m unittest tests.test_properties",
+            property_projection=property_execution_projection(),
+        )
+        valid_verify = (
+            task_completion_evidence_section()
+            + "\n"
+            + property_test_evidence_section()
+        )
+        doctor.validate_task_records(
+            ledger + ready,
+            snapshot,
+            valid_verify,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id=executions,
+            technology_decisions_by_id=technologies,
+        )
+
+        invalid_verify_cases = {
+            "Evidence ID is missing from Task completion evidence": (
+                task_completion_evidence_section(
+                    (
+                        "EV-0002",
+                        "python -m unittest tests.test_properties",
+                        "2026-07-17T12:00:00-07:00",
+                        "commit: " + "a" * 40,
+                        "docs/project/VERIFY.md#ev-0002",
+                        "LOCAL_PASS",
+                    )
+                )
+                + "\n"
+                + property_test_evidence_section()
+            ),
+            "Task completion actor is unresolved or placeholder evidence": (
+                valid_verify.replace("| alice |", "| PENDING |", 1)
+            ),
+            "Task completion result is unresolved or placeholder evidence": (
+                valid_verify.replace(
+                    "| observed property run | alice |",
+                    "| PENDING | alice |",
+                    1,
+                )
+            ),
+            "observed property-test evidence references an unknown current task": (
+                task_completion_evidence_section()
+                + "\n"
+                + property_test_evidence_section(task_id="TASK-999")
+            ),
+        }
+        for expected, verify_text in invalid_verify_cases.items():
+            with self.subTest(expected=expected), self.assertRaisesRegex(
+                ValueError, expected
+            ):
+                doctor.validate_task_records(
+                    ledger + ready,
+                    snapshot,
+                    verify_text,
+                    approved_tech_ids={"TECH-0001", "TECH-0007"},
+                    property_execution_by_id=executions,
+                    technology_decisions_by_id=technologies,
+                )
+
+        failure_material = "commit: " + "b" * 40
+        failure_source = "tests/artifacts/property-PROP-001-failure.json"
+        valid_history = (
+            task_completion_evidence_section(
+                (
+                    "EV-0002",
+                    "python -m unittest tests.test_properties",
+                    "2026-07-17T11:00:00-07:00",
+                    failure_material,
+                    failure_source,
+                    "FAILED",
+                ),
+                (
+                    "EV-0001",
+                    "python -m unittest tests.test_properties",
+                    "2026-07-17T12:00:00-07:00",
+                    "commit: " + "a" * 40,
+                    "docs/project/VERIFY.md#ev-0001",
+                    "LOCAL_PASS",
+                ),
+            )
+            + "\n"
+            + property_test_evidence_section(
+                evidence_id="EV-0002",
+                result="FAIL",
+                observed_at="2026-07-17T11:00:00-07:00",
+                material=failure_material,
+                counterexample="user_id=''",
+                failure=(
+                    "IMPLEMENTATION_DEFECT — corrected input normalization; "
+                    "evidence EV-0002"
+                ),
+                source=failure_source,
+            )
+            + "\n"
+            + property_test_evidence_row(evidence_id="EV-0001")
+        )
+        doctor.validate_task_records(
+            ledger + ready,
+            snapshot,
+            valid_history,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id=executions,
+            technology_decisions_by_id=technologies,
+        )
+        pending_resolution = valid_history.replace(
+            "corrected input normalization; evidence EV-0002",
+            "PENDING",
+            1,
+        )
+        with self.assertRaisesRegex(ValueError, "concrete resolution"):
+            doctor.validate_task_records(
+                ledger + ready,
+                snapshot,
+                pending_resolution,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                property_execution_by_id=executions,
+                technology_decisions_by_id=technologies,
+            )
+
+        untouched_verify = (PROJECT_ROOT / "docs/project/VERIFY.md").read_text(
+            encoding="utf-8"
+        )
+        doctor.validate_task_records(
+            ledger + ready_task(),
+            snapshot,
+            untouched_verify,
+        )
+
+    def test_current_task_plan_covers_every_approved_property_execution(self) -> None:
+        snapshot = {
+            "Requirements revision": "REQ-0001",
+            "Design revision": "DES-0001",
+            "Construction authorization": "AUTH-0001",
+            "Gate B state": "APPROVED_FOR_CONSTRUCTION",
+            "Task-plan state": "CURRENT",
+            "Run state": "NOT_STARTED",
+            "Active run ID": "NONE",
+        }
+        ledger = (PROJECT_ROOT / "docs/project/TASKS.md").read_text(encoding="utf-8")
+        expected = doctor.PropertyExecution(
+            "PROP-001",
+            "TECH-0007",
+            "python -m unittest tests.test_properties",
+            "MIN_CASES: 100; MAX_SECONDS: 30",
+            "integer seed; reproduce with the recorded --seed value",
+            "docs/project/VERIFY.md#property-based-test-evidence",
+        )
+        tasks, _by_id, _ready = doctor.validate_task_records(
+            ledger + ready_task(),
+            snapshot,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id={"PROP-001": expected},
+        )
+        self.assertEqual(
+            doctor.missing_current_property_task_coverage(
+                tasks,
+                "CURRENT",
+                {"PROP-001": expected},
+            ),
+            ["PROP-001"],
+        )
+        property_task = ready_task(
+            requirements="REQ-0001; FR-001; PROP-001",
+            design="DES-0001; TECH: TECH-0001, TECH-0007",
+            command="python -m unittest tests.test_properties",
+            property_projection=property_execution_projection(),
+        )
+        skipped = property_task.replace(
+            "- Status: `READY`", "- Status: `SKIPPED`", 1
+        ).replace(
+            "- Skip record: `NONE`",
+            "- Skip record: `OWNER-DECISION-001 — superseded; evidence EV-0001`",
+            1,
+        )
+        self.assertEqual(
+            doctor.missing_current_property_task_coverage(
+                doctor.inspect_task_blocks(ledger + skipped),
+                "CURRENT",
+                {"PROP-001": expected},
+            ),
+            ["PROP-001"],
+        )
+        backlog = property_task.replace(
+            "- Status: `READY`", "- Status: `BACKLOG`", 1
+        )
+        doctor.validate_task_records(
+            ledger + backlog,
+            snapshot,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id={"PROP-001": expected},
+        )
+        self.assertEqual(
+            doctor.missing_current_property_task_coverage(
+                doctor.inspect_task_blocks(ledger + backlog),
+                "CURRENT",
+                {"PROP-001": expected},
+            ),
+            [],
+        )
+        malformed_backlog = backlog.replace(property_execution_projection(), "", 1)
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires the exact property execution projection",
+        ):
+            doctor.validate_task_records(
+                ledger + malformed_backlog,
+                snapshot,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                property_execution_by_id={"PROP-001": expected},
+            )
+        self.assertEqual(
+            doctor.missing_current_property_task_coverage(
+                doctor.inspect_task_blocks(ledger + property_task),
+                "CURRENT",
+                {"PROP-001": expected},
+            ),
+            [],
+        )
+        blocked_property_task = property_task.replace(
+            "- Status: `READY`", "- Status: `BLOCKED`", 1
+        ).replace("- Blocker: `NONE`", "- Blocker: `BLOCK-001 — dependency unavailable`", 1)
+        doctor.validate_task_records(
+            ledger + blocked_property_task,
+            snapshot,
+            approved_tech_ids={"TECH-0001", "TECH-0007"},
+            property_execution_by_id={"PROP-001": expected},
+        )
+        malformed_blocked = blocked_property_task.replace(
+            property_execution_projection(),
+            "",
+            1,
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires the exact property execution projection",
+        ):
+            doctor.validate_task_records(
+                ledger + malformed_blocked,
+                snapshot,
+                approved_tech_ids={"TECH-0001", "TECH-0007"},
+                property_execution_by_id={"PROP-001": expected},
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            self.approve_project(project)
+            self.initialize_task_plan(project, ready_task())
+            refresh_control_hashes(project)
+
+            report = doctor.inspect_project(project)
+
+        self.assertIn("TASK_PROPERTY_COVERAGE", codes(report))
+        self.assertTrue(
+            any(
+                "CURRENT task plan does not cover approved property execution IDs: PROP-001"
+                in diagnostic["message"]
+                for diagnostic in report["diagnostics"]
+            )
+        )
+
     def test_done_requires_observed_log_and_passing_structured_local_evidence(self) -> None:
         snapshot = {
             "Requirements revision": "REQ-0001",
@@ -1021,6 +2479,14 @@ class BootstrapDoctorTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "durable source"):
             doctor.validate_task_records(ledger + observed, snapshot, traversal_source)
+
+        failed_observation = valid_verify.replace("LOCAL_PASS", "FAILED", 1)
+        with self.assertRaisesRegex(ValueError, "status must be LOCAL_PASS or VERIFIED"):
+            doctor.validate_task_records(
+                ledger + observed,
+                snapshot,
+                failed_observation,
+            )
 
     def test_malformed_nested_state_never_crashes(self) -> None:
         for key in ("project", "lifecycle", "execution"):
@@ -1266,9 +2732,101 @@ class BootstrapDoctorTests(unittest.TestCase):
         passed_rows = doctor.parse_aws_core_evidence(passed)
         self.assertEqual(
             doctor.aws_core_phase_evidence_issues(
-                passed_rows, "DESIGN-10", expected_binding=binding
+                passed_rows,
+                "DESIGN-10",
+                expected_binding=binding,
+                expected_design_revision="DES-0001",
+                approved_tech_ids={"TECH-0001"},
             ),
             [],
+        )
+
+        wrong_design = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "retrieve_skill",
+            binding=binding,
+            advisory_design_binding="DES-9999; TECH: TECH-0001",
+        )
+        wrong_design_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(wrong_design),
+            "DESIGN-10",
+            expected_binding=binding,
+            expected_design_revision="DES-0001",
+            approved_tech_ids={"TECH-0001"},
+        )
+        self.assertTrue(
+            any("Advisory Design binding must reference DES-0001" in issue for issue in wrong_design_issues)
+        )
+
+        malformed_trace = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "retrieve_skill",
+            binding=binding,
+            advisory_design_binding="DES-0001 architecture review",
+        )
+        malformed_trace_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(malformed_trace),
+            "DESIGN-10",
+            expected_binding=binding,
+        )
+        self.assertTrue(
+            any("Advisory Design binding must use" in issue for issue in malformed_trace_issues)
+        )
+
+        aws_binding = "sha256:" + "a" * 64
+        aws_not_applicable = record_aws_core_evidence(
+            verify_text,
+            "AWS-10",
+            binding=aws_binding,
+            advisory_design_binding="NOT_APPLICABLE — operational preflight did not change the design",
+        )
+        self.assertEqual(
+            doctor.aws_core_phase_evidence_issues(
+                doctor.parse_aws_core_evidence(aws_not_applicable),
+                "AWS-10",
+                expected_binding=aws_binding,
+                expected_design_revision="DES-0001",
+                approved_tech_ids={"TECH-0001"},
+            ),
+            [],
+        )
+
+        aws_wrong_design = record_aws_core_capability_evidence(
+            record_aws_core_evidence(verify_text, "AWS-10", binding=aws_binding),
+            "AWS-10",
+            "retrieve_skill",
+            binding=aws_binding,
+            advisory_design_binding="DES-9999; TECH: TECH-0001",
+        )
+        aws_wrong_design_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(aws_wrong_design),
+            "AWS-10",
+            expected_binding=aws_binding,
+            expected_design_revision="DES-0001",
+            approved_tech_ids={"TECH-0001"},
+        )
+        self.assertTrue(
+            any("must reference DES-0001" in issue for issue in aws_wrong_design_issues)
+        )
+
+        unknown_tech = record_aws_core_capability_evidence(
+            passed,
+            "DESIGN-10",
+            "retrieve_skill",
+            binding=binding,
+            advisory_design_binding="DES-0001; TECH: TECH-9999",
+        )
+        unknown_tech_issues = doctor.aws_core_phase_evidence_issues(
+            doctor.parse_aws_core_evidence(unknown_tech),
+            "DESIGN-10",
+            expected_binding=binding,
+            expected_design_revision="DES-0001",
+            approved_tech_ids={"TECH-0001"},
+        )
+        self.assertTrue(
+            any("unapproved TECH IDs: TECH-9999" in issue for issue in unknown_tech_issues)
         )
 
         unattributed = record_aws_core_capability_evidence(
@@ -1762,7 +3320,6 @@ class BootstrapDoctorTests(unittest.TestCase):
     def test_task_ids_must_be_subsets_of_authorized_ids(self) -> None:
         cases = {
             "requirements": {"requirements": "REQ-0001; FR-999"},
-            "design": {"design": "DES-0001; ADR-999"},
             "outcome": {"outcome": "Deliver OUT-999 without scope expansion."},
         }
         for label, task_options in cases.items():
@@ -1774,6 +3331,18 @@ class BootstrapDoctorTests(unittest.TestCase):
                 report = doctor.inspect_project(project)
 
                 self.assertIn("TASK_ID_OUTSIDE_AUTH", codes(report))
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            self.approve_project(project)
+            self.initialize_task_plan(
+                project,
+                ready_task(design="DES-0001; ADR-999"),
+            )
+
+            malformed_design_report = doctor.inspect_project(project)
+
+        self.assertIn("TASK_GRAPH_INVALID", codes(malformed_design_report))
 
     def test_external_state_and_paths_use_case_insensitive_authorized_containment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1790,8 +3359,16 @@ class BootstrapDoctorTests(unittest.TestCase):
             prd_path.write_text(rebind_gate_b_envelope(text), encoding="utf-8")
             self.initialize_task_plan(
                 project,
-                ready_task("APP/main.py", external_state="aws:STACK/dev/resource"),
+                ready_task(
+                    "APP/main.py",
+                    requirements="REQ-0001; FR-001; PROP-001",
+                    design="DES-0001; TECH: TECH-0001, TECH-0007",
+                    external_state="aws:STACK/dev/resource",
+                    command="python -m unittest tests.test_properties",
+                    property_projection=property_execution_projection(),
+                ),
             )
+            refresh_control_hashes(project)
 
             allowed_report = doctor.inspect_project(project)
 

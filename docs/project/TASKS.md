@@ -162,7 +162,7 @@ routes to `TASK-10`, not construction.
 |---|---|
 | `Status` | One status from the transition contract |
 | `Requirements` | Current REQ ID, requirement IDs, and applicable PROP IDs |
-| `Design` | Current DES ID and applicable design sections or decisions |
+| `Design` | Exact `DES-nnnn; TECH: TECH-nnnn[, TECH-nnnn...]` trace, or `DES-nnnn; TECH: NONE — no technology/toolchain impact` |
 | `Authorization` | Current AUTH ID |
 | `Depends on` | Stable task IDs or `NONE` |
 | `Dependency waivers` | `TASK-nnn=WAIVER-nnn` entries or `NONE` |
@@ -182,16 +182,25 @@ routes to `TASK-10`, not construction.
 | `Last updated` | ISO 8601 timestamp or `TODO` before initialization |
 
 When a task implements or verifies an approved property, include its `PROP-*`
-IDs in `Requirements`, name the selected property-testing framework or suite in
-the task outcome or acceptance criteria, and put the exact property-test command
-in `Validation`. DONE evidence must reference the matching
-`docs/project/VERIFY.md` property row with observed runs, reproduction data, and
-result.
+IDs in `Requirements` and copy its complete PRD Property execution row into one
+exact projection table under `Validation`. The framework `TECH-*`, command, run
+bound, seed/reproduction format, and evidence destination must match the PRD
+byte-for-byte after Markdown cell normalization, and the exact command must also
+appear once in the fenced command list. Omit the projection table only when no
+approved property applies. A DONE task must cite the matching property
+`EV-nnnn` row in `docs/project/VERIFY.md`. That row must bind the same task,
+REQ/DES/AUTH trace, property, framework decision and selection, command,
+observed time, commit/worktree/artifact, and durable source; the latest row for
+that task and property must pass the approved run target.
 
 `TASK-10` emits every real record in this exact structural shape. The four
 human-status fields remain visible and every other singleton metadata field is
-kept in the collapsed agent section. Replace every angle-bracket value; do not
-leave unresolved values on a `READY`, `IN_PROGRESS`, or `DONE` task.
+kept in the collapsed agent section. Replace every angle-bracket value. In a
+`CURRENT` plan, `BACKLOG` is a fully specified dependency-gated task, so do not
+leave unresolved values on a `BACKLOG`, `READY`, `IN_PROGRESS`, `BLOCKED`, or
+`DONE` task. The stock `UNINITIALIZED` placeholder is exempt.
+Keep the exact metadata key set above: technology traceability stays inside
+`Design`; do not add a separate `Technologies` metadata key.
 
 ~~~text
 ### <TASK-ID> — <short title>
@@ -211,6 +220,11 @@ leave unresolved values on a `READY`, `IN_PROGRESS`, or `DONE` task.
 
 #### Validation
 
+<!-- Omit this table only when Requirements contains no approved PROP-* ID. -->
+| Property ID | Framework TECH ID | Exact command | Run target/time bound | Seed or reproduction format | Evidence destination |
+|---|---|---|---|---|---|
+| <copy one exact approved PRD row per referenced PROP-ID> |
+
 ```bash
 <exact validation command>
 ```
@@ -225,7 +239,7 @@ leave unresolved values on a `READY`, `IN_PROGRESS`, or `DONE` task.
 <summary>Exact metadata used by Codex and task_waves.py</summary>
 
 - Requirements: <current REQ ID and requirement IDs>
-- Design: <current DES ID and sections or decisions>
+- Design: <DES-nnnn; TECH: TECH-nnnn[, TECH-nnnn...] or DES-nnnn; TECH: NONE — no technology/toolchain impact>
 - Authorization: <current AUTH ID>
 - Depends on: NONE
 - Dependency waivers: NONE
@@ -250,6 +264,13 @@ non-`NONE` Evidence using `EV-nnnn` IDs (for example `EV-0001`), and an observed
 execution-log entry. Each cited local ID must have exactly one explicit,
 passing row under docs/project/VERIFY.md `Task completion evidence`; the task tool rejects
 placeholder, duplicate, wrong-task, unfenced URL-only, and non-passing rows.
+Every `BACKLOG`, `READY`, `IN_PROGRESS`, `BLOCKED`, or `DONE` task in a
+`CURRENT` plan uses one of the exact `Design` forms above and preserves every
+applicable property projection; TECH references are comma-separated, unique,
+and contain no placeholders. `BACKLOG` contributes to plan coverage but never
+appears in `--ready` and cannot be claimed until it explicitly transitions to
+`READY` after its dependencies are satisfied. `SKIPPED` does not contribute to
+property coverage.
 
 ## Dependencies, waivers, and waves
 
