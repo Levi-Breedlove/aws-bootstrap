@@ -207,6 +207,7 @@ Account: <12-digit account ID or approved alias>
 Region: <AWS Region>
 Environment: <non-production or production>
 Artifact digest: <immutable digest>
+IaC plan/change-set binding: TYPE: <CLOUDFORMATION_CHANGE_SET|TERRAFORM_PLAN|CONTAINER_IMAGE|OTHER>; IDENTIFIER: <exact identifier>; DIGEST: sha256:<64 lowercase hex>
 Stack, application, and resources: <exact boundary>
 Allowed operations: <exact create/update/delete operations>
 Cost ceiling: <finite positive ISO-currency amount, for example USD: 20.00>
@@ -238,7 +239,11 @@ location named by the active envelope, plus its observed time and source. It
 activates only the exact AWS mutation contemplated by the current
 `explicit-gate` envelope; it never widens construction scope, local or GitHub
 writes, resource boundaries, or platform authority. A deployment receipt never
-authorizes teardown.
+authorizes teardown. The durable copy is the uniquely marked deployment or
+teardown receipt block in docs/project/VERIFY.md. Recompute its SHA-256 from the exact
+normalized receipt and require its `Profile or role` and `Approver` to match
+the action-authorization row and current approved boundary. A row, digest, or
+agent-authored copy cannot substitute for the owner's exact message.
 
 ### Construction envelope
 
@@ -315,6 +320,7 @@ stack, application, and resource boundary
 approved operation
 approved resource summary
 artifact authorization and provenance
+IaC plan/change-set identifier and digest
 billable impact or budget ceiling
 prohibited operations
 rollback or teardown path
@@ -324,6 +330,17 @@ authorization ID, approver, and validity window
 Missing, stale, or conflicting values make the mutation BLOCKED. Read-only
 discovery must precede mutation. Prefer a read-only profile by default and the
 least-privileged write profile only for an authorized operation.
+
+Select IaC checks from the current TECH register: CloudFormation/SAM/CDK synth,
+lint, selected Guard/policy validation, and an authorized change set;
+Terraform format/validate/selected policy checks and deterministic plan
+binding; container dependency, SBOM, and selected image checks; or an exact
+approved equivalent. Do not impose universal scanners. IAM Access Analyzer
+`ValidatePolicy` is authenticated read-only work at AWS-10 after Gate B.
+CloudFormation `CreateChangeSet` creates account-side state and is a mutation;
+authorize it separately from `ExecuteChangeSet`. Prefer GitHub OIDC short-lived
+role credentials to persistent GitHub AWS secrets. AWS Budgets and billing
+alerts are delayed monitoring, not guaranteed spending stops.
 
 Repository trust and managed platform policy still apply. A newly installed or
 enabled plugin may require a new Codex session. Reuse an existing official copy
@@ -848,16 +865,11 @@ docs/project/VERIFY.md; brownfield code, tests, IaC, config, schemas, and releva
 history; current official AWS Core capability, primary AWS documentation, and
 read-only AWS advisor findings.
 
-**Permitted writes:** docs/project/PRD.md Parts III and IV, proposed construction envelope,
-and matching Document status DES/AUTH/design/Gate B fields; narrowly scoped ADR
-only for a consequential, hard-to-reverse decision; docs/project/TASKS.md's Active execution
-snapshot identity, Gate B, maximum-worker, baseline, protected-path, run-stop,
-and next-action fields only; the `DESIGN-10` row in
-docs/project/VERIFY.md's `AWS Core evidence` table. Update summary and detailed records, task snapshot,
-and the matching `bootstrap.yaml` lifecycle mirror as one coordinator
-checkpoint. Do not generate a replacement graph. When invalidating a CURRENT
-plan, first reconcile active tasks and commit/archive the stopped ledger, then
-mark the plan STALE.
+**Permitted writes:** docs/project/PRD.md Parts III/IV, envelope, and Document status DES/AUTH/design/Gate B fields; a
+narrow ADR for a hard-to-reverse decision; docs/project/VERIFY.md DESIGN-10 evidence;
+docs/project/TASKS.md snapshot identity/boundaries; matching `bootstrap.yaml` mirror.
+Write one coordinator checkpoint; do not generate a task graph. Before marking
+a CURRENT plan STALE, reconcile active tasks and commit/archive its ledger.
 
 **GitHub mode:** READ_ONLY only when authorized and needed for design facts.
 
@@ -881,14 +893,12 @@ AWS claim.
 [DESIGN-10]
 Complete a build-ready technical PRD for the accepted requirements.
 
-Create or increment a design revision such as DES-0001 and a proposed
-construction authorization such as AUTH-0001. Run the dependency checker and
-confirm live `aws-core@agent-toolkit-for-aws`. Visibly call both
+Create/increment DES and proposed AUTH IDs. Run the dependency checker, confirm
+live `aws-core@agent-toolkit-for-aws`, and visibly call both
 `retrieve_skill` and `search_documentation` for material service-fit, Region,
 IAM, encryption, reliability, observability, quota, security, and cost facts.
-BOOT-00 evidence, plugin metadata, cached content, generic connectors, and model
-memory are insufficient. The read-only `fastlane-aws-advisor` may review these
-results; it cannot replace the
+BOOT-00/plugin metadata, cache, generic connectors, and memory are insufficient.
+The read-only `fastlane-aws-advisor` may review results; it cannot replace the
 calls or approve Gate B. The coordinator remains the only writer.
 
 Fill the two `DESIGN-10` rows in docs/project/VERIFY.md with live inputs,
@@ -906,7 +916,9 @@ Before Gate B:
   versions. Active `PROPERTY_TESTING` uses `EXACT`, `COMPATIBLE_MAJOR`, or
   numeric `MINIMUM` so evidence is machine-checkable;
 - complete architecture, interfaces, data, identity, failure, operations,
-  deployment, rollback, recovery, cost, and Well-Architected effects;
+  deployment, rollback, recovery, cost, and the TECH-selected IaC validation;
+  keep Well-Architected review conversational, expanding it for effective risk
+  or a difficult-to-reverse one-way door;
 - classify every measurable Gate A requirement exactly once for PBT, preserve
   PROP invariants, and fill one Property execution row per applicable property
   with framework TECH ID, exact command, `MIN_CASES: <positive integer>`,
@@ -1160,6 +1172,7 @@ applicable property execution value exactly from the approved PRD. Never choose
 or substitute a technology, framework, version policy, command, run target,
 seed/reproduction format, or evidence destination. Missing or incompatible
 values route to DESIGN-10.
+
 
 For every applicable `PROP-*`, include its ID in `Requirements`, keep it in the
 same implementation task when practical, and copy its exact command, run
@@ -1523,6 +1536,8 @@ Assess the release against the accepted REQ/DES/AUTH revisions.
 Verify:
 - requirement and defect acceptance traceability;
 - example tests, required PROP evidence, failure paths, security, IaC, and packaging;
+- each applicable IaC/delivery check selected by current TECH decisions, with
+  exact artifact/plan evidence and no substituted universal scanner;
 - migration, rollback, recovery, observability, and cost readiness;
 - documentation and version consistency;
 - GitHub review and required checks when accessible;
@@ -1553,7 +1568,7 @@ explicitly authorized.
 **Authoritative inputs:** docs/project/PRD.md; docs/project/VERIFY.md;
 docs/project/RUNBOOK.md; IaC; deployment artifact; official
 `aws-core@agent-toolkit-for-aws` skills/docs; read-only AWS identity,
-configuration, quotas, and target state.
+configuration, quotas, target state, and the current DES/TECH validation contract.
 
 **Permitted writes:** docs/project/VERIFY.md preflight evidence only.
 
@@ -1594,10 +1609,19 @@ evidence keeps the doctor's AWS execution-planning state `BLOCKED` and blocks
 any AWS execution proposal. Do not record credentials, local plugin paths,
 usernames, trust data, or private machine information.
 
+Bind both AWS-10 rows to `ARTIFACT: sha256:<64 lowercase hex>; DES: DES-nnnn;
+TECH: TECH-nnnn, TECH-nnnn` or the defined no-technology-impact form. Reusing
+DESIGN-10 evidence does not satisfy this artifact-bound phase.
+
 Confirm without exposing secrets:
 - caller identity, allowlisted profile/role, account, Region, and environment;
 - artifact digest and IaC validation;
-- proposed change set or equivalent read-only plan;
+- TECH-selected IaC evidence: CloudFormation/SAM/CDK checks, Terraform
+  format/validate/policy and deterministic plan boundary, container
+  dependency/SBOM/image checks, or the approved equivalent;
+- an existing authorized change set or equivalent immutable read-only plan;
+- authenticated IAM Access Analyzer `ValidatePolicy` results for generated IAM
+  policies when applicable, recorded as `API: accessanalyzer.ValidatePolicy`;
 - service availability, quotas, naming, IAM boundary, encryption, networking,
   logging, alarms, backups, and data-retention implications;
 - estimated low-usage cost, billing dimensions, scaling breakpoints, and the
@@ -1605,7 +1629,9 @@ Confirm without exposing secrets:
 - rollback and teardown commands and retained-resource behavior;
 - absence of unexpected drift or shared-resource impact.
 
-Do not create, update, delete, deploy, rotate, migrate, or mutate data. Record
+Do not create a CloudFormation change set here; `CreateChangeSet` creates
+account-side state and belongs to AWS-20 under exact mutation authority. Do not
+create, update, delete, deploy, rotate, migrate, or mutate data. Record
 only observed facts in docs/project/VERIFY.md. Return READY only when the complete mutation
 boundary can be authorized; otherwise BLOCKED. Return the standard work receipt.
 ~~~
@@ -1618,7 +1644,7 @@ authorization contains every AWS mutation-boundary field and matches preflight.
 **Authoritative inputs:** Current REQ/DES/AUTH; docs/project/VERIFY.md; docs/project/RUNBOOK.md; artifact; preflight;
 aws-core docs/tools; live read-only target state.
 
-**Permitted writes:** Authorized AWS target; docs/project/VERIFY.md evidence; docs/project/TASKS.md status;
+**Permitted writes:** Authorized AWS target; docs/project/VERIFY.md IaC/action evidence; docs/project/TASKS.md status;
 docs/project/RUNBOOK.md only for observed procedural correction.
 
 **GitHub mode:** Only separately authorized deployment-status/check operations.
@@ -1627,7 +1653,8 @@ docs/project/RUNBOOK.md only for observed procedural correction.
 
 **Required authorization:** A valid Gate B fast-dev envelope or a current human
 action receipt equal to the complete `AUTHORIZE AWS DEPLOYMENT` block in the
-common contract and naming all mutation-boundary fields. Tool access is
+common contract and naming all mutation-boundary fields, including the exact
+artifact and IaC plan/change-set binding. Tool access is
 insufficient.
 
 **Stop conditions:** Any field mismatch; authorization expired; unexpected
@@ -1648,17 +1675,29 @@ For `explicit-gate`, first compare the supplied owner message to the exact
 `AUTHORIZE AWS DEPLOYMENT` block in this pack. Reject placeholders, extra or
 missing lines, field-order changes, a stale AUTH, or any value that differs from
 AWS-10. Record the valid receipt verbatim with its observed time and exact
-source before mutation. Under `fast-dev`, prove instead that the final action is
+source in docs/project/VERIFY.md's marked deployment block, recompute its digest, and
+match its role/profile and approver before mutation. Under `fast-dev`, prove
+instead that the final action is
 fully and exactly contained in the current Gate B mutation envelope; otherwise
 mark Gate B stale and route to DESIGN-10. An action-specific receipt cannot
 repair a fast-dev envelope mismatch.
 
 Reconfirm caller identity, account, Region, environment, artifact digest, exact
-change set, finite positive cost ceiling, owner-cap compatibility, and rollback
+plan/change-set binding, finite positive cost ceiling, owner-cap compatibility, and rollback
 path immediately before mutation. The ceiling covers the authorization-validity
-period and is not a guaranteed provider billing stop. Use
+period; delayed AWS Budgets/billing alerts are monitoring, not guaranteed
+provider stops. Use
 the least-privileged approved write profile. Execute the documented deployment
 method; do not improvise broader permissions or resources.
+
+Prefer an approved GitHub OIDC role with short-lived credentials over persistent
+GitHub AWS secrets. For CloudFormation, treat `CreateChangeSet` and
+`ExecuteChangeSet` as separate allowed operations. Creation requires mutation
+authority; execute only the reviewed identifier whose canonical plan digest
+matches the receipt. Bind Terraform saved plans to reviewed inputs/state mode,
+and container deployments to the immutable image digest and selected SBOM/image
+checks. Record the observed row in `IaC validation evidence` using
+`API: cloudformation.CreateChangeSet` when that API is called.
 
 Stream concise milestones. Stop on every declared threshold. If a rollback
 condition occurs, perform rollback only when the authorization includes it;
@@ -1701,11 +1740,13 @@ release is RELEASE_VERIFIED, still NOT_READY, or needs an authorized correction.
 Reconcile deployed AWS evidence against the accepted requirements.
 
 Observe:
-- deployed artifact/version and resource state;
+- deployed artifact/version, exact plan/change-set binding, and resource state;
+- CloudFormation stack events or equivalent operation history and terminal status;
 - smoke tests and user-visible outcome;
 - IAM, encryption, network exposure, logging, alarms, and error signals;
 - data integrity, migration, retry/idempotency, and recovery signals as relevant;
-- performance and cost indicators available in the observation window;
+- performance and cost indicators available in the observation window, noting
+  billing and AWS Budgets delay rather than treating an alert as a hard stop;
 - rollback status after a failed deployment.
 
 Record what was actually observed, when, where, and by which read-only identity.
@@ -1744,13 +1785,19 @@ requirements.
 Perform a read-only residual-resource and teardown review.
 
 Identify:
+- the IaC/stack-derived expected removal and retention manifest;
 - resources created, changed, retained, shared, or drifted;
+- stack events or equivalent operation history and terminal status;
 - dependencies and deletion order;
 - data, backups, snapshots, domains, certificates, logs, and secrets affected;
 - deletion protection and retention requirements;
 - continuing billing dimensions;
 - exact resources that should be retained versus removed;
 - reversible checkpoints and post-teardown verification.
+
+Record inventory/discovery scope and blind spots, including unsupported resource
+types, permission limits, account/Region boundaries, and eventual consistency.
+An empty query does not prove absence outside that observed boundary.
 
 Compare live inventory to IaC and docs/project/RUNBOOK.md. Do not delete, disable, detach,
 empty, rotate, or mutate anything. Produce the exact proposed teardown boundary
@@ -1794,7 +1841,9 @@ Before mutation, compare the supplied owner message to the exact `AUTHORIZE AWS
 TEARDOWN` block in this pack. Reject placeholders, extra or missing lines,
 field-order changes, stale IDs, or a value that differs from AWS-40's observed
 inventory. Record the valid receipt verbatim with its observed time and exact
-source. Gate B fast-dev, a deployment receipt, credentials, and prior cleanup
+source in docs/project/VERIFY.md's marked teardown block, recompute its digest, and
+match its role/profile and approver. Gate B fast-dev, a deployment receipt,
+credentials, and prior cleanup
 discussion never substitute for this receipt.
 
 Reconfirm identity and exact resource inventory immediately before mutation.
@@ -1803,8 +1852,10 @@ and least-privileged approved profile. Do not disable safeguards or force
 deletion unless that exact action is authorized.
 
 After each bounded step, inspect results and stop on mismatch. Perform
-post-teardown read-only verification and capture remaining resources and
-billing-relevant residuals. Never claim deletion from a submitted request
+post-teardown read-only verification. Reconcile the expected manifest, stack
+events/terminal status, removed and retained resources, snapshots/backups,
+residuals, and inventory/discovery limits in `Teardown reconciliation evidence`.
+Never claim deletion from a submitted request
 alone. Return the standard work receipt.
 ~~~
 
