@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import platform
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -53,6 +54,9 @@ BOOLEAN_OR_NULL_EVIDENCE_FIELDS = frozenset(
 )
 STRING_OR_NULL_EVIDENCE_FIELDS = frozenset(
     {
+        "gate_a_state",
+        "gate_b_state",
+        "lifecycle_stage",
         "observed_marketplace_repository",
         "observed_plugin_source",
         "observed_plugin_identity",
@@ -104,6 +108,12 @@ def read_session_evidence(stream: Any) -> dict[str, Any]:
             )
         if not valid:
             raise SetupError(f"stdin evidence field {key!r} has an invalid value")
+        if key == "lifecycle_stage" and value is not None:
+            if not re.fullmatch(r"(?:[A-Z]+-[0-9]+|STOP)", value):
+                raise SetupError("lifecycle_stage must be a canonical prompt ID or STOP")
+        if key in {"gate_a_state", "gate_b_state"} and value is not None:
+            if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,63}", value):
+                raise SetupError(f"stdin evidence field {key!r} is not a state token")
     return dict(parsed)
 
 
@@ -205,6 +215,9 @@ def _report(
     owner_command: str | None,
     verification: str,
     aws_core_status: str,
+    stage: str = "BOOT-00",
+    gate_a_state: str = "BLOCKED",
+    gate_b_state: str = "BLOCKED",
     details: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if state not in SETUP_STATES:
@@ -213,6 +226,9 @@ def _report(
         "schema_version": 3,
         "mode": "INSTRUCTIONS_ONLY",
         "state": state,
+        "stage": stage,
+        "gate_a_state": gate_a_state,
+        "gate_b_state": gate_b_state,
         "progress_step": (
             "Project setup complete"
             if state == "READY_FOR_INTAKE"
@@ -221,6 +237,8 @@ def _report(
         "observed": observed,
         "owner_action_id": (
             "BEGIN_INTAKE_NOW"
+            if state == "READY_FOR_INTAKE" and stage == "INTAKE-10"
+            else "RESUME_DERIVED_STAGE"
             if state == "READY_FOR_INTAKE"
             else "FIX_LOCAL_PREREQUISITE"
         ),
@@ -357,13 +375,24 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
     if local is not None:
         return local
     aws_core_status, observed, details = _aws_core_summary(evidence)
+    stage = str(evidence.get("lifecycle_stage") or "INTAKE-10")
+    gate_a_state = str(evidence.get("gate_a_state") or "PENDING")
+    gate_b_state = str(evidence.get("gate_b_state") or "BLOCKED_BY_GATE_A")
+    next_action = (
+        "Answer the guided intake questions below."
+        if stage == "INTAKE-10"
+        else f"Continue {stage} now."
+    )
     return _report(
         "READY_FOR_INTAKE",
         observed=observed,
-        owner_action="Begin INTAKE-10 now in this response.",
+        owner_action=next_action,
         owner_command=None,
-        verification="The doctor routes to INTAKE-10.",
+        verification=f"The doctor routes to {stage}.",
         aws_core_status=aws_core_status,
+        stage=stage,
+        gate_a_state=gate_a_state,
+        gate_b_state=gate_b_state,
         details=details,
     )
 
@@ -371,61 +400,41 @@ def reduce_setup(evidence: Mapping[str, Any]) -> dict[str, Any]:
 def opening_greeting() -> str:
     return """Welcome to AWS Codex Fastlane.
 
-I will help you turn an idea into approved requirements, an AWS-informed
-technical design, and an organized build plan.
+Fastlane turns your idea into owner-approved requirements and an AWS-informed
+technical design. You approve requirements at Gate A and the technical PRD and
+build boundary at Gate B. Setup does not inspect credentials or access AWS.
+AWS Core can be connected later if current AWS guidance is needed.
 
-Getting started is simple:
+Reply once with:
+- Project name:
+- Preferred AWS Region: (or "recommend one")
+- Development budget: (a currency cap, or "minimize cost; no hard cap")"""
 
-1. Confirm the project name, preferred AWS Region, and development budget.
-2. Complete the guided intake and approve Gate A.
-3. Review the technical PRD and approve Gate B.
 
-If official AWS Core is not available yet, intake still continues. I will give
-you one clear setup step before AWS-specific design work.
+def render_routine_status(report: Mapping[str, Any]) -> str:
+    """Render the exact concise status used for setup and resume."""
 
-Setup does not inspect AWS credentials, access an AWS account, or create cloud
-resources."""
+    command = report.get("owner_command")
+    next_action = str(report["owner_action"])
+    if command:
+        next_action = f"Run `{command}`, then send `init template`."
+    return "\n".join(
+        [
+            "FASTLANE STATUS",
+            f"Stage: {report['stage']}",
+            f"Gate A: {report['gate_a_state']}",
+            f"Gate B: {report['gate_b_state']}",
+            f"AWS Core: {report['aws_core_status']}",
+            f"AWS access: {str(report['aws_access']).replace('_', ' ')}",
+            f"Next action: {next_action}",
+        ]
+    )
 
 
 def render_setup_response(report: Mapping[str, Any]) -> str:
     """Render a compact owner-facing setup result."""
 
-    if report.get("state") == "READY_FOR_INTAKE":
-        return "\n".join(
-            [
-                "Fastlane project setup is ready.",
-                "",
-                f"AWS Core: {report['aws_core_status']}",
-                str(report["observed"]),
-                "",
-                "Next: INTAKE-10 — starts now",
-                "",
-                "No AWS credentials were inspected and no AWS account was accessed.",
-                "",
-                "Technical status: READY_FOR_INTAKE",
-            ]
-        )
-    lines = [
-        "Fastlane needs one local setup fix.",
-        "",
-        str(report["observed"]),
-        "",
-        f"Do this: {report['owner_action']}",
-    ]
-    if report.get("owner_command"):
-        lines.extend(["", str(report["owner_command"])])
-    lines.extend(
-        [
-            "",
-            f"Check: {report['verification']}",
-            "Then send: init template",
-            "",
-            "No AWS credentials were inspected and no AWS account was accessed.",
-            "",
-            f"Technical status: {report['state']}",
-        ]
-    )
-    return "\n".join(lines)
+    return render_routine_status(report)
 
 
 def build_guide(root: Path, *, system: str | None = None) -> dict[str, Any]:
