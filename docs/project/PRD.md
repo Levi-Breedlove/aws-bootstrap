@@ -849,6 +849,16 @@ controls, expected low-usage cost, scaling breakpoints, operational ownership,
 and migration or expansion triggers. Cost never overrides a required security
 or recovery control.
 
+### Lightweight Well-Architected decision review
+
+Keep this a short, blame-free design conversation, not a separate audit or
+gate. Record the applicable Operational Excellence, Security, Reliability,
+Performance Efficiency, Cost Optimization, and Sustainability effects in the
+existing design and task records. Reversible low-risk choices need only concise
+rationale. Expand evidence, alternatives, rollback, and owner visibility when
+effective risk is high/critical or a decision is a one-way door that would be
+difficult, costly, or unsafe to reverse.
+
 ## 21. Implementation boundaries and order
 
 - Existing components to reuse: TODO
@@ -877,6 +887,27 @@ or recovery control.
 | Performance | Latency, throughput, saturation, scaling | TODO |
 | AWS environment | Deployed configuration and service behavior | TODO |
 | Operations | Deployment, alarms, rollback, restore, teardown | TODO |
+
+### IaC and delivery validation contract
+
+Select validation from the approved `INFRASTRUCTURE_AS_CODE`,
+`SECURITY_VALIDATION`, and `DEPLOYMENT_TOOLING` `TECH-*` rows; do not impose a
+universal scanner. Mark unused paths `NOT_APPLICABLE — <reason>`.
+
+| Validation path | Applicability | TECH binding | Required local/static validation | AWS planning validation | Evidence destination |
+|---|---|---|---|---|---|
+| CloudFormation / SAM / CDK | TODO | TODO | Synth or template validation, selected lint, and selected Guard or policy checks | Review an authorized existing change set; creating one is an AWS mutation | `docs/project/VERIFY.md` IaC validation evidence |
+| Terraform | TODO | TODO | Formatting, validation, selected policy checks, and a deterministic plan boundary | Bind the reviewed plan to exact inputs, state/refresh mode, target, and digest | `docs/project/VERIFY.md` IaC validation evidence |
+| Container delivery | TODO | TODO | Dependency/lock validation, SBOM generation, and selected image/configuration checks | Bind the immutable image digest and deployment target | `docs/project/VERIFY.md` IaC validation evidence |
+| Other approved delivery path | TODO | TODO | Exact equivalent checks selected by current TECH decisions | Exact equivalent immutable plan and target binding | `docs/project/VERIFY.md` IaC validation evidence |
+
+CloudFormation `CreateChangeSet` creates account-side state, including a
+`REVIEW_IN_PROGRESS` stack for a new-stack change set, so it requires exact AWS
+mutation authority even though `ExecuteChangeSet` is a separate operation.
+Record both operations separately when both are allowed. An authenticated IAM
+Access Analyzer `ValidatePolicy` call belongs only to AWS-10 after Gate B under
+the named read-only scope. Local checks and unauthenticated documentation do not
+substitute for either observation.
 
 ## 23. Example-based scenarios
 
