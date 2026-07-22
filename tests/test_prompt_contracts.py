@@ -46,7 +46,10 @@ CONTRACT_LABELS = [
 DEFAULT_PROJECT_DOC_MAX_BYTES = 32 * 1024
 RESERVED_GLOBAL_INSTRUCTION_HEADROOM_BYTES = 8 * 1024
 MAX_REPOSITORY_INSTRUCTION_CHAIN_BYTES = (
-    DEFAULT_PROJECT_DOC_MAX_BYTES - RESERVED_GLOBAL_INSTRUCTION_HEADROOM_BYTES
+    min(
+        DEFAULT_PROJECT_DOC_MAX_BYTES - RESERVED_GLOBAL_INSTRUCTION_HEADROOM_BYTES,
+        24_302,
+    )
 )
 MAX_SKILL_DESCRIPTION_CHARACTERS = 320
 MAX_REPOSITORY_SKILL_INDEX_CHARACTERS = 1_200
@@ -601,7 +604,54 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("AUTHORIZE AWS TEARDOWN", self.runbook)
         self.assertIn("action-authorization evidence", self.runbook)
         self.assertIn("## Action authorization provenance", self.verify)
+        self.assertIn("| Role or profile |", self.verify)
+        self.assertIn("| Approver |", self.verify)
+        self.assertIn("<!-- bootstrap:aws-deployment-receipt:start -->", self.verify)
+        self.assertIn("<!-- bootstrap:aws-teardown-receipt:start -->", self.verify)
+
         self.assertIn("put\n`VERIFIED`, `PENDING_AWS`", evidence)
+
+    def test_aws_delivery_evidence_is_technology_selected_and_authority_bound(self) -> None:
+        preflight = self.prompt_section("AWS-10")
+        deployment = self.prompt_section("AWS-20")
+        teardown = self.prompt_section("AWS-50")
+
+        for document in (self.prd, self.runbook, self.verify, self.prompts):
+            self.assertIn("CreateChangeSet", document)
+            self.assertRegex(document, r"(?is)CreateChangeSet.{0,180}mutation")
+            self.assertRegex(document, r"(?i)access(?:analyzer| analyzer)")
+        self.assertIn("API: accessanalyzer.ValidatePolicy", preflight)
+        self.assertNotIn("Create a CloudFormation change set here", preflight)
+        self.assertIn("separate allowed operations", deployment)
+        self.assertIn("GitHub OIDC", deployment)
+        self.assertIn("short-lived credentials", deployment)
+        self.assertIn("delayed AWS Budgets", deployment)
+        self.assertIn("not guaranteed", deployment)
+
+        self.assertRegex(self.prd, r"(?i)do not impose a\s+universal scanner")
+        self.assertIn("## IaC validation evidence", self.verify)
+        self.assertIn(
+            "| Phase | TECH IDs | Validation method | Exact command or API | "
+            "Artifact / plan / change-set binding | AWS account | AWS Region | "
+            "AWS environment | Result | Observed at | Durable source |",
+            self.verify,
+        )
+        self.assertIn("IaC plan/change-set binding", self.verify)
+        self.assertIn("## Teardown reconciliation evidence", self.verify)
+        for field in (
+            "Expected manifest or stack",
+            "Stack events and terminal status",
+            "Resources retained",
+            "Snapshots and backups",
+            "Inventory or discovery limits",
+        ):
+            self.assertIn(field, self.verify)
+        self.assertIn("expected manifest", teardown)
+        self.assertIn("inventory/discovery limits", teardown)
+
+        self.assertIn("Lightweight Well-Architected decision review", self.prd)
+        self.assertRegex(self.prd, r"not a separate audit or\s+gate")
+        self.assertLessEqual(len(self.root_readme.splitlines()), 90)
 
     def test_profiles_are_overlays_not_additional_gates(self) -> None:
         for document in (self.prompts, self.prd, self.agents):
@@ -868,6 +918,7 @@ class PromptPackContractTests(unittest.TestCase):
             "Identity/secrets",
             "Failure/retry/concurrency",
             "Deployment/operations",
+
             "Validation/evidence",
             "Rollback/recovery/teardown",
             "Brownfield compatibility/migration",
