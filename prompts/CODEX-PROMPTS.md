@@ -382,25 +382,63 @@ command/result, actor, timezone-qualified time, tested commit/worktree/artifact,
 durable source, and `LOCAL_PASS` or `VERIFIED`. Placeholder, duplicate,
 wrong-task, fenced, URL-only, and non-passing rows grant no completion evidence.
 
-### Standard work receipt
+### Human response contracts
 
-Every prompt returns this exact field set, populated with concise facts:
+Use one response type for the current interaction. Do not combine routine,
+gate, and AWS receipts into one wall of metadata.
+
+#### Routine status
+
+Use this for BOOT-00, intake, requirements, design work, tasks, construction,
+GitHub synchronization, and release review. Populate exactly these fields:
 
 ~~~text
-WORK RECEIPT
-Prompt: <canonical prompt ID>
-Status: COMPLETE | BLOCKED | NEEDS_INPUT | WAITING_FOR_GATE_A | WAITING_FOR_GATE_B | READY
-Revisions: <requirements/design/authorization IDs or NONE>
-Authorization used: <ID and scope or NONE>
-Files changed: <paths or NONE>
-GitHub actions: <observed actions or NONE>
-AWS actions: <DOCS_ONLY, READ_ONLY, MUTATION with observed actions, or NONE>
-Validation: <commands and results or NOT_RUN>
-Open risks: <concise list or NONE>
-Next: <one canonical prompt ID, exact human receipt, or STOP>
+FASTLANE STATUS
+Stage: <canonical prompt ID and concise state>
+Gate A: <derived state>
+Gate B: <derived state>
+AWS Core: <AVAILABLE|DEFERRED_UNTIL_DESIGN|REQUIRED_FOR_CURRENT_STEP>
+AWS access: <NOT USED|DOCS_ONLY|READ_ONLY|MUTATION>
+Next action: <one concrete owner action or canonical next step>
 ~~~
 
-Do not claim an action, test, merge, deployment, or observation without evidence.
+A routine status contains one status and one next action. Do not include
+internal hashes, file counts, implementation narration, or the exhaustive AWS
+authority fields. Supporting prose may contain only the information needed to
+take that action.
+
+#### Gate receipt
+
+INTAKE-20 and DESIGN-20 return the exact Gate A or Gate B owner receipt defined
+above, bound to the current PRD revision. They may precede it with a concise
+readiness summary, but must not append a routine status or AWS receipt.
+
+#### AWS authority/evidence receipt
+
+AWS-10, AWS-20, AWS-30, AWS-40, and AWS-50 return this exact field set. Use
+actual authorized or observed values; never infer missing authority or evidence:
+
+~~~text
+AWS AUTHORITY AND EVIDENCE RECEIPT
+Prompt: <AWS-nn>
+Construction authorization: <AUTH-nnnn or NONE>
+AWS authorization: <AWS-AUTH-nnnn, TEARDOWN-AUTH-nnnn, Gate B fast-dev authority, or READ_ONLY scope>
+Account: <12-digit account ID or approved alias>
+Region: <AWS Region>
+Environment: <exact environment>
+Resources: <exact resource boundary>
+Operations: <authorized or observed operations>
+Cost ceiling: <finite positive ISO-currency amount or NOT_APPLICABLE with reason>
+Rollback: <exact boundary or NONE>
+Expiration: <ISO 8601 time or exact one-operation condition>
+Observed results: <concise evidence with identifiers, or NOT_RUN>
+AWS Core evidence: <current attributable result or NOT_APPLICABLE with reason>
+Next action: <one canonical next step or STOP>
+~~~
+
+The receipt is revision- and target-bound durable evidence. Do not claim an
+action, test, merge, deployment, account observation, or AWS Core result without
+direct evidence.
 
 ## Prompt index
 
@@ -429,10 +467,10 @@ Do not claim an action, test, merge, deployment, or observation without evidence
 
 ## BOOT-00 — Bootstrap Launchpad
 
-**Purpose:** Welcome the owner, safely initialize or resume the repository, and
-route directly to the doctor-selected lifecycle prompt. BOOT-00 is intentionally
-small. AWS Core supports later AWS research; it is not a prerequisite for
-project intake or Gate A.
+**Purpose:** Welcome a first-time owner, safely initialize an untouched
+repository, or resume an initialized project at its derived lifecycle stage.
+AWS Core supports later AWS research; it is not a prerequisite for intake or
+Gate A.
 
 **Preconditions:** The owner sent an accepted start or resume command and the
 repository or explicit adoption target is locally accessible.
@@ -444,8 +482,7 @@ command.
 **Authoritative inputs:** Canonical repository and optional adoption-target
 paths; manifest and source hashes; bootstrap dry-run; dependency-check and
 doctor JSON; applicable `AGENTS.md` files; Git state; project source records;
-and only plugin identity that is visibly available in the current Codex
-session.
+and only plugin identity visibly available in the current Codex session.
 
 **Permitted writes:** For an untouched in-place template, only allowlisted
 placeholder rendering after successful source-integrity, path, dirty-file, and
@@ -468,14 +505,13 @@ mutation.
 **Stop conditions:** Unsafe or ambiguous roots; source/target containment;
 maintainer-source, manifest, hash, symlink, dirty-template, collision,
 adoption-record, partial-write, dependency, doctor, or source-of-truth failure.
-Missing AWS Core is not a BOOT-00 stop condition.
+Missing or unverified AWS Core is not a BOOT-00 stop condition.
 
-**Receipt:** Exact welcome, compact setup result, and the first questions from
-the doctor-selected prompt.
+**Receipt:** Routine status followed immediately by the first questions or work
+from the doctor-selected stage.
 
 **Next:** The exact doctor route. For a new project this is normally
-`INTAKE-10`; begin its questions immediately without asking the owner to send
-another command.
+`INTAKE-10`; begin its questions immediately in the same response.
 
 ~~~text
 [BOOT-00]
@@ -487,49 +523,49 @@ Target path: <required only for ADOPT_EXISTING_REPOSITORY>
 Local Git setup: <INIT_AND_BASELINE_COMMIT|USE_EXISTING>
 
 Treat `init template`, `initialize template`, and `start Fastlane` as
-`THIS_REPOSITORY`. Treat `continue setup` as an idempotent recheck of a
+`THIS_REPOSITORY`. Treat `continue setup` as an idempotent recheck of one
 previous local blocker.
 
-1. Before custom prose, run:
+1. Inspect `bootstrap.yaml`, `docs/project/PRD.md`, and repository state
+   before owner-facing output.
+
+   If the project is already initialized, do not print the welcome, ask setup
+   questions, rerun initialization, or narrate repository checks. Run the
+   dependency check and doctor, then resume the exact doctor-selected stage.
+
+2. Only for an unconfigured template, run:
 
    python scripts/setup_assistant.py welcome
 
-   Reproduce stdout exactly.
+   Reproduce stdout exactly once. Collect no more than these three values in
+   one reply: project name, preferred AWS Region, and development budget posture.
+   Do not paraphrase or repeat those questions. Accept either a
+   finite owner cap with ISO currency
+   or "minimize cost; no hard cap." Preserve an owner cap as
+   `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; otherwise
+   use `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. Recommend `us-west-2`
+   only when the owner is unsure. A budget is a ceiling, not a spending target
+   or AWS authorization.
 
-2. Run:
+3. Run:
 
    python scripts/bootstrap_dependencies.py --root <repository root> --json
 
    This validates repository assets and the official-current AWS Core policy.
    It does not prove plugin installation or grant AWS access. Do not run
-   maintainers' tests or probe for pytest during project initialization.
+   maintainer tests, pytest, installers, or plugin mutations during setup.
 
-3. Inspect the repository before writing. If it is unconfigured, ask once for
-   no more than these three values:
-
-   - project name;
-   - preferred AWS Region; and
-   - development budget posture.
-
-   Accept either a finite owner cap with ISO currency or "minimize cost; no hard
-   cap." Preserve an owner cap exactly as
-   `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; otherwise
-   use `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. A budget is a ceiling, not
-   a spending target or AWS authorization. Recommend `us-west-2` only when the
-   owner is unsure.
-
-4. Classify the target as TEMPLATE_SOURCE, UNCONFIGURED_TEMPLATE, NEW_TARGET,
-   ACTIVE_GREENFIELD, ACTIVE_BROWNFIELD, or BLOCKED. For an unconfigured
-   template, run the existing in-place initializer dry-run first and apply only
-   if every check passes:
+4. After all three fresh-template answers arrive, classify the target as
+   TEMPLATE_SOURCE, UNCONFIGURED_TEMPLATE, NEW_TARGET, ACTIVE_GREENFIELD,
+   ACTIVE_BROWNFIELD, or BLOCKED. For an unconfigured template, dry-run before
+   applying:
 
    python bootstrap.py --target <repository root> --project-name <name> --region <region> --cost-posture "<exact cost posture>" --in-place-template-instance --dry-run
    python bootstrap.py --target <repository root> --project-name <name> --region <region> --cost-posture "<exact cost posture>" --in-place-template-instance
 
-   Preserve existing Git and user-owned changes. For brownfield adoption,
-   preview every collision and require the current complete hash-bound decision
-   map from the owner before an adoption write. The start command does not authorize
-   you to choose `ADOPT_TEMPLATE`. Require this exact owner confirmation:
+   Preserve Git and user-owned changes. For brownfield adoption, preview every
+   collision and require the current complete hash-bound decision map. The
+   start command does not authorize `ADOPT_TEMPLATE`. Require:
 
    CONFIRM BOOTSTRAP ADOPTION PLAN
    schema_version: 1
@@ -544,68 +580,66 @@ previous local blocker.
 
    Compute `plan_sha256` from canonical compact, sorted-key UTF-8 JSON
    containing schema version, both roots, and the complete ordered decision
-   map. It never hashes decisions alone. Reject missing, duplicate, reordered,
-   or drifted paths. Never infer `ADOPT_TEMPLATE`.
+   map. It never hashes decisions alone or omits that context. Reject missing,
+   duplicate, reordered, or drifted paths. Never infer `ADOPT_TEMPLATE`.
 
 5. Run:
 
    python scripts/bootstrap_doctor.py --root <target> --json
 
-   The doctor is the lifecycle router. If it already returns INTAKE-10 or a
-   later prompt, never restart BOOT-00 because AWS Core is absent or because
-   this command was sent again.
+   The doctor is the lifecycle router. If it returns `INTAKE-10` or a later
+   prompt, never restart BOOT-00 because AWS Core is absent or because
+   `init template` was sent again.
 
-   Route stale and resumed state from the doctor: Gate A STALE goes to
-   INTAKE-10 when owner facts are missing and otherwise REQ-10; a current Gate
-   A receipt awaiting approval goes to INTAKE-20; current Gate A with stale Gate
-   B goes to DESIGN-10; approved Gate B with an uninitialized or stale task plan
-   goes to TASK-10. Otherwise use the exact doctor route or STOP on conflict.
+   Route stale state deterministically: Gate A STALE goes to INTAKE-10 when
+   owner facts are missing and otherwise REQ-10; a current Gate A receipt
+   awaiting approval goes to INTAKE-20; a stale Gate B with current Gate A goes
+   to DESIGN-10; approved Gate B with an uninitialized or stale task plan goes
+   to TASK-10. Otherwise use the exact doctor route or STOP on conflict.
 
-6. Treat official AWS Core as an AWS research dependency, not a setup gate:
+6. Treat official AWS Core as a research dependency, not a setup gate:
 
-   - accept only current `aws-core@agent-toolkit-for-aws` from
-     `aws/agent-toolkit-for-aws`;
-   - if visibly available, report `AVAILABLE`;
-   - otherwise report `DEFERRED_UNTIL_DESIGN` and continue;
+   - reuse visible official `aws-core@agent-toolkit-for-aws` from
+     `aws/agent-toolkit-for-aws` and report `AVAILABLE`;
+   - for missing, unavailable, or unattributable AWS Core, report
+     `DEFERRED_UNTIL_DESIGN` and continue intake;
    - never install, enable, disable, update, pin, hash, probe, or trust a plugin
      or hook for the owner.
 
-   AWS Core is the preferred source for current AWS service fit, Region support,
-   IAM, security, reliability, quotas, observability, cost drivers, deployment,
-   rollback, and operational guidance whenever those facts materially affect
-   REQ-10, DESIGN-10, DESIGN-20, RELEASE-10, AWS-10, AWS-20, AWS-30, AWS-40, or
-   AWS-50. Intake and Gate A continue without it unless a material AWS fact
-   truly cannot be resolved; record that fact as open instead of restarting
-   setup.
+7. Return exactly one routine status:
 
-7. Return:
-
-   AWS CODEX FASTLANE — READY
-   Setup: READY_FOR_INTAKE
-   Project: <name>
-   Region: <region>
-   Budget posture: <exact cost posture>
-   Doctor: PASS
+   FASTLANE STATUS
+   Stage: <doctor route>
+   Gate A: <derived state>
+   Gate B: <derived state>
    AWS Core: <AVAILABLE|DEFERRED_UNTIL_DESIGN>
-   Next prompt: <doctor route>
    AWS access: NOT USED
+   Next action: <one action>
 
-8. If the route is INTAKE-10, immediately ask its first one to three
-   plain-language questions. If the route is later, resume that prompt. Do not
-   ask for `START GUIDED INTAKE`, another `init template`, plugin setup, or
-   hook verification before continuing.
+   Do not expose internal hashes, file counts, command narration, plugin setup,
+   or AWS authority fields in this routine response.
 
-When DESIGN-10 first needs current AWS facts and official AWS Core is not
-available, give one concise owner action: enable AWS Core from Agent Toolkit
-for AWS in `/plugins` (register
+8. Execute that one next action immediately when possible. At `INTAKE-10`,
+   ask the first one to three plain-language questions below the status. At a
+   later route, resume that prompt. Never ask for another `init template`,
+   `START GUIDED INTAKE`, plugin setup, or hook verification before resuming.
+
+Only when DESIGN-10 needs a material current AWS fact and official AWS Core is
+unavailable or unattributable, give one owner action: enable official AWS Core
+from Agent Toolkit for AWS in `/plugins` (register
 `aws/agent-toolkit-for-aws` only if absent), restart Codex, and send
-`CONTINUE AWS DESIGN`. Codex owns plugin and hook trust in its own UI.
-Fastlane never compares hook hashes, requests screenshots, runs synthetic hook
-probes, or creates an additional owner gate.
+`CONTINUE AWS DESIGN`. If official AWS Core is already available, reuse it
+without setup instructions.
+
+Any hook review is the owner's attestation to the official plugin identity and
+the hook inventory displayed in Codex. Fastlane never claims to observe a
+private trust database and does not compare hook hashes, request screenshots,
+run synthetic hook probes, or create another gate.
 
 Do not write requirements, design, tasks, application code, or infrastructure
 during BOOT-00. Outside the exact selected local-Git action, do not alter Git.
 ~~~
+
 ## INTAKE-10 — Guided Intake
 
 **Preconditions:** BOOT-00 routed to INTAKE-10 or an existing intake round.
@@ -635,7 +669,7 @@ AWS access.
 input; repository facts contradict the request; a decision would materially
 change scope without human input.
 
-**Receipt:** Standard work receipt.
+**Receipt:** Routine status.
 
 **Next:** Another INTAKE-10 round or REQ-10.
 
@@ -680,7 +714,7 @@ negotiable cost tradeoffs.
 Do not ask the user to choose an AWS service unless that choice is itself a
 business constraint. Do not design, generate tasks, or seek approval yet.
 When the material intake gaps are closed, state that intake is ready for REQ-10.
-Return the standard work receipt.
+Return the routine status.
 ~~~
 
 ## REQ-10 — Requirements Analysis
@@ -710,7 +744,7 @@ commit/archive the stopped ledger, then mark its Task-plan state STALE.
 boundary; unverifiable outcome; requested requirement is infeasible or unsafe;
 or a material AWS feasibility fact needed for Gate A remains unverified.
 
-**Receipt:** Standard work receipt with proposed REQ revision.
+**Receipt:** Routine status with proposed REQ revision.
 
 **Next:** INTAKE-10 when blocked; otherwise INTAKE-20.
 
@@ -778,7 +812,7 @@ the current proposed receipt with an approver placeholder; never carry an old
 receipt into a new revision. Existing tasks become non-runnable and an active
 run becomes `BLOCKED`; never silently retarget them to the new revision. Set the
 reconciled plan STALE, then prepare a concise Gate A decision brief for
-INTAKE-20. Return the standard work receipt.
+INTAKE-20. Return the routine status.
 ~~~
 
 ## INTAKE-20 — Requirements Gate A
@@ -806,8 +840,7 @@ approver; altered or partial receipt; requirements change during review; or a
 material AWS feasibility fact required by the readiness card is stale or
 unverified.
 
-**Receipt:** Standard work receipt with WAITING_FOR_GATE_A, followed by the
-copyable Gate A receipt as the final block.
+**Receipt:** Exact Gate A receipt after a concise readiness summary. Do not append a routine status or AWS receipt.
 
 **Next:** DESIGN-10 only after exact acceptance; otherwise REQ-10 or INTAKE-10.
 
@@ -850,9 +883,9 @@ owner record, then atomically update that record, Document status, and lifecycle
 mirror to APPROVED_FOR_DESIGN. Record the
 observed ISO 8601 authorization time and exact message/issue/meeting-record
 source as structured provenance without adding either value to the receipt.
-Do not invent a source. Return a standard work receipt whose Next is DESIGN-10.
-Before acceptance, return WAITING_FOR_GATE_A and put the exact proposed
-approval receipt last.
+Do not invent a source. After acceptance, return the exact recorded Gate A
+receipt. Before acceptance, put the exact proposed Gate A receipt last after a
+concise readiness summary.
 ~~~
 
 ## DESIGN-10 — Technical PRD and Construction Envelope
@@ -885,7 +918,7 @@ wrong-source AWS Core; missing, failed, cached, generic, or stale DESIGN-10
 `retrieve_skill` or `search_documentation` evidence; or an unverified material
 AWS claim.
 
-**Receipt:** Standard work receipt with REQ, DES, and proposed AUTH IDs.
+**Receipt:** Routine status with REQ, DES, and proposed AUTH IDs.
 
 **Next:** REQ-10 for material scope changes; otherwise DESIGN-20.
 
@@ -979,7 +1012,7 @@ the Gate B owner decision to `PENDING`, clear any prior approver, provenance,
 authorized-ID, and receipt fields, and render the current proposed receipt with
 an approver placeholder; never carry an old receipt into a new design or AUTH.
 Do not implement, generate tasks, approve the design, or perform GitHub/AWS
-writes. Return the standard work receipt.
+writes. Return the routine status.
 ~~~
 
 ## DESIGN-20 — PRD and Construction Gate B
@@ -1010,8 +1043,7 @@ diagram-to-design conflict; unexplained generic roles or unused optional
 diagram paths;
 or material AWS design evidence is stale or unverified.
 
-**Receipt:** Standard work receipt with WAITING_FOR_GATE_B, followed by the
-copyable Gate B receipt as the final block.
+**Receipt:** Exact Gate B receipt after a concise readiness summary. Do not append a routine status or AWS receipt.
 
 **Next:** TASK-10 only after exact acceptance; otherwise DESIGN-10 or REQ-10.
 
@@ -1067,8 +1099,8 @@ envelope, and ensure the task snapshot contains the exact REQ/DES/AUTH IDs,
 approved Gate B state, authorized maximum workers, baseline, protected dirty
 paths, and `TASK-10` as the next safe action while the plan state is
 UNINITIALIZED or STALE.
-Return a standard work receipt whose Next is TASK-10. Before acceptance, return
-WAITING_FOR_GATE_B and put the exact proposed approval receipt last.
+After acceptance, return the exact recorded Gate B receipt. Before acceptance,
+put the exact proposed Gate B receipt last after a concise readiness summary.
 ~~~
 
 ## BUG-10 — Active Defect Contract
@@ -1092,7 +1124,7 @@ write.
 needed to reproduce; symptom suggests active incident/data loss; scope becomes
 a feature or material requirements change.
 
-**Receipt:** Standard work receipt.
+**Receipt:** Routine status.
 
 **Next:** TASK-10 if covered by active Gate B; otherwise REQ-10.
 
@@ -1112,7 +1144,7 @@ Record in docs/project/BUGFIX.md:
 Inspect before hypothesizing. Do not manufacture logs or claim reproduction you
 did not observe. If the correction changes accepted behavior or exceeds the
 active envelope, return to REQ-10. Otherwise state readiness for TASK-10 and
-return the standard work receipt.
+return the routine status.
 ~~~
 
 ## TASK-10 — Executable Task Plan
@@ -1136,7 +1168,7 @@ as one checkpoint; no implementation.
 dependency; validation cannot objectively prove acceptance; or planning would
 select or substitute a technology, version policy, or property execution value.
 
-**Receipt:** Standard work receipt.
+**Receipt:** Routine status.
 
 **Next:** BUILD-10 for one task or BUILD-20 for an autonomous run.
 
@@ -1222,7 +1254,7 @@ with `python scripts/task_waves.py docs/project/TASKS.md`, inspect candidates wi
 `python scripts/task_waves.py docs/project/TASKS.md --ready --json`, commit the validated
 current plan locally within the Gate B command/write boundary, update Last
 known-green and the checkpoint registry, and rerun the doctor. Never push or
-touch a remote unless separately authorized. Return the standard work receipt.
+touch a remote unless separately authorized. Return the routine status.
 ~~~
 
 ## BUILD-10 — Execute One Task
@@ -1252,7 +1284,7 @@ policy, or property-execution substitution; missing authorization;
 destructive/billable impact outside boundary; repeated failure without a new
 hypothesis.
 
-**Receipt:** Standard work receipt with validation evidence.
+**Receipt:** Routine status with validation evidence.
 
 **Next:** BUILD-10, RELEASE-10, or STOP.
 
@@ -1348,7 +1380,7 @@ Perform only GitHub actions listed in the active authorization. BUILD-10 never
 executes an AWS mutation directly: if the task reaches a mutation boundary,
 record and checkpoint the local state, route through AWS-10 and AWS-20, and use
 AWS-30 to reconcile evidence. A connected tool does not grant permission. Stop
-on any common-contract condition. Return the standard work receipt.
+on any common-contract condition. Return the routine status.
 ~~~
 
 ## BUILD-20 — Autonomous Construction Run
@@ -1378,7 +1410,7 @@ version-policy, or property-execution substitution; unexpected cost/security/dat
 impact; AWS identity mismatch; destructive step not explicit; approved attempt
 budget exhausted without a materially new hypothesis.
 
-**Receipt:** One standard work receipt per completed wave and a final receipt.
+**Receipt:** One routine status per completed wave and a final receipt.
 
 **Next:** Continue BUILD-20, SYNC-10, RELEASE-10, or STOP.
 
@@ -1458,7 +1490,7 @@ tasks are otherwise eligible for parallel work.
 
 Continue through safe waves without asking routine questions. Pause only for a
 declared stop condition or authority that Gate B did not grant. Return receipts
-at wave boundaries and a final standard work receipt.
+at wave boundaries and a final routine status.
 ~~~
 
 ## SYNC-10 — GitHub Reconciliation
@@ -1481,7 +1513,7 @@ WRITE operations.
 **Stop conditions:** Repository mismatch; issue/task conflict; protected branch
 or required check failure; requested merge/close/delete not authorized.
 
-**Receipt:** Standard work receipt listing exact observed GitHub actions.
+**Receipt:** Routine status listing exact observed GitHub actions.
 
 **Next:** BUILD-20, RELEASE-10, or STOP.
 
@@ -1498,7 +1530,7 @@ do not silently overwrite.
 Creating branches, issues, project items, commits, pushes, PRs, labels,
 comments, merges, releases, or deletions are distinct write operations. Perform
 only those explicitly named. Tool availability is never authorization. Return
-the standard work receipt.
+the routine status.
 ~~~
 
 ## RELEASE-10 — Release Readiness and Finalization
@@ -1523,7 +1555,7 @@ GitHub scope.
 **Stop conditions:** Failed required check; unmitigated critical risk; missing
 rollback; evidence gap; scope/revision drift; unauthorized merge/release.
 
-**Receipt:** Standard work receipt with READY or BLOCKED and the exact release
+**Receipt:** Routine status with READY or BLOCKED and the exact release
 state `NOT_READY`, `READY_TO_DEPLOY`, or `RELEASE_VERIFIED` in Validation.
 
 **Next:** AWS-10 only from READY_TO_DEPLOY; AWS-40 after verified deployment
@@ -1556,7 +1588,7 @@ acceptance item is VERIFIED or explicitly not applicable. Record observed
 evidence and return READY or BLOCKED with specific reasons.
 If authorization explicitly permits finalization, perform only the named
 GitHub operations after required checks pass. Never infer permission to merge,
-publish a release, delete a branch, or deploy. Return the standard work receipt.
+publish a release, delete a branch, or deploy. Return the routine status.
 ~~~
 
 ## AWS-10 — Read-Only Deployment Preflight
@@ -1583,7 +1615,7 @@ missing, failed, cached, generic, or stale AWS-10 `retrieve_skill` or
 `search_documentation` evidence; unavailable Region or quota; drift; unreviewed
 change set; cost/rollback uncertainty; or any mutation.
 
-**Receipt:** Standard work receipt with READY or BLOCKED and observed identity.
+**Receipt:** AWS authority/evidence receipt with READY or BLOCKED and observed identity.
 
 **Next:** AWS-20 only with valid mutation authorization; otherwise STOP.
 
@@ -1633,7 +1665,7 @@ Do not create a CloudFormation change set here; `CreateChangeSet` creates
 account-side state and belongs to AWS-20 under exact mutation authority. Do not
 create, update, delete, deploy, rotate, migrate, or mutate data. Record
 only observed facts in docs/project/VERIFY.md. Return READY only when the complete mutation
-boundary can be authorized; otherwise BLOCKED. Return the standard work receipt.
+boundary can be authorized; otherwise BLOCKED. Return the AWS authority/evidence receipt.
 ~~~
 
 ## AWS-20 — Authorized Deployment
@@ -1661,7 +1693,7 @@ insufficient.
 change set/cost/resource; alarm or smoke-test failure; rollback condition;
 operation expands scope; destructive replacement not explicitly allowed.
 
-**Receipt:** Standard work receipt listing exact mutations and identifiers,
+**Receipt:** AWS authority/evidence receipt listing exact mutations and identifiers,
 without secrets.
 
 **Next:** AWS-30, including after rollback or partial failure.
@@ -1704,7 +1736,7 @@ condition occurs, perform rollback only when the authorization includes it;
 otherwise stop and report the safest state. Capture command/result identifiers,
 resource identifiers, timestamps, alarms, and smoke-test outcomes without
 secrets. Do not mark deployed verification complete in this prompt. Return the
-standard work receipt and proceed to AWS-30.
+AWS authority/evidence receipt and proceed to AWS-30.
 ~~~
 
 ## AWS-30 — Deployed Evidence Reconciliation
@@ -1728,9 +1760,9 @@ explicit mutation authorization.
 **Stop conditions:** Identity mismatch; telemetry unavailable; security/data
 anomaly; failed acceptance test; correction would mutate AWS.
 
-**Receipt:** Standard work receipt with `COMPLETE` or `BLOCKED`; put
+**Receipt:** AWS authority/evidence receipt with `COMPLETE` or `BLOCKED`; put
 `VERIFIED`, `PENDING_AWS`, or failed evidence states in Validation and Open
-risks, not in the work-receipt Status field.
+risks, not in the receipt's Observed results field.
 
 **Next:** RELEASE-10 after recording evidence. RELEASE-10 decides whether the
 release is RELEASE_VERIFIED, still NOT_READY, or needs an authorized correction.
@@ -1752,7 +1784,7 @@ Observe:
 Record what was actually observed, when, where, and by which read-only identity.
 Mark VERIFIED only with objective evidence. Keep unavailable or time-dependent
 checks PENDING_AWS. Do not mutate to repair a failed check. Do not set the
-release state here. Return the standard work receipt whose Next is RELEASE-10.
+release state here. Return the AWS authority/evidence receipt whose Next is RELEASE-10.
 ~~~
 
 ## AWS-40 — Residual Resource and Teardown Review
@@ -1775,7 +1807,7 @@ repeatable plan.
 **Stop conditions:** Shared ownership unclear; retained/regulated data; unknown
 dependency; identity mismatch; teardown would cross the named boundary.
 
-**Receipt:** Standard work receipt with residual inventory and authorization
+**Receipt:** AWS authority/evidence receipt with residual inventory and authorization
 requirements.
 
 **Next:** AWS-50 only with explicit teardown authorization; otherwise STOP.
@@ -1801,7 +1833,7 @@ An empty query does not prove absence outside that observed boundary.
 
 Compare live inventory to IaC and docs/project/RUNBOOK.md. Do not delete, disable, detach,
 empty, rotate, or mutate anything. Produce the exact proposed teardown boundary
-and required authorization fields. Return the standard work receipt.
+and required authorization fields. Return the AWS authority/evidence receipt.
 ~~~
 
 ## AWS-50 — Authorized Teardown
@@ -1828,7 +1860,7 @@ the complete `AUTHORIZE AWS TEARDOWN` block in the common contract.
 unexpected data; scope expansion; protection requiring an unauthorized change;
 partial failure that changes the safe order.
 
-**Receipt:** Standard work receipt with removed, retained, failed, and
+**Receipt:** AWS authority/evidence receipt with removed, retained, failed, and
 post-teardown observed resources.
 
 **Next:** STOP, or AWS-40 for residual read-only review.
@@ -1856,7 +1888,7 @@ post-teardown read-only verification. Reconcile the expected manifest, stack
 events/terminal status, removed and retained resources, snapshots/backups,
 residuals, and inventory/discovery limits in `Teardown reconciliation evidence`.
 Never claim deletion from a submitted request
-alone. Return the standard work receipt.
+alone. Return the AWS authority/evidence receipt.
 ~~~
 
 ## LEARN-10 — Educational Wrapper
@@ -1876,7 +1908,7 @@ alone. Return the standard work receipt.
 **Stop conditions:** Same as wrapped prompt; explanation would expose secrets
 or distract from an active safety condition.
 
-**Receipt:** Standard work receipt using the wrapped prompt ID and noting
+**Receipt:** Routine status using the wrapped prompt ID and noting
 LEARN-10 in Open risks only if teaching affected pace or scope.
 
 **Next:** Same as wrapped prompt.
@@ -1897,7 +1929,7 @@ At meaningful milestones:
 Do not narrate every tool call, create tutorial documents, weaken validation,
 or broaden scope. LEARN-10 never changes a gate, write boundary, GitHub mode,
 AWS mode, stop condition, or authorization. Return the wrapped prompt's
-standard work receipt.
+routine status.
 ~~~
 
 ## Suggested model selection

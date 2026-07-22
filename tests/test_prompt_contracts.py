@@ -222,27 +222,31 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn(phrase, self.agents)
         self.assertIn("continue setup", boot)
         self.assertIn("python scripts/setup_assistant.py welcome", boot)
-        self.assertIn("Reproduce stdout exactly", boot)
+        self.assertIn("Reproduce stdout exactly once", boot)
+        self.assertIn("no more than these three values", boot)
         for phrase in (
             "project name",
             "preferred AWS Region",
             "development budget posture",
         ):
             self.assertIn(phrase, boot)
-            self.assertIn(phrase, launch_skill)
-        self.assertIn("READY_FOR_INTAKE", boot)
+        self.assertIn("optional budget in one reply", launch_skill)
+        self.assertNotIn("Technical status:", boot)
         self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
-        self.assertIn("AWS Core is advisory during planning, not a BOOT-00 gate", launch_skill)
-        self.assertIn("begin its first one to three", launch_skill)
-        self.assertIn("Never restart BOOT-00", launch_skill)
-        self.assertIn("Do not require another start command", launch_skill)
+        self.assertIn(
+            "AWS Core is advisory during planning, not a BOOT-00 gate",
+            launch_skill,
+        )
+        self.assertIn("ask its first one to three", launch_skill)
+        self.assertIn("Never restart BOOT-00 or repeat setup questions", launch_skill)
+        self.assertIn("Never ask for another `init template`", boot)
         self.assertIn("aws-core@agent-toolkit-for-aws", boot)
         self.assertIn("AWS access: NOT USED", boot)
         self.assertIn("pytest", boot)
-        self.assertNotIn("subprocess", (
-            PROJECT_ROOT / "scripts/setup_assistant.py"
-        ).read_text(encoding="utf-8"))
-
+        self.assertNotIn(
+            "subprocess",
+            (PROJECT_ROOT / "scripts/setup_assistant.py").read_text(encoding="utf-8"),
+        )
     def test_aws_core_uses_official_current_marketplace_without_pin_fallback(self) -> None:
         boot = self.prompt_section("BOOT-00")
         for document in (boot, self.root_readme, self.agents):
@@ -529,8 +533,8 @@ class PromptPackContractTests(unittest.TestCase):
         boot = self.prompt_section("BOOT-00")
         self.assertRegex(boot, r"Gate A STALE goes to\s+INTAKE-10")
         self.assertIn("otherwise REQ-10", boot)
-        self.assertRegex(boot, r"stale Gate\s+B goes to DESIGN-10")
-        self.assertIn("uninitialized or stale task plan\n   goes to TASK-10", boot)
+        self.assertRegex(boot, r"stale Gate B with current Gate A goes\s+to DESIGN-10")
+        self.assertRegex(boot, r"uninitialized or stale task plan goes\s+to TASK-10")
         self.assertIn("stale Gate B with a current Gate A routes to `DESIGN-10`", self.agents)
 
     def test_gate_receipts_record_provenance_without_extra_lines(self) -> None:
@@ -547,8 +551,8 @@ class PromptPackContractTests(unittest.TestCase):
     def test_launchpad_routes_from_existing_lifecycle_state(self) -> None:
         boot = self.prompt_section("BOOT-00")
         self.assertIn("The doctor is the lifecycle router", boot)
-        self.assertIn("later prompt, never restart BOOT-00", boot)
-        self.assertIn("current Gate\n   A receipt awaiting approval goes to INTAKE-20", boot)
+        self.assertRegex(boot, r"later\s+prompt, never restart BOOT-00")
+        self.assertRegex(boot, r"current Gate A receipt\s+awaiting approval goes to INTAKE-20")
         self.assertIn("approved Gate B with an uninitialized or stale task plan", boot)
         self.assertIn("Otherwise use the exact doctor route or STOP", boot)
 
@@ -773,20 +777,105 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("--in-place-template-instance --dry-run", boot)
         self.assertIn("UNCONFIGURED_TEMPLATE", boot)
         for field in (
+            "Stage:",
+            "Gate A:",
+            "Gate B:",
+            "AWS Core:",
+            "AWS access:",
+            "Next action:",
+        ):
+            self.assertIn(field, boot)
+        for removed_field in (
             "Project:",
             "Region:",
             "Budget posture:",
             "Doctor:",
-            "AWS Core:",
             "Next prompt:",
-            "AWS access:",
         ):
-            self.assertIn(field, boot)
-        self.assertIn("immediately ask its first one to three", boot)
+            self.assertNotIn(removed_field, boot)
+        self.assertIn(
+            "ask the first one to three plain-language questions below the status",
+            boot,
+        )
         self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
         self.assertNotIn("OWNER_ATTESTED_AND_PROBES_VERIFIED", boot)
         self.assertNotIn("hook conflict review", boot)
 
+    def test_boot_resume_and_aws_core_deferral_are_single_action_contracts(self) -> None:
+        boot = self.prompt_section("BOOT-00")
+        launch_skill = (
+            PROJECT_ROOT / ".agents/skills/launch-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8")
+        for phrase in (
+            "If the project is already initialized, do not print the welcome",
+            "never restart BOOT-00 because AWS Core is absent",
+            "reuse it\nwithout setup instructions",
+            "one owner action",
+            "owner's attestation",
+            "private trust database",
+        ):
+            self.assertIn(phrase, boot)
+        self.assertRegex(
+            boot,
+            r"report\s+`DEFERRED_UNTIL_DESIGN` and continue intake",
+        )
+        self.assertIn("skip the welcome, setup questions, and\n     initializer", launch_skill)
+        self.assertIn("resume the exact\n     doctor-selected stage", launch_skill)
+        self.assertIn(
+            "does not compare hook hashes, request screenshots,\nrun synthetic hook probes",
+            boot,
+        )
+
+    def test_routine_gate_and_aws_receipts_are_separate(self) -> None:
+        common = self.prompts.split("### Human response contracts", 1)[1].split(
+            "## Prompt index", 1
+        )[0]
+        routine = common.split("#### Routine status", 1)[1].split(
+            "#### Gate receipt", 1
+        )[0]
+        routine_fields = (
+            "Stage:",
+            "Gate A:",
+            "Gate B:",
+            "AWS Core:",
+            "AWS access:",
+            "Next action:",
+        )
+        for field in routine_fields:
+            self.assertEqual(routine.count(field), 1)
+        self.assertIn("Use one response type", common)
+        self.assertIn("must not append a routine status or AWS receipt", common)
+
+        gate_a = self.prompt_section("INTAKE-20")
+        gate_b = self.prompt_section("DESIGN-20")
+        self.assertIn("**Receipt:** Exact Gate A receipt", gate_a)
+        self.assertIn("**Receipt:** Exact Gate B receipt", gate_b)
+        self.assertNotIn("FASTLANE STATUS", gate_a)
+        self.assertNotIn("FASTLANE STATUS", gate_b)
+        self.assertNotIn("AWS AUTHORITY AND EVIDENCE RECEIPT", gate_a)
+        self.assertNotIn("AWS AUTHORITY AND EVIDENCE RECEIPT", gate_b)
+
+        for prompt_id in ("AWS-10", "AWS-20", "AWS-30", "AWS-40", "AWS-50"):
+            self.assertIn(
+                "AWS authority/evidence receipt", self.prompt_section(prompt_id)
+            )
+        for field in (
+            "Account:",
+            "Region:",
+            "Environment:",
+            "Resources:",
+            "Operations:",
+            "Cost ceiling:",
+            "Rollback:",
+            "Expiration:",
+            "Observed results:",
+        ):
+            self.assertIn(field, common)
+        for prompt_id in ("BOOT-00", "INTAKE-10"):
+            self.assertNotIn(
+                "AWS AUTHORITY AND EVIDENCE RECEIPT",
+                self.prompt_section(prompt_id),
+            )
     def test_repo_scoped_skills_have_distinct_safe_trigger_contracts(self) -> None:
         implicit = {
             "launch-fastlane": "true",
@@ -864,7 +953,7 @@ class PromptPackContractTests(unittest.TestCase):
 
     def test_brownfield_adoption_requires_exact_user_confirmation(self) -> None:
         boot = self.prompt_section("BOOT-00")
-        self.assertIn("does not authorize\n   you to choose `ADOPT_TEMPLATE`", boot)
+        self.assertIn("does not authorize `ADOPT_TEMPLATE`", boot)
         self.assertIn("CONFIRM BOOTSTRAP ADOPTION PLAN", boot)
         self.assertIn("plan_sha256: <64 lowercase hex characters>", boot)
         self.assertIn("authorized_by: <human owner>", boot)

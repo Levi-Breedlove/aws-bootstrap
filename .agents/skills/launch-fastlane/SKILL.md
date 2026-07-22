@@ -7,49 +7,43 @@ description: Welcome, initialize, inspect, or resume an AWS Codex Fastlane repos
 
 1. Read the root `AGENTS.md` and the complete `BOOT-00` contract in
    `prompts/CODEX-PROMPTS.md`.
-2. Before any custom explanation, run:
-
-   ```text
-   python scripts/setup_assistant.py welcome
-   ```
-
-   Reproduce its stdout exactly. This keeps the first-run welcome stable.
-3. Run `python scripts/bootstrap_dependencies.py --root . --json`. This is a
-   repository check only. It never proves that AWS Core is installed or grants
-   AWS access.
-4. Inspect the repository and doctor before writing. For an unconfigured
-   template, ask once for the missing project name, preferred AWS Region, and
-   development budget posture. Accept either a finite cap with currency or
-   "minimize cost; no hard cap", then perform the existing dry-run-first
-   in-place initialization. Preserve an owner-supplied hard cap; otherwise use
-   `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. Keep all brownfield collision,
-   source-repository, dirty-file, and Git safeguards unchanged.
+2. Inspect `bootstrap.yaml`, `docs/project/PRD.md`, and repository state
+   before producing owner-facing text.
+   - If the project is initialized, skip the welcome, setup questions, and
+     initializer. Run the dependency check and doctor, then resume the exact
+     doctor-selected stage.
+   - If it is an unconfigured template, run
+     `python scripts/setup_assistant.py welcome` and reproduce stdout exactly
+     once. That welcome asks for project name, preferred AWS Region, and
+     optional budget in one reply; do not ask those values again.
+3. Run `python scripts/bootstrap_dependencies.py --root . --json`. This
+   checks repository assets only; it never proves AWS Core availability or
+   grants AWS access.
+4. For a fresh template, perform the existing dry-run-first in-place
+   initialization after all three answers arrive. Preserve an owner hard cap;
+   otherwise use `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. Keep every
+   brownfield collision, source-repository, dirty-file, and Git safeguard.
 5. Run `python scripts/bootstrap_doctor.py --root . --json` after
-   initialization or resume. Never restart BOOT-00 when the doctor already
-   routes to intake or a later lifecycle prompt.
+   initialization or resume. The doctor alone selects the lifecycle stage.
+   Never restart BOOT-00 or repeat setup questions when it selects
+   `INTAKE-10` or a later stage.
 6. AWS Core is advisory during planning, not a BOOT-00 gate:
-   - if official `aws-core@agent-toolkit-for-aws` is visibly available, report
-     `AVAILABLE`;
-   - otherwise report `DEFERRED_UNTIL_DESIGN` and continue;
-   - never install, enable, disable, update, trust, hash, or probe a plugin or
-     hook for the owner.
-7. Return this compact receipt:
-
-   ```text
-   AWS CODEX FASTLANE — READY
-   Setup: READY_FOR_INTAKE
-   Project: <name>
-   Region: <region>
-   Doctor: PASS
-   AWS Core: <AVAILABLE|DEFERRED_UNTIL_DESIGN>
-   Next prompt: <doctor route>
-   AWS access: NOT USED
-   ```
-
-8. If the route is `INTAKE-10`, begin its first one to three
-   plain-language questions immediately. Do not require another start command.
-   If the project is farther along, resume the doctor-selected prompt without
-   repeating setup.
+   - report `AVAILABLE` only for visible official
+     `aws-core@agent-toolkit-for-aws`;
+   - otherwise report `DEFERRED_UNTIL_DESIGN` and continue intake;
+   - never install, change, pin, hash, probe, or trust a plugin or hook for the
+     owner.
+7. Return one exact routine status with these fields only:
+   `Stage`, `Gate A`, `Gate B`, `AWS Core`, `AWS access`, and one
+   `Next action`. Do not expose hashes, file counts, internal checks, or
+   implementation narration.
+8. Execute the one next action in the same response when possible. For
+   `INTAKE-10`, ask its first one to three plain-language questions
+   immediately. For a later stage, resume it directly.
+9. Only when a material AWS design decision needs current evidence and official
+   AWS Core is unavailable, give one owner action: enable AWS Core from Agent
+   Toolkit for AWS in `/plugins` (register `aws/agent-toolkit-for-aws` only
+   if absent), restart Codex, and send `CONTINUE AWS DESIGN`.
 
 Setup never inspects AWS credentials, accesses an AWS account, creates cloud
 resources, approves Gate A or Gate B, or grants AWS mutation authority.

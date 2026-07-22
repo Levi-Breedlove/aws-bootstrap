@@ -26,6 +26,9 @@ def ready_evidence(**updates: object) -> dict[str, object]:
         "repository_ready": True,
         "dependencies_ready": True,
         "doctor_passed": True,
+        "lifecycle_stage": "INTAKE-10",
+        "gate_a_state": "PENDING",
+        "gate_b_state": "BLOCKED_BY_GATE_A",
         "git_available": True,
         "python_available": True,
         "python_version_supported": True,
@@ -53,18 +56,17 @@ class SetupAssistantTests(unittest.TestCase):
     def test_welcome_is_stable_and_collects_three_setup_values(self) -> None:
         greeting = setup.opening_greeting()
         self.assertTrue(greeting.startswith("Welcome to AWS Codex Fastlane."))
-        for phrase in (
-            "project name",
-            "preferred AWS Region",
-            "development budget",
-            "Gate A",
-            "Gate B",
-            "AWS Core",
+        for label in (
+            "Project name:",
+            "Preferred AWS Region:",
+            "Development budget:",
         ):
+            self.assertEqual(greeting.count(label), 1)
+        for phrase in ("Gate A", "Gate B", "AWS Core"):
             self.assertIn(phrase, greeting)
-        self.assertIn("intake still continues", greeting)
-        self.assertIn("does not inspect AWS credentials", greeting)
-
+        self.assertIn("Reply once with:", greeting)
+        self.assertIn("does not inspect credentials or access AWS", greeting)
+        self.assertNotIn("AWS AUTHORITY AND EVIDENCE RECEIPT", greeting)
     def test_missing_aws_core_never_blocks_intake(self) -> None:
         report = setup.reduce_setup(ready_evidence())
         self.assertEqual(report["state"], "READY_FOR_INTAKE")
@@ -96,9 +98,13 @@ class SetupAssistantTests(unittest.TestCase):
         unknown = setup.reduce_setup(
             ready_evidence(unknown_plugin_sources=["aws-core@unknown-source"])
         )
+        rendered = setup.render_setup_response(unknown)
         self.assertEqual(unknown["state"], "READY_FOR_INTAKE")
         self.assertIn("unverified source", unknown["observed"])
-
+        self.assertIn("Stage: INTAKE-10", rendered)
+        self.assertIn("Next action: Answer the guided intake questions below.", rendered)
+        self.assertNotIn("/plugins", rendered)
+        self.assertNotIn(setup.MARKETPLACE_COMMAND, rendered)
     def test_each_local_failure_returns_one_action(self) -> None:
         for key in (
             "repository_ready",
@@ -111,12 +117,15 @@ class SetupAssistantTests(unittest.TestCase):
             evidence = ready_evidence()
             evidence[key] = False
             report = setup.reduce_setup(evidence)
+            rendered = setup.render_setup_response(report)
             self.assertEqual(report["state"], "LOCAL_PREREQUISITES_REQUIRED")
             self.assertEqual(report["owner_action_id"], "FIX_LOCAL_PREREQUISITE")
             self.assertTrue(report["owner_action"])
             self.assertEqual(report["resume_with"], "init template")
             self.assertEqual(report["aws_access"], "NOT_USED")
-
+            self.assertEqual(rendered.count("Next action:"), 1)
+            self.assertEqual(len(rendered.splitlines()), 7)
+            self.assertNotIn("Technical status", rendered)
     def test_evidence_stdin_is_strict_and_non_secret(self) -> None:
         parsed = setup.read_session_evidence(
             io.StringIO(
@@ -125,21 +134,25 @@ class SetupAssistantTests(unittest.TestCase):
                         "dependencies_ready": True,
                         "doctor_passed": True,
                         "official_plugin_enabled": True,
+                        "lifecycle_stage": "DESIGN-10",
+                        "gate_a_state": "APPROVED_FOR_DESIGN",
+                        "gate_b_state": "PENDING_OWNER_APPROVAL",
                     }
                 )
             )
         )
-        self.assertTrue(parsed["dependencies_ready"])
+        self.assertEqual(parsed["lifecycle_stage"], "DESIGN-10")
         for payload in (
             '{"hook_trusted": true}',
             '{"AWS_SECRET_ACCESS_KEY": "secret"}',
             '{"official_plugin_enabled": "yes"}',
+            '{"lifecycle_stage": "not a prompt"}',
+            '{"gate_a_state": "owner approved"}',
             '[]',
             '',
         ):
             with self.assertRaises(setup.SetupError):
                 setup.read_session_evidence(io.StringIO(payload))
-
     def test_optional_guide_is_owner_run_official_current_and_no_pin(self) -> None:
         for system, expected_uv in (
             ("Windows", "winget install --id astral-sh.uv"),
@@ -180,12 +193,65 @@ class SetupAssistantTests(unittest.TestCase):
 
     def test_rendered_ready_result_starts_intake_without_second_init(self) -> None:
         rendered = setup.render_setup_response(setup.reduce_setup(ready_evidence()))
-        self.assertIn("Next: INTAKE-10 — starts now", rendered)
+        self.assertEqual(
+            rendered,
+            "\n".join(
+                (
+                    "FASTLANE STATUS",
+                    "Stage: INTAKE-10",
+                    "Gate A: PENDING",
+                    "Gate B: BLOCKED_BY_GATE_A",
+                    "AWS Core: DEFERRED_UNTIL_DESIGN",
+                    "AWS access: NOT USED",
+                    "Next action: Answer the guided intake questions below.",
+                )
+            ),
+        )
         self.assertNotIn("START GUIDED INTAKE", rendered)
-        self.assertIn("Technical status: READY_FOR_INTAKE", rendered)
-        self.assertNotIn("send: init template", rendered.casefold())
+        self.assertNotIn("init template", rendered.casefold())
         self.assertNotIn("hook", rendered.casefold())
+        self.assertNotIn("AWS authorization", rendered)
 
+    def test_initialized_project_resumes_derived_stage_without_setup_loop(self) -> None:
+        report = setup.reduce_setup(
+            ready_evidence(
+                lifecycle_stage="DESIGN-10",
+                gate_a_state="APPROVED_FOR_DESIGN",
+                gate_b_state="PENDING_OWNER_APPROVAL",
+            )
+        )
+        rendered = setup.render_setup_response(report)
+        self.assertEqual(report["owner_action_id"], "RESUME_DERIVED_STAGE")
+        self.assertIn("Stage: DESIGN-10", rendered)
+        self.assertIn("Gate A: APPROVED_FOR_DESIGN", rendered)
+        self.assertIn("Gate B: PENDING_OWNER_APPROVAL", rendered)
+        self.assertIn("Next action: Continue DESIGN-10 now.", rendered)
+        for forbidden in (
+            "Welcome to AWS Codex Fastlane",
+            "Project name:",
+            "Preferred AWS Region:",
+            "Development budget:",
+            "init template",
+        ):
+            self.assertNotIn(forbidden, rendered)
+
+    def test_first_run_and_resume_transcripts_ask_setup_values_once(self) -> None:
+        first_run = "\n\n".join(
+            (
+                setup.opening_greeting(),
+                setup.render_setup_response(setup.reduce_setup(ready_evidence())),
+                "Who will use this project, and what must they accomplish?",
+            )
+        )
+        resume = setup.render_setup_response(setup.reduce_setup(ready_evidence()))
+        for label in (
+            "Project name:",
+            "Preferred AWS Region:",
+            "Development budget:",
+        ):
+            self.assertEqual(first_run.count(label), 1)
+            self.assertEqual(resume.count(label), 0)
+        self.assertEqual(resume.count("Next action:"), 1)
     def test_cli_welcome_and_json_status_are_machine_readable(self) -> None:
         completed = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "welcome"],
