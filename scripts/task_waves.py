@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -13,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Iterator
@@ -115,6 +116,34 @@ RUN_ID_PATTERN = re.compile(r"RUN-\d{4,}")
 CHECKPOINT_PATTERN = re.compile(r"CP-\d{4,}")
 OWNER_DECISION_PATTERN = re.compile(r"OWNER-DECISION-\d+")
 TASK_EVIDENCE_ID_PATTERN = re.compile(r"EV-\d{4,}")
+DESIGN_TRACE_PATTERN = re.compile(
+    r"^(?P<design>DES-\d{4}); TECH: "
+    r"(?:(?P<none>NONE — no technology/toolchain impact)|"
+    r"(?P<technologies>TECH-\d{4}(?:, TECH-\d{4})*))$"
+)
+PROPERTY_ID_PATTERN = re.compile(r"PROP-\d{3,}")
+PROPERTY_EXECUTION_HEADERS = (
+    "Property ID",
+    "Framework TECH ID",
+    "Exact command",
+    "Run target/time bound",
+    "Seed or reproduction format",
+    "Evidence destination",
+)
+PROPERTY_EXECUTION_PLACEHOLDER_PATTERN = re.compile(
+    r"(?:<[^>]+>|(?<![A-Za-z0-9_])(?:TODO|TBD|TBC|UNKNOWN|UNASSIGNED|"
+    r"NONE|PENDING|PLACEHOLDER|NOT[ _-]*STARTED|N/?A)(?![A-Za-z0-9_]))",
+    re.IGNORECASE,
+)
+PROPERTY_COMMAND_PROSE_PATTERN = re.compile(
+    r"^(?:(?:please\s+)?(?:run|execute|invoke|perform|use|enter|provide|"
+    r"replace|record|describe|add|write|insert|verify|validate)\b|"
+    r"(?:the\s+)?(?:exact\s+)?(?:command|tests?|testing|validation)\b)",
+    re.IGNORECASE,
+)
+PROPERTY_COMMAND_EXECUTABLE_PATTERN = re.compile(
+    r"^(?:\"[^\"\r\n]+\"|'[^'\r\n]+'|[A-Za-z0-9_.$/\\:+@=-]+)(?:\s|$)"
+)
 EVIDENCE_PATTERN = re.compile(
     r"(?:(?<![A-Za-z0-9._-])EV-\d{4,}(?![A-Za-z0-9._-])|"
     r"\bVERIFY\.md#[A-Za-z0-9._-]+\b|https?://\S+)",
@@ -182,6 +211,20 @@ class Task:
     def aws_mode(self) -> str:
         return clean(self.metadata.get("AWS mode", "")).upper()
 
+    @property
+    def design_revision(self) -> str:
+        revision, _technology_refs = parse_design_trace(
+            self.metadata.get("Design", ""), self.task_id
+        )
+        return revision
+
+    @property
+    def technology_refs(self) -> list[str]:
+        _revision, technology_refs = parse_design_trace(
+            self.metadata.get("Design", ""), self.task_id
+        )
+        return technology_refs
+
 
 @dataclass(frozen=True)
 class Snapshot:
@@ -227,6 +270,24 @@ class TaskCompletionEvidenceRow:
     status: str
 
 
+@dataclass(frozen=True)
+class PropertyExecutionRow:
+    property_id: str
+    framework_tech_id: str
+    exact_command: str
+    run_target_time_bound: str
+    seed_or_reproduction_format: str
+    evidence_destination: str
+    framework_selection: str | None = field(default=None, compare=False)
+    framework_version_policy: str | None = field(default=None, compare=False)
+
+
+@dataclass(frozen=True)
+class ApprovedTaskContract:
+    technology_ids: frozenset[str]
+    property_execution: dict[str, PropertyExecutionRow]
+
+
 def clean(value: str) -> str:
     value = value.strip()
     if len(value) >= 2 and value[0] == value[-1] == "`":
@@ -239,6 +300,22 @@ def parse_nonnegative_int(value: str, *, minimum: int = 0) -> int:
     if not normalized.isdigit() or int(normalized) < minimum:
         raise ValueError(f"expected integer >= {minimum}, got {normalized!r}")
     return int(normalized)
+
+
+def parse_design_trace(value: str, task_id: str) -> tuple[str, list[str]]:
+    normalized = clean(value)
+    match = DESIGN_TRACE_PATTERN.fullmatch(normalized)
+    if match is None:
+        raise ValueError(
+            f"{task_id}: Design must exactly match "
+            "DES-nnnn; TECH: TECH-nnnn[, TECH-nnnn...] or "
+            "DES-nnnn; TECH: NONE — no technology/toolchain impact"
+        )
+    technologies = match.group("technologies")
+    technology_refs = technologies.split(", ") if technologies else []
+    if len(technology_refs) != len(set(technology_refs)):
+        raise ValueError(f"{task_id}: duplicate TECH reference in Design")
+    return match.group("design"), technology_refs
 
 
 def without_fenced_code(text: str) -> str:
@@ -552,6 +629,203 @@ def split_markdown_table_row(line: str) -> list[str] | None:
     return cells
 
 
+def parse_property_execution_rows(
+    text: str,
+    label: str,
+) -> tuple[dict[str, PropertyExecutionRow], bool]:
+    """Parse one exact, non-fenced property-execution projection table."""
+
+    structural = without_fenced_code(text)
+    raw_lines = text.splitlines()
+    structural_lines = structural.splitlines()
+    header_indexes = [
+        index
+        for index, line in enumerate(structural_lines)
+        if split_markdown_table_row(line) == list(PROPERTY_EXECUTION_HEADERS)
+    ]
+    if len(header_indexes) > 1:
+        raise ValueError(f"{label}: duplicate property execution projection tables")
+    if not header_indexes:
+        return {}, False
+    header_index = header_indexes[0]
+    if header_index + 1 >= len(raw_lines):
+        raise ValueError(f"{label}: property execution projection has no separator")
+    separators = split_markdown_table_row(raw_lines[header_index + 1])
+    if (
+        separators is None
+        or len(separators) != len(PROPERTY_EXECUTION_HEADERS)
+        or any(re.fullmatch(r":?-{3,}:?", cell) is None for cell in separators)
+    ):
+        raise ValueError(f"{label}: property execution projection separator is malformed")
+
+    rows: dict[str, PropertyExecutionRow] = {}
+    for raw_line, structural_line in zip(
+        raw_lines[header_index + 2 :],
+        structural_lines[header_index + 2 :],
+    ):
+        if not structural_line.strip().startswith("|"):
+            break
+        cells = split_markdown_table_row(raw_line)
+        if cells is None or len(cells) != len(PROPERTY_EXECUTION_HEADERS):
+            raise ValueError(
+                f"{label}: property execution projection row must have exactly six cells"
+            )
+        row = PropertyExecutionRow(*(clean(cell) for cell in cells))
+        if PROPERTY_ID_PATTERN.fullmatch(row.property_id) is None:
+            raise ValueError(
+                f"{label}: invalid property execution ID {row.property_id!r}"
+            )
+        if re.fullmatch(r"TECH-\d{4}", row.framework_tech_id) is None:
+            raise ValueError(
+                f"{label}: {row.property_id} has invalid Framework TECH ID"
+            )
+        if any(
+            not value
+            or PROPERTY_EXECUTION_PLACEHOLDER_PATTERN.search(value) is not None
+            for value in (
+                row.exact_command,
+                row.run_target_time_bound,
+                row.seed_or_reproduction_format,
+                row.evidence_destination,
+            )
+        ):
+            raise ValueError(
+                f"{label}: {row.property_id} property execution row is unresolved"
+            )
+        if (
+            "\n" in row.exact_command
+            or "\r" in row.exact_command
+            or PROPERTY_COMMAND_PROSE_PATTERN.match(row.exact_command) is not None
+            or PROPERTY_COMMAND_EXECUTABLE_PATTERN.match(row.exact_command) is None
+        ):
+            raise ValueError(
+                f"{label}: {row.property_id} Exact command must be a concrete command"
+            )
+        if row.property_id in rows:
+            raise ValueError(
+                f"{label}: duplicate property execution ID {row.property_id}"
+            )
+        rows[row.property_id] = row
+    return rows, True
+
+
+def fenced_command_lines(text: str) -> list[str]:
+    """Return exact non-empty lines inside Markdown code fences."""
+
+    commands: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for line in text.splitlines():
+        match = re.match(r"^[ \t]*(`{3,}|~{3,})", line)
+        if match:
+            marker = match.group(1)
+            if fence_character is None:
+                fence_character = marker[0]
+                fence_length = len(marker)
+            elif marker[0] == fence_character and len(marker) >= fence_length:
+                fence_character = None
+                fence_length = 0
+            continue
+        if fence_character is not None and line.strip():
+            commands.append(line.strip())
+    return commands
+
+
+def validate_property_execution_projection(
+    task: Task,
+    approved_property_execution: dict[str, PropertyExecutionRow] | None,
+) -> list[str]:
+    """Require task Validation to copy every referenced approved PROP row exactly."""
+
+    errors: list[str] = []
+    requirement_value = clean(task.metadata.get("Requirements", ""))
+    property_ids = PROPERTY_ID_PATTERN.findall(requirement_value)
+    duplicates = sorted(
+        property_id
+        for property_id in set(property_ids)
+        if property_ids.count(property_id) > 1
+    )
+    if duplicates:
+        errors.append(
+            f"{task.task_id}: duplicate PROP references in Requirements: "
+            + ", ".join(duplicates)
+        )
+    validation = task_subsection(task, "#### Validation")
+    if validation is None:
+        return errors
+    try:
+        projected, table_present = parse_property_execution_rows(
+            validation, task.task_id
+        )
+    except ValueError as exc:
+        errors.append(str(exc))
+        return errors
+
+    referenced = set(property_ids)
+    projected_ids = set(projected)
+    if not referenced:
+        if table_present and projected_ids:
+            errors.append(
+                f"{task.task_id}: Validation contains unreferenced property execution rows: "
+                + ", ".join(sorted(projected_ids))
+            )
+        return errors
+    if not table_present:
+        errors.append(
+            f"{task.task_id}: Validation is missing the property execution projection"
+        )
+        return errors
+    missing = sorted(referenced - projected_ids)
+    extra = sorted(projected_ids - referenced)
+    if missing:
+        errors.append(
+            f"{task.task_id}: missing property execution rows: " + ", ".join(missing)
+        )
+    if extra:
+        errors.append(
+            f"{task.task_id}: unreferenced property execution rows: "
+            + ", ".join(extra)
+        )
+    if not missing and not extra and list(projected) != property_ids:
+        errors.append(
+            f"{task.task_id}: property execution projection order must exactly match Requirements"
+        )
+    if approved_property_execution is None:
+        errors.append(
+            f"{task.task_id}: approved PRD property execution contract is unavailable"
+        )
+        return errors
+
+    fenced_commands = fenced_command_lines(validation)
+    try:
+        task_technology_refs = set(task.technology_refs)
+    except ValueError as exc:
+        errors.append(str(exc))
+        task_technology_refs = set()
+    for property_id in sorted(referenced & projected_ids):
+        observed = projected[property_id]
+        expected = approved_property_execution.get(property_id)
+        if expected is None:
+            errors.append(
+                f"{task.task_id}: {property_id} is not approved by the PRD property execution contract"
+            )
+            continue
+        if observed != expected:
+            errors.append(
+                f"{task.task_id}: {property_id} property execution projection does not exactly match the approved PRD row"
+            )
+        if observed.framework_tech_id not in task_technology_refs:
+            errors.append(
+                f"{task.task_id}: {property_id} Framework TECH ID is missing from Design"
+            )
+        command_count = fenced_commands.count(observed.exact_command)
+        if command_count != 1:
+            errors.append(
+                f"{task.task_id}: {property_id} Exact command must appear unchanged exactly once in Validation code fences; found {command_count}"
+            )
+    return errors
+
+
 def parse_task_completion_evidence(text: str) -> list[TaskCompletionEvidenceRow]:
     masked = without_fenced_code(text)
     headings = list(
@@ -663,7 +937,77 @@ def validate_durable_evidence_source(value: str, label: str) -> None:
     raise ValueError(f"{label} is not a durable source reference")
 
 
-def validate_done_evidence_file(tasks_path: Path, task: Task) -> None:
+def validate_property_done_evidence(
+    verify_text: str,
+    task: Task,
+    snapshot: Snapshot,
+    approved_property_execution: dict[str, PropertyExecutionRow] | None,
+) -> None:
+    property_ids = PROPERTY_ID_PATTERN.findall(
+        clean(task.metadata.get("Requirements", ""))
+    )
+    if not property_ids:
+        return
+    if approved_property_execution is None:
+        raise ValueError(
+            f"{task.task_id}: approved PRD property execution contract is unavailable"
+        )
+    doctor = load_bootstrap_doctor()
+    rows = doctor.parse_property_test_evidence(verify_text)
+    completion_rows = doctor.parse_task_completion_evidence(verify_text)
+    inspected_task = doctor.InspectedTask(
+        task.task_id,
+        task.title,
+        task.block,
+        task.metadata,
+        task.duplicate_metadata,
+    )
+    snapshot_fields = {key: clean(value) for key, value in snapshot.fields.items()}
+    for property_id in property_ids:
+        contract = approved_property_execution.get(property_id)
+        if contract is None:
+            raise ValueError(
+                f"{task.task_id}: {property_id} is not approved by the PRD property execution contract"
+            )
+        if contract.framework_selection is None or contract.framework_version_policy is None:
+            raise ValueError(
+                f"{task.task_id}: {property_id} approved framework selection and version policy are unavailable"
+            )
+        expected = doctor.PropertyExecution(
+            contract.property_id,
+            contract.framework_tech_id,
+            contract.exact_command,
+            contract.run_target_time_bound,
+            contract.seed_or_reproduction_format,
+            contract.evidence_destination,
+        )
+        technology = doctor.TechnologyDecision(
+            contract.framework_tech_id,
+            "PROPERTY_TESTING",
+            contract.framework_selection,
+            contract.framework_version_policy,
+            "REPOSITORY_FACT",
+            snapshot.get("Design revision"),
+            "Validated by the current PRD",
+            "NONE",
+            "Observed property evidence",
+        )
+        doctor.validate_done_property_evidence(
+            rows,
+            inspected_task,
+            snapshot_fields,
+            expected,
+            technology,
+            completion_rows,
+        )
+
+
+def validate_done_evidence_file(
+    tasks_path: Path,
+    task: Task,
+    approved_property_execution: dict[str, PropertyExecutionRow] | None = None,
+    tasks_text: str | None = None,
+) -> None:
     references = evidence_references(task.metadata.get("Evidence", ""))
     if not references:
         raise ValueError(f"{task.task_id}: DONE requires an Evidence reference")
@@ -710,6 +1054,14 @@ def validate_done_evidence_file(tasks_path: Path, task: Task) -> None:
         validate_durable_evidence_source(row.durable_source, f"{label} Durable source")
         if row.status not in TASK_COMPLETION_EVIDENCE_STATUSES:
             raise ValueError(f"{label} Status must be LOCAL_PASS or VERIFIED")
+    if tasks_text is None:
+        tasks_text = tasks_path.read_text(encoding="utf-8")
+    validate_property_done_evidence(
+        verify_text,
+        task,
+        parse_snapshot(tasks_text),
+        approved_property_execution,
+    )
 
 
 def validate_snapshot(snapshot: Snapshot) -> None:
@@ -770,6 +1122,9 @@ def validate(
     tasks: list[Task],
     snapshot: Snapshot | None = None,
     waivers: dict[str, Waiver] | None = None,
+    *,
+    approved_tech_ids: set[str] | None = None,
+    approved_property_execution: dict[str, PropertyExecutionRow] | None = None,
 ) -> dict[str, Task]:
     by_id: dict[str, Task] = {}
     errors: list[str] = []
@@ -804,11 +1159,33 @@ def validate(
         if task.aws_mode not in ALLOWED_AWS_MODES:
             errors.append(f"{task.task_id}: invalid AWS mode {task.aws_mode!r}")
 
-        if task.status in {"READY", "IN_PROGRESS"}:
+        contract_bound = task.status in {"READY", "IN_PROGRESS", "BLOCKED", "DONE"} or (
+            task.status == "BACKLOG"
+            and snapshot is not None
+            and snapshot.get("Task-plan state") == "CURRENT"
+        )
+        if contract_bound:
             req = first_revision(task.metadata.get("Requirements", ""), "REQ")
-            des = first_revision(task.metadata.get("Design", ""), "DES")
             auth = first_revision(task.metadata.get("Authorization", ""), "AUTH")
-            if not req or not des or not auth:
+            try:
+                des, technology_refs = parse_design_trace(
+                    task.metadata.get("Design", ""), task.task_id
+                )
+                if approved_tech_ids is not None:
+                    unknown_tech_ids = [
+                        tech_id
+                        for tech_id in technology_refs
+                        if tech_id not in approved_tech_ids
+                    ]
+                    if unknown_tech_ids:
+                        errors.append(
+                            f"{task.task_id}: Design references unapproved TECH IDs: "
+                            + ", ".join(unknown_tech_ids)
+                        )
+            except ValueError as exc:
+                errors.append(str(exc))
+                des = None
+            if not req or not auth:
                 errors.append(f"{task.task_id}: unresolved REQ/DES/AUTH trace")
             if snapshot is not None:
                 expected = (
@@ -816,7 +1193,7 @@ def validate(
                     snapshot.get("Design revision"),
                     snapshot.get("Construction authorization"),
                 )
-                if (req, des, auth) != expected:
+                if des is not None and (req, des, auth) != expected:
                     errors.append(
                         f"{task.task_id}: REQ/DES/AUTH trace does not match execution snapshot"
                     )
@@ -874,8 +1251,13 @@ def validate(
             "NONE",
         }:
             errors.append(f"{task.task_id}: SKIPPED requires a Skip record")
-        if task.status in {"READY", "IN_PROGRESS", "DONE"}:
+        if contract_bound:
             errors.extend(validate_task_sections(task))
+            errors.extend(
+                validate_property_execution_projection(
+                    task, approved_property_execution
+                )
+            )
         last_updated = clean(task.metadata.get("Last updated", ""))
         if last_updated.upper() not in UNRESOLVED:
             try:
@@ -929,6 +1311,28 @@ def validate(
             validate_iso_timestamp(waiver.recorded_at, waiver.waiver_id)
         except ValueError as exc:
             errors.append(str(exc))
+
+    if (
+        snapshot is not None
+        and snapshot.get("Task-plan state") == "CURRENT"
+        and approved_property_execution is not None
+    ):
+        referenced_property_ids = {
+            property_id
+            for task in tasks
+            if task.status in {"BACKLOG", "READY", "IN_PROGRESS", "BLOCKED", "DONE"}
+            for property_id in PROPERTY_ID_PATTERN.findall(
+                clean(task.metadata.get("Requirements", ""))
+            )
+        }
+        missing_property_ids = sorted(
+            set(approved_property_execution) - referenced_property_ids
+        )
+        if missing_property_ids:
+            errors.append(
+                "Current task plan does not cover approved property execution IDs: "
+                + ", ".join(missing_property_ids)
+            )
 
     if errors:
         raise ValueError("\n".join(errors))
@@ -1519,6 +1923,241 @@ def project_root_for_tasks(tasks_path: Path) -> Path:
     return resolved.parent
 
 
+def load_bootstrap_doctor():
+    """Load the sibling doctor so both runtimes use one contract grammar."""
+
+    module_name = "_fastlane_bootstrap_doctor_for_task_waves"
+    existing = sys.modules.get(module_name)
+    if existing is not None:
+        return existing
+    module_path = Path(__file__).resolve().with_name("bootstrap_doctor.py")
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ValueError("Unable to load scripts/bootstrap_doctor.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
+
+
+def validate_gate_b_design_contract_binding(
+    tasks_path: Path,
+    tasks_text: str,
+    prd_text: str,
+) -> None:
+    """Reject a current plan whose Gate B hash no longer matches its PRD."""
+
+    root = project_root_for_tasks(tasks_path)
+    manifest_path = root / "bootstrap.manifest.json"
+    # Standalone task-ledger fixtures intentionally exercise the reusable engine
+    # without the full template surface. Canonical Fastlane projects always carry
+    # the manifest, so only those projects can claim Gate B hash freshness.
+    if not manifest_path.exists():
+        if (root / "bootstrap.py").exists() or (root / "AGENTS.md").exists():
+            raise ValueError(
+                "bootstrap.manifest.json is required for Fastlane task execution"
+            )
+        return
+    if not manifest_path.is_file() or manifest_path.is_symlink():
+        raise ValueError("bootstrap.manifest.json must be a regular file")
+    snapshot = parse_snapshot(tasks_text)
+    if snapshot.get("Task-plan state") != "CURRENT":
+        return
+    doctor = load_bootstrap_doctor()
+    contract, issues = doctor.derive_design_contract(
+        prd_text,
+        snapshot.get("Design revision"),
+        required=True,
+    )
+    if issues or contract.status != "READY" or contract.canonical_sha256 is None:
+        detail = "; ".join(issues) if issues else contract.status
+        raise ValueError(
+            "Current PRD design contract is not ready for task execution: " + detail
+        )
+    envelope = doctor.table_after_heading(prd_text, "## 28. Construction envelope")
+    observed_hash = doctor.clean_cell(envelope.get("Design contract SHA-256", ""))
+    if observed_hash != contract.canonical_sha256:
+        raise ValueError(
+            "Gate B design contract hash is stale; rerun DESIGN-10 and obtain "
+            "current Gate B approval before task execution"
+        )
+    envelope_digest = doctor.canonical_envelope_sha256(prd_text)
+    document = doctor.table_after_heading(prd_text, "## Document status")
+    agent = doctor.table_after_heading(prd_text, "## 27. Gate B agent review record")
+    owner = doctor.table_after_heading(
+        prd_text, "## 29. Gate B owner authorization record"
+    )
+    expected_revisions = {
+        "Requirements revision reviewed": snapshot.get("Requirements revision"),
+        "Design revision reviewed": snapshot.get("Design revision"),
+        "Construction authorization ID reviewed": snapshot.get(
+            "Construction authorization"
+        ),
+    }
+    expected_owner_revisions = {
+        "Authorized requirements revision": snapshot.get("Requirements revision"),
+        "Authorized design revision": snapshot.get("Design revision"),
+        "Authorized construction authorization ID": snapshot.get(
+            "Construction authorization"
+        ),
+    }
+    gate_b_binding_valid = (
+        document.get("Gate A derived status") == "APPROVED_FOR_DESIGN"
+        and document.get("Gate B derived status") == "APPROVED_FOR_CONSTRUCTION"
+        and all(agent.get(key) == value for key, value in expected_revisions.items())
+        and agent.get("Construction envelope SHA-256 reviewed") == envelope_digest
+        and agent.get("Agent recommendation")
+        == "READY_FOR_CONSTRUCTION_APPROVAL"
+        and all(
+            agent.get(key) == "NONE"
+            for key in (
+                "PRD completeness gaps",
+                "Requirement-to-design-and-test traceability gaps",
+                "Unresolved risk or preservation gaps",
+            )
+        )
+        and owner.get("Owner decision") == "APPROVED"
+        and all(
+            owner.get(key) == value
+            for key, value in expected_owner_revisions.items()
+        )
+        and owner.get("Authorized construction envelope SHA-256")
+        == envelope_digest
+        and owner.get("Derived Gate B state") == "APPROVED_FOR_CONSTRUCTION"
+        and owner.get("Verbatim owner receipt") == "RECORDED_BELOW"
+        and doctor.explicit_human_approver(owner.get("Approver", ""))
+        and doctor.explicit_timestamp(owner.get("Authorization provided at", ""))
+        and doctor.explicit_value(owner.get("Authorization source", ""))
+    )
+    expected_receipt = "\n".join(
+        [
+            "APPROVE PRD AND CONSTRUCTION GATE B",
+            f"Requirements revision: {snapshot.get('Requirements revision')}",
+            f"Design revision: {snapshot.get('Design revision')}",
+            "Construction authorization: "
+            + snapshot.get("Construction authorization"),
+            f"Construction envelope SHA-256: {envelope_digest}",
+            "Use the proposed construction envelope above.",
+            f"Approver: {owner.get('Approver', '')}",
+        ]
+    )
+    try:
+        receipt_matches = doctor.marked_receipt(prd_text, "gate-b") == expected_receipt
+    except ValueError:
+        receipt_matches = False
+    if not gate_b_binding_valid or not receipt_matches:
+        raise ValueError(
+            "Gate B approval binding is stale; rerun DESIGN-20 and obtain current "
+            "owner approval before task execution"
+        )
+
+
+def approved_contract_for_tasks(
+    tasks_path: Path,
+    tasks_text: str | None = None,
+) -> ApprovedTaskContract | None:
+    """Read approved TECH and property execution rows for a Fastlane ledger."""
+
+    root = project_root_for_tasks(tasks_path)
+    prd_path = root / "docs" / "project" / "PRD.md"
+    if not prd_path.exists():
+        if (root / "bootstrap.manifest.json").exists() or (
+            root / "bootstrap.py"
+        ).exists():
+            raise ValueError("docs/project/PRD.md is required for Fastlane task execution")
+        return None
+    if not prd_path.is_file() or prd_path.is_symlink():
+        raise ValueError("docs/project/PRD.md must be a regular file")
+    prd_text = prd_path.read_text(encoding="utf-8")
+    if tasks_text is None:
+        if not tasks_path.is_file() or tasks_path.is_symlink():
+            raise ValueError("TASKS.md must be a regular file")
+        tasks_text = tasks_path.read_text(encoding="utf-8")
+    validate_gate_b_design_contract_binding(tasks_path, tasks_text, prd_text)
+    doctor = load_bootstrap_doctor()
+    try:
+        technology_table = doctor.contract_table_after_heading(
+            prd_text,
+            doctor.TECHNOLOGY_DECISION_HEADING,
+            doctor.TECHNOLOGY_DECISION_HEADERS,
+        )
+    except ValueError as exc:
+        raise ValueError(f"docs/project/PRD.md technology decision register: {exc}") from exc
+    if technology_table is None:
+        raise ValueError(
+            "docs/project/PRD.md must contain exactly one technology decision register"
+        )
+    technology_decisions = [
+        doctor.TechnologyDecision(*row) for row in technology_table.rows
+    ]
+    approved = [decision.decision_id for decision in technology_decisions]
+    if len(approved) != len(set(approved)):
+        raise ValueError("docs/project/PRD.md has duplicate technology decision IDs")
+    technology_by_id = {
+        decision.decision_id: decision for decision in technology_decisions
+    }
+    property_execution, _table_present = parse_property_execution_rows(
+        prd_text, "docs/project/PRD.md"
+    )
+    unknown_frameworks = sorted(
+        {
+            row.framework_tech_id
+            for row in property_execution.values()
+            if row.framework_tech_id not in approved
+        }
+    )
+    if unknown_frameworks:
+        raise ValueError(
+            "docs/project/PRD.md property execution rows reference unknown TECH IDs: "
+            + ", ".join(unknown_frameworks)
+        )
+    enriched_property_execution: dict[str, PropertyExecutionRow] = {}
+    for property_id, execution in property_execution.items():
+        framework = technology_by_id[execution.framework_tech_id]
+        if framework.concern != "PROPERTY_TESTING":
+            raise ValueError(
+                f"docs/project/PRD.md {property_id} Framework TECH ID must reference "
+                "the PROPERTY_TESTING decision"
+            )
+        enriched_property_execution[property_id] = PropertyExecutionRow(
+            execution.property_id,
+            execution.framework_tech_id,
+            execution.exact_command,
+            execution.run_target_time_bound,
+            execution.seed_or_reproduction_format,
+            execution.evidence_destination,
+            framework.selection,
+            framework.version_policy,
+        )
+    return ApprovedTaskContract(
+        frozenset(approved), enriched_property_execution
+    )
+
+
+def approved_tech_ids_for_tasks(
+    tasks_path: Path,
+    tasks_text: str | None = None,
+) -> set[str] | None:
+    """Compatibility view of the approved technology IDs."""
+
+    contract = approved_contract_for_tasks(tasks_path, tasks_text)
+    return set(contract.technology_ids) if contract is not None else None
+
+
+def approved_contract_values(
+    tasks_path: Path,
+    tasks_text: str | None = None,
+) -> tuple[set[str] | None, dict[str, PropertyExecutionRow] | None]:
+    contract = approved_contract_for_tasks(tasks_path, tasks_text)
+    if contract is None:
+        return None, None
+    return set(contract.technology_ids), contract.property_execution
+
+
 def coordinator_ledger_paths(tasks_path: Path) -> set[str]:
     """Return the exact project-relative files a coordinator may reconcile."""
 
@@ -1590,7 +2229,10 @@ def expected_execution_fields(tasks_text: str) -> dict[str, object]:
     }
 
 
-def preflight_state_matches_tasks(tasks_path: Path, tasks_text: str) -> None:
+def preflight_state_matches_tasks(
+    tasks_path: Path,
+    tasks_text: str,
+) -> tuple[set[str] | None, dict[str, PropertyExecutionRow] | None]:
     """Refuse mutations when a prior partial write or manual edit caused drift."""
 
     loaded = read_bootstrap_state(tasks_path)
@@ -1601,10 +2243,24 @@ def preflight_state_matches_tasks(tasks_path: Path, tasks_text: str) -> None:
     assert isinstance(lifecycle, dict)
     snapshot = parse_snapshot(tasks_text)
     tasks = parse_tasks(tasks_text)
-    validate(tasks, snapshot, parse_waivers(tasks_text))
+    approved_tech_ids, approved_property_execution = approved_contract_values(
+        tasks_path, tasks_text
+    )
+    validate(
+        tasks,
+        snapshot,
+        parse_waivers(tasks_text),
+        approved_tech_ids=approved_tech_ids,
+        approved_property_execution=approved_property_execution,
+    )
     for task in tasks:
         if task.status == "DONE":
-            validate_done_evidence_file(tasks_path, task)
+            validate_done_evidence_file(
+                tasks_path,
+                task,
+                approved_property_execution,
+                tasks_text,
+            )
 
     snapshot_lifecycle = {
         "requirements_revision": snapshot.get("Requirements revision"),
@@ -1651,6 +2307,7 @@ def preflight_state_matches_tasks(tasks_path: Path, tasks_text: str) -> None:
             "TASKS.md does not match bootstrap.yaml; reconcile before mutation: "
             + ", ".join(sorted(set(drift)))
         )
+    return approved_tech_ids, approved_property_execution
 
 
 def mirror_state_text(
@@ -1767,19 +2424,39 @@ def task_file_lock(path: Path) -> Iterator[None]:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
-def load_contract(text: str) -> tuple[list[Task], Snapshot, dict[str, Waiver], dict[str, Task]]:
+def load_contract(
+    text: str,
+    *,
+    approved_tech_ids: set[str] | None = None,
+    approved_property_execution: dict[str, PropertyExecutionRow] | None = None,
+) -> tuple[list[Task], Snapshot, dict[str, Waiver], dict[str, Task]]:
     tasks = parse_tasks(text)
     snapshot = parse_snapshot(text)
     waivers = parse_waivers(text)
-    by_id = validate(tasks, snapshot, waivers)
+    by_id = validate(
+        tasks,
+        snapshot,
+        waivers,
+        approved_tech_ids=approved_tech_ids,
+        approved_property_execution=approved_property_execution,
+    )
     compute_waves(tasks, by_id)
     return tasks, snapshot, waivers, by_id
 
 
-def synchronize_current_wave(text: str) -> str:
+def synchronize_current_wave(
+    text: str,
+    *,
+    approved_tech_ids: set[str] | None = None,
+    approved_property_execution: dict[str, PropertyExecutionRow] | None = None,
+) -> str:
     """Advance the coordinator snapshot to the lowest runnable/active wave."""
 
-    tasks, snapshot, waivers, by_id = load_contract(text)
+    tasks, snapshot, waivers, by_id = load_contract(
+        text,
+        approved_tech_ids=approved_tech_ids,
+        approved_property_execution=approved_property_execution,
+    )
     if snapshot.get("Run state") != "RUNNING":
         return text
     waves = compute_waves(tasks, by_id)
@@ -1881,8 +2558,14 @@ def mutate_task_file(
 ) -> bool:
     with task_file_lock(path):
         text = path.read_text(encoding="utf-8")
-        preflight_state_matches_tasks(path, text)
-        tasks, snapshot, waivers, by_id = load_contract(text)
+        approved_tech_ids, approved_property_execution = preflight_state_matches_tasks(
+            path, text
+        )
+        tasks, snapshot, waivers, by_id = load_contract(
+            text,
+            approved_tech_ids=approved_tech_ids,
+            approved_property_execution=approved_property_execution,
+        )
         require_current_plan(snapshot, "Task mutation")
         require_active_coordinator(snapshot, coordinator, "Task mutation")
         if task_id not in by_id:
@@ -1948,9 +2631,22 @@ def mutate_task_file(
             updated_task = next(
                 item for item in parse_tasks(text) if item.task_id == task_id
             )
-            validate_done_evidence_file(path, updated_task)
-        text = synchronize_current_wave(text)
-        load_contract(text)
+            validate_done_evidence_file(
+                path,
+                updated_task,
+                approved_property_execution,
+                text,
+            )
+        text = synchronize_current_wave(
+            text,
+            approved_tech_ids=approved_tech_ids,
+            approved_property_execution=approved_property_execution,
+        )
+        load_contract(
+            text,
+            approved_tech_ids=approved_tech_ids,
+            approved_property_execution=approved_property_execution,
+        )
         # State is replaced first. If the subsequent TASKS replacement fails,
         # doctor detects the mismatch and requires reconciliation rather than
         # allowing a silently divergent run.
@@ -2043,8 +2739,14 @@ def claim_task_file(
         raise ValueError(f"Invalid checkpoint: {checkpoint!r}")
     with task_file_lock(path):
         text = path.read_text(encoding="utf-8")
-        preflight_state_matches_tasks(path, text)
-        tasks, snapshot, waivers, by_id = load_contract(text)
+        approved_tech_ids, approved_property_execution = preflight_state_matches_tasks(
+            path, text
+        )
+        tasks, snapshot, waivers, by_id = load_contract(
+            text,
+            approved_tech_ids=approved_tech_ids,
+            approved_property_execution=approved_property_execution,
+        )
         require_current_plan(snapshot, "Claim")
         if task_id not in by_id:
             raise ValueError(f"Unknown task ID: {task_id}")
@@ -2086,7 +2788,11 @@ def claim_task_file(
         current = next(item for item in parse_tasks(text) if item.task_id == task_id)
         timestamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         text = replace_metadata(text, current, "Last updated", timestamp)
-        load_contract(text)
+        load_contract(
+            text,
+            approved_tech_ids=approved_tech_ids,
+            approved_property_execution=approved_property_execution,
+        )
         write_state_mirror(path, text)
         atomic_write_text(path, text)
         return True
@@ -2112,8 +2818,14 @@ def mutate_run_snapshot(
         raise ValueError("Run mode may be selected only when starting a run")
     with task_file_lock(path):
         text = path.read_text(encoding="utf-8")
-        preflight_state_matches_tasks(path, text)
-        tasks, snapshot, waivers, by_id = load_contract(text)
+        approved_tech_ids, approved_property_execution = preflight_state_matches_tasks(
+            path, text
+        )
+        tasks, snapshot, waivers, by_id = load_contract(
+            text,
+            approved_tech_ids=approved_tech_ids,
+            approved_property_execution=approved_property_execution,
+        )
         require_current_plan(snapshot, operation.capitalize())
         active = snapshot.get("Active run ID")
         state = snapshot.get("Run state")
@@ -2197,12 +2909,20 @@ def mutate_run_snapshot(
             )
             text = replace_snapshot_field(text, "Last checkpoint", checkpoint)
             text = replace_snapshot_field(text, "Run state", "COMPLETE" if terminal else "PAUSED")
-        load_contract(text)
+        load_contract(
+            text,
+            approved_tech_ids=approved_tech_ids,
+            approved_property_execution=approved_property_execution,
+        )
         write_state_mirror(path, text, run_mode=run_mode)
         atomic_write_text(path, text)
 
 
 def task_to_dict(task: Task, wave: int) -> dict[str, object]:
+    try:
+        technology_refs = task.technology_refs
+    except ValueError:
+        technology_refs = []
     return {
         "id": task.task_id,
         "title": task.title,
@@ -2212,6 +2932,7 @@ def task_to_dict(task: Task, wave: int) -> dict[str, object]:
         "write_set": validate_write_boundary(task.metadata["Write set"], task.task_id),
         "external_state": parse_external_state(task.metadata["External state"], task.task_id),
         "aws_mode": task.aws_mode,
+        "technology_refs": technology_refs,
         "attempts_used": task.attempts_used,
         "attempt_budget": task.attempt_budget,
         "attempts_remaining": task.attempt_budget - task.attempts_used,
@@ -2455,7 +3176,24 @@ def main() -> int:
             return 0
         if not tasks:
             raise ValueError("No task blocks found for an initialized task plan")
-        by_id = validate(tasks, snapshot, waivers)
+        approved_tech_ids, approved_property_execution = approved_contract_values(
+            path, text
+        )
+        by_id = validate(
+            tasks,
+            snapshot,
+            waivers,
+            approved_tech_ids=approved_tech_ids,
+            approved_property_execution=approved_property_execution,
+        )
+        for task in tasks:
+            if task.status == "DONE":
+                validate_done_evidence_file(
+                    path,
+                    task,
+                    approved_property_execution,
+                    text,
+                )
         waves = compute_waves(tasks, by_id)
 
         if args.task:

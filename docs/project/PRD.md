@@ -270,14 +270,13 @@ Describe the flow in numbered steps.
 
 ## 8. Data requirements
 
-- Authoritative stores: TODO
-- Data ownership: TODO
-- Classification: TODO
-- Retention and deletion: TODO
-- Backup and restore: TODO
-- Migration and compatibility: TODO
-- Data residency: TODO
-- Audit data: TODO
+| ID | Requirement | Acceptance criteria |
+|---|---|---|
+| DATA-001 | Each persistent data category has an explicit authoritative store and owner. | The current data inventory maps every persistent category to exactly one source of truth and accountable owner. |
+| DATA-002 | Each data category has an approved classification and access boundary. | Tests and configuration evidence show approved access succeeds and access outside the recorded boundary is denied. |
+| DATA-003 | Retention, deletion, and audit-data behavior are explicit for every stored category. | Time-bound tests or observed evidence demonstrate the approved retention, deletion, and audit outcomes. |
+| DATA-004 | Backup and restore behavior satisfies the approved recovery requirements when durable recovery is required. | Restore evidence meets the current RTO/RPO, or the row is replaced with `NOT_APPLICABLE — <reason>` when no durable recovery applies. |
+| DATA-005 | Migration, compatibility, and residency constraints are explicit before data-bearing construction. | The approved design traces each applicable constraint to a validation or migration/rollback check. |
 
 ## 9. Security and privacy requirements
 
@@ -310,24 +309,22 @@ generic template prose.
 
 ### Performance efficiency
 
-- Latency target: TODO
-- Throughput or concurrency: TODO
-- Scaling boundaries: TODO
-- Resource limits: TODO
-- Load-test profile: TODO
+| ID | Requirement | Acceptance criteria |
+|---|---|---|
+| PERF-001 | Critical user paths have an explicit latency target and measurement condition. | The target names the path, percentile or bound, workload, and observable test result. |
+| PERF-002 | Expected throughput and concurrency are explicit for the approved environment. | A bounded test or calculation covers the approved normal and peak workload. |
+| PERF-003 | Scaling boundaries and resource limits are explicit. | Tests or configuration evidence show work stays within the approved limits and fails safely at the boundary. |
+| PERF-004 | The load-test profile is documented when performance evidence is required. | The profile records data shape, duration, concurrency, environment, and pass condition, or uses `NOT_APPLICABLE — <reason>`. |
 
 ### Cost optimization
 
-- Planning posture: {{COST_POSTURE}}
-- Hard monthly ceiling: TODO / `NOT_STATED`
-- Optimization objective: Minimize total expected cost and idle spend while satisfying approved security, reliability, performance, and evidence requirements.
-- Budget alert thresholds and recipients: TODO / `NOT_APPLICABLE — no authenticated AWS spend`
-- Primary cost drivers: TODO
-- Expected low-usage cost and scaling breakpoints: TODO
-- Measurable expansion or migration triggers: TODO
-- Tagging standard: TODO
-- Idle-resource policy: TODO
-- Teardown expectation: TODO
+| ID | Requirement | Acceptance criteria |
+|---|---|---|
+| COST-001 | Planning uses `{{COST_POSTURE}}` and minimizes total expected cost and idle spend while satisfying approved security, reliability, performance, and evidence requirements. | The Gate A card, project state, and selected design use the same cost posture without weakening another requirement. |
+| COST-002 | Any owner hard cap, budget-alert thresholds, and recipients are explicit; no hard cap is invented. | The record contains the owner's exact cap and alert plan, or the exact applicable `HARD_CAP_NOT_STATED` / `NOT_APPLICABLE — <reason>` value. |
+| COST-003 | Primary cost drivers, expected low-usage cost, and scaling breakpoints are identified. | The design records the material billing dimensions and an attributable estimate or current-source calculation. |
+| COST-004 | Expansion or migration occurs only after a measurable approved trigger. | Each proposed expansion names its threshold, evidence source, and owner decision path. |
+| COST-005 | Tagging, idle-resource handling, and teardown expectations are explicit for created resources. | IaC and runbook checks cover the approved tags, idle policy, and teardown or retained-resource behavior. |
 
 A hard cap is optional during requirements approval unless it is an owner-stated
 business constraint. Do not manufacture one. Preserve a real cap in the Gate A
@@ -343,22 +340,22 @@ isolation, recovery, logging, or evidence controls.
 
 ### Sustainability
 
-- Remove or scale down idle resources.
-- Avoid unnecessary data movement and retention.
-- Measure utilization before scaling up.
-- Record accepted learning-driven architecture tradeoffs.
+| ID | Requirement | Acceptance criteria |
+|---|---|---|
+| SUS-001 | Idle resources are removed or scaled down when the approved workload does not need them. | Configuration or teardown evidence shows the approved idle behavior. |
+| SUS-002 | Unnecessary data movement and retention are avoided. | The design identifies material movement and retention and records why each retained path is needed. |
+| SUS-003 | Utilization is measured before capacity is expanded. | Expansion evidence cites the approved utilization trigger and observed measurement. |
+| SUS-004 | Learning-driven architecture tradeoffs are recorded when they change an approved decision. | The affected requirement/design IDs, evidence, and owner decision path are traceable. |
 
 ## 12. Operational requirements
 
-- Infrastructure as code: TODO
-- Environments: TODO
-- Deployment strategy: TODO
-- Logging: TODO
-- Metrics and dashboards: TODO
-- Alarms: TODO
-- Incident ownership: TODO
-- Rollback: TODO
-- Teardown: TODO
+| ID | Requirement | Acceptance criteria |
+|---|---|---|
+| OPS-001 | Infrastructure and environments are reproducibly defined through the approved IaC boundary. | IaC validation and environment-specific configuration checks pass for every approved environment. |
+| OPS-002 | Deployment strategy and stop conditions are explicit before deployment. | The runbook names the artifact, order, health checks, failure boundary, and authorized next action. |
+| OPS-003 | Logs, metrics, dashboards, and alarms provide the approved operational signals without exposing secrets. | Evidence shows the required signals, thresholds, destinations, and secret-safe content. |
+| OPS-004 | Incident ownership and escalation are explicit. | The runbook identifies the responsible owner and actionable escalation path. |
+| OPS-005 | Rollback and teardown behavior are explicit and testable. | Rehearsal or observed evidence covers rollback, retained resources, and the approved teardown result. |
 
 # Part II — Requirements Analysis and Gate A
 
@@ -543,6 +540,61 @@ Complete this part only after Gate A is valid.
 The design revision is monotonic (`DES-0001`, `DES-0002`, and so on), covers
 Parts III and IV, and identifies the exact Gate A-approved requirements revision
 it implements.
+
+### Technology and toolchain decision register
+
+This is the authoritative register for build-relevant technology, framework,
+toolchain, and version-policy choices. Use stable monotonic IDs (`TECH-0001`,
+`TECH-0002`, and so on); never renumber or reuse an ID. The current `DES-*`
+revision owns the selected rows. A task copies only its applicable IDs into the
+existing `Design` value as `DES-0001; TECH: TECH-0001, TECH-0002` or
+`DES-0001; TECH: NONE — no technology/toolchain impact`; it does not select or
+substitute a technology.
+
+Resolve every in-scope row before Gate B. `Version policy` is exactly one of
+`EXACT: <version>`, `COMPATIBLE_MAJOR: <positive integer>`,
+`MINIMUM: <version>`, `CURRENT_LTS_AS_OF: <YYYY-MM-DD>`,
+`ORG_MANAGED: <constraint>`, or `NOT_APPLICABLE — <reason>`. `Source` is exactly
+`OWNER_CONSTRAINT`, `REPOSITORY_FACT`, or `AGENT_RECOMMENDATION`; `Basis IDs`
+are exact comma-space-separated stable IDs that already exist in the current
+accepted PRD. They may reference requirements, design decisions, properties,
+or constraints, but never prose, duplicate IDs, the row's own `TECH-*` ID, or
+an obsolete revision. `Validation` names the objective check or narrowly scoped
+ADR. AWS Core evidence
+may inform and be bound to a `TECH-*` row and the current `DES-*`, but it remains
+advisory. The official AWS Core policy is
+`OFFICIAL_CURRENT_NO_TEMPLATE_PIN`; its observed version is evidence metadata,
+never a project pin.
+
+`EXACT` may use an opaque ecosystem version such as `nodejs20.x`. `MINIMUM`
+uses a machine-comparable numeric dotted version such as `6.0`; use another
+policy when the ecosystem version cannot be ordered numerically.
+An active `PROPERTY_TESTING` decision must use `EXACT`, `COMPATIBLE_MAJOR`, or
+numeric `MINIMUM` so observed property-test evidence can prove the approved
+version policy. `CURRENT_LTS_AS_OF` and `ORG_MANAGED` remain valid for other
+technology concerns but cannot back a property execution row.
+
+`Selection` names the chosen technology or uses exactly
+`NOT_APPLICABLE — <reason>` when no technology applies. In that case, `Version
+policy` must use the same non-applicable grammar.
+
+| Decision ID | Concern | Selection | Version policy | Source | Basis IDs | Alternatives and rationale | Compatibility/migration | Validation |
+|---|---|---|---|---|---|---|---|---|
+| TECH-0001 | APPLICATION_RUNTIME | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| TECH-0002 | APPLICATION_FRAMEWORK | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| TECH-0003 | FRONTEND_FRAMEWORK | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| TECH-0004 | INFRASTRUCTURE_AS_CODE | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| TECH-0005 | PACKAGE_BUILD_TOOLING | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| TECH-0006 | TEST_TOOLING | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| TECH-0007 | PROPERTY_TESTING | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| TECH-0008 | SECURITY_VALIDATION | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+| TECH-0009 | DEPLOYMENT_TOOLING | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+
+A material change to a selection, version policy, compatibility constraint,
+property applicability, property definition, or property execution value
+requires a new `DES-*` revision and makes the prior Gate B approval stale. An
+ordinary dependency addition does not invalidate Gate B unless it changes
+architecture, validation, security, cost, or deployment behavior.
 
 ## 14. Architecture overview
 
@@ -776,7 +828,7 @@ Define error taxonomy, safe messages, correlation IDs, retry ownership, timeout 
 
 ## 20. AWS implementation approach
 
-| Concern | Decision | AWS service or mechanism | Rationale | Tradeoff |
+| Concern | Decision IDs | AWS service or mechanism | Rationale | Tradeoff |
 |---|---|---|---|---|
 | Compute | TODO | TODO | TODO | TODO |
 | Identity | TODO | TODO | TODO | TODO |
@@ -786,6 +838,9 @@ Define error taxonomy, safe messages, correlation IDs, retry ownership, timeout 
 | Observability | TODO | TODO | TODO | TODO |
 | Deployment | TODO | TODO | TODO | TODO |
 | Secrets and encryption | TODO | TODO | TODO | TODO |
+
+Reference the authoritative `TECH-*` rows in the `Decision IDs` column; do not
+restate or override their selections or version policies here.
 
 Use the installed `aws-core` plugin from Agent Toolkit for AWS and current AWS
 primary documentation when completing this section. Compare the secure
@@ -832,25 +887,22 @@ or recovery control.
 
 ## 24. Property-based testing specification
 
-During DESIGN-10, classify every measurable Gate A requirement. Use
-`APPLICABLE` only when a generated input or state space and a stable oracle can
-test an invariant; otherwise record `NOT_APPLICABLE` with a concrete reason.
+During DESIGN-10, classify every measurable Gate A requirement in the approved
+revision exactly once. Use `APPLICABLE` only when a generated input or state
+space and a stable oracle can test an invariant; otherwise record
+`NOT_APPLICABLE` with a concrete reason.
 Property-based testing is optional until an invariant is classified as
 applicable. Every approved `PROP-*` is then required construction and release
 evidence unless a later owner-approved requirements or design revision removes
 or replaces it.
 
+Every applicable property definition must contain concrete inputs, conditions,
+oracle, boundaries, and layer. `NONE`, `PENDING`, `PLACEHOLDER`, and similar
+sentinels are not definitions.
+
 | Requirement ID | Applicability | Reason or property IDs |
 |---|---|---|
 | TODO | `APPLICABLE` / `NOT_APPLICABLE` | TODO |
-
-Before Gate B, replace the applicability placeholder and select:
-
-- language-appropriate framework or suite;
-- generated case or run target and time bound;
-- seed and reproduction-command format;
-- generators, preconditions, oracle, and boundary or shrink focus;
-- test layer and required evidence destination.
 
 | Property ID | Requirement IDs | Invariant | Generated inputs or state | Preconditions | Oracle | Boundary or shrink focus | Layer |
 |---|---|---|---|---|---|---|---|
@@ -859,6 +911,32 @@ Before Gate B, replace the applicability placeholder and select:
 | PROP-003 | SEC-003 | No generated secret appears in emitted telemetry. | Secret-like values and payload positions | Telemetry enabled | Search of logs/events contains no secret | Unicode, long values, encoded forms | Unit / integration |
 | PROP-004 | REL-001 | Retry attempts never exceed the configured bound. | Failure sequences and transient/permanent classifications | Dependency fails | Attempts <= configured maximum | Zero, one, maximum, permanent transition | Unit |
 | PROP-005 | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+
+### Property execution contract
+
+Before Gate B, add one row for every applicable `PROP-*`. This register plans
+execution; it never records an observed pass or failure. The framework must
+reference the selected `PROPERTY_TESTING` decision (`TECH-0007` in this
+template). `Run target/time bound` is exactly `MIN_CASES: <positive integer>`,
+`MAX_SECONDS: <positive integer>`, or `MIN_CASES: <positive integer>;
+MAX_SECONDS: <positive integer>` in that order. The exact command, target,
+seed/reproduction format, and evidence destination are copied unchanged into
+tasks. Observed versions, commands, run amounts, replay data, counterexamples,
+and results belong only in `docs/project/VERIFY.md`.
+
+Every execution cell must be concrete. The exact command is one runnable local
+command, not prose, a shell-control chain, `NONE`, `PENDING`, or another
+placeholder.
+
+The replay format must explicitly declare either a seed (for example,
+`integer seed; reproduce with the recorded --seed value`) or the exact command
+as the replay method. Evidence then records a concrete seed such as
+`seed: 12345`, or repeats the exact approved command. Vague values such as
+`seed unavailable` cannot satisfy DONE.
+
+| Property ID | Framework TECH ID | Exact command | Run target/time bound | Seed or reproduction format | Evidence destination |
+|---|---|---|---|---|---|
+| PROP-001 | TODO | TODO | TODO | TODO | TODO |
 
 Add workload-specific properties for:
 
@@ -952,6 +1030,7 @@ gap IDs; any listed gap keeps the recommendation `BLOCKED`.
 |---|---|
 | Design basis IDs | TODO |
 | Architecture/components | TODO |
+| Technology/toolchains/version policy | TODO |
 | Interfaces/data flow | TODO |
 | Identity/secrets | TODO |
 | Failure/retry/concurrency | TODO |
@@ -974,7 +1053,8 @@ it, never undecided.
 | Delivery profile and effective risk | `<profile> / <risk>` |
 | Project AWS lane | `documentation-only` / `read-only` / `fast-dev` / `explicit-gate` |
 | Authorized outcome | TODO |
-| Authorized requirement and design IDs | `REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001, SEC-001` |
+| Authorized requirement and design IDs | `REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001, SEC-001, TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, TECH-0006, TECH-0007, TECH-0008, TECH-0009, PROP-001` |
+| Design contract SHA-256 | TODO (exact current `design_contract.canonical_sha256`) |
 | Authorized baseline commit | TODO (full Git commit hash) |
 | Protected dirty paths | `NONE` / `PATHS: path; path` |
 | In-scope components and environments | TODO |
@@ -1016,11 +1096,15 @@ list in an approval-ready envelope. In `<profile> / <risk>`, profile is exactly
 `high`, or `critical`. In GitHub constraints, choose exactly `MERGE: ALLOWED` or
 `MERGE: PROHIBITED`. `Authorized requirement and design IDs`
 must name the current REQ and DES plus every scoped requirement, design
-decision, property, or defect ID. The baseline must resolve in the current local
-Git repository. Prefix lists are literal argv prefixes separated by semicolons,
-not shell fragments, command substitutions, or wildcards. Paths and external
-targets must be repository-relative or exact named targets and remain inside
-the approved scope.
+decision, property, or defect ID. It must include every current `TECH-*` row and
+every applicable `PROP-*` execution row; omission makes Gate B non-runnable.
+`Design contract SHA-256` must exactly equal the doctor's current derived hash
+of the Technology decision, Property applicability, Property definition, and
+Property execution tables in that order. The baseline must resolve in the
+current local Git repository. Prefix lists are literal argv prefixes separated
+by semicolons, not shell fragments, command substitutions, or wildcards. Paths
+and external targets must be repository-relative or exact named targets and
+remain inside the approved scope.
 
 The AWS rows are conditional, keeping documentation-only projects lean. For
 `NONE` or `DOCS_ONLY`, fill each authenticated-action row with
@@ -1047,7 +1131,10 @@ excluding the heading and surrounding prose. Strip trailing whitespace from
 each line, join lines with LF, append one final LF, then UTF-8 encode and SHA-256
 hash. Record the result as `sha256:` plus 64 lowercase hex characters. Any row,
 value, order, or byte change changes the digest, increments AUTH, and makes Gate
-B stale.
+B stale. Because the envelope stores the current Design contract SHA-256, a
+technology, property-applicability, property-definition, or property-execution
+change first makes the stored design hash invalid; updating it changes the
+envelope digest and requires new Gate B approval.
 
 The task boundary may authorize later task generation without another human
 gate only when every generated task traces exclusively to the approved IDs,
@@ -1117,10 +1204,12 @@ The design and construction authorization use monotonic IDs (`DES-0001` and
    `READY_FOR_CONSTRUCTION_APPROVAL`.
 4. Every Gate B readiness-card field is explicit, and Outstanding gaps is
    `NONE`.
-5. Scope, write set, baseline, protected paths, external targets, command
+5. The envelope's design-contract hash equals the current derived hash, and its
+   authorized IDs include every current `TECH-*` and applicable `PROP-*`.
+6. Scope, write set, baseline, protected paths, external targets, command
    prefixes, task boundary, parallelism, attempt budget, checkpoints,
    GitHub authority, AWS authority, stop conditions, and expiry are explicit.
-6. The owner decision is `APPROVED` for those exact revisions and canonical
+7. The owner decision is `APPROVED` for those exact revisions and canonical
    complete-envelope digest, and its source and verbatim receipt agree with the
    structured fields.
 

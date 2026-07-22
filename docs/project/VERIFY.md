@@ -93,6 +93,10 @@ and records `Credentials inspected` and `AWS account accessed` as exactly
 
 Each phase records the requested and returned skill identifiers or
 documentation query and returned official AWS references, as applicable.
+For DESIGN-10, bind advisory findings to the current design and any influenced
+technology rows using `DES-0001; TECH: TECH-0001, TECH-0002` or
+`DES-0001; TECH: NONE — no technology/toolchain impact`. This trace never
+selects a technology, approves Gate B, or authorizes AWS.
 
 Do not record credentials, local plugin/cache paths, usernames, session
 identifiers, hook-trust state or trust-database data, secrets, or private
@@ -100,7 +104,7 @@ machine information. Every passing row also records an ISO 8601 observation
 time and a current binding: the current DES revision for DESIGN-10 or the
 Active evidence scope artifact for AWS-10.
 
-| Phase | Plugin source | Invoked plugin identity | Observed plugin version | Capability | Observation actor | Requested skill | Returned skill identifier | Documentation query | Source references | Design decision influenced | Credentials inspected | AWS account accessed | Observed at | Evidence binding | Observed status |
+| Phase | Plugin source | Invoked plugin identity | Observed plugin version | Capability | Observation actor | Requested skill | Returned skill identifier | Documentation query | Source references | Advisory Design binding | Credentials inspected | AWS account accessed | Observed at | Evidence binding | Observed status |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `DESIGN-10` | TODO | TODO | TODO | `retrieve_skill` | TODO | TODO | TODO | — | — | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
 | `DESIGN-10` | TODO | TODO | TODO | `search_documentation` | TODO | — | — | TODO | TODO | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
@@ -112,8 +116,9 @@ Active evidence scope artifact for AWS-10.
 This is the machine-checked local evidence ledger for `DONE` transitions. One
 unfenced row must exist for every local `EV-nnnn` reference. It names exactly
 one task, observed work rather than a plan, the observing actor and time, the
-tested commit/worktree/artifact, and a durable local source. Only `LOCAL_PASS`
-or `VERIFIED` satisfies task completion; a stock, duplicate, wrong-task,
+tested commit/worktree/artifact, and a durable local source. `FAILED` preserves
+a property-test failure but never satisfies task completion. Only `LOCAL_PASS`
+or `VERIFIED` satisfies DONE; a stock, duplicate, wrong-task, `FAILED`,
 `NOT_STARTED`, URL-only, or placeholder row does not.
 
 | Evidence ID | Task | Command or observation | Result | Actor | Observed at | Commit / worktree / artifact | Durable source | Status |
@@ -148,18 +153,30 @@ Add rows for material workload risks, not every individual test.
 
 ## Property-based test evidence
 
-| Property ID | Framework or suite | Generated cases or runs | Seed or reproduction info | Minimized counterexample | Failure class / resolution | Result | Evidence source |
-|---|---|---|---|---|---|---|---|
-| PROP-001 | TODO | TODO | TODO | `NONE` | `NONE` | `NOT_STARTED` | TODO |
+| Evidence ID | Task ID | REQ / DES / AUTH | Property ID | Framework TECH ID | Framework selection | Observed exact version | Exact command | Observed run | Replay seed or exact command | Minimized counterexample | Failure class / resolution | Result | Observed at | Commit / worktree / artifact | Durable source |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| EV-0001 | TASK-0001 | REQ-0001 / DES-0001 / AUTH-0001 | PROP-001 | TECH-0007 | TODO | TODO | TODO | TODO | TODO | `NONE` | `NONE` | `NOT_STARTED` | TODO | TODO | TODO |
 
-For a passing property, record the observed run count and reproducible seed or
-command. For a failure, preserve the smallest observed counterexample and use
-exactly one classification: `IMPLEMENTATION_DEFECT`,
-`SPECIFICATION_AMBIGUITY_OR_DEFECT`, `GENERATOR_OR_ORACLE_DEFECT`, or
-`ENVIRONMENT_DEFECT`. Link the correction evidence without deleting the
-original failure. A specification or invariant change invalidates the affected
-Gate A or Gate B revision; implementation and test-machinery corrections may
-continue only inside the current approved construction boundary.
+Each row records one attributable execution, never the PRD target. `Observed
+run` uses exactly `CASES: <positive integer>; ELAPSED_SECONDS: <non-negative
+decimal>`. The evidence ID must be cited by the same task and bind its current
+REQ/DES/AUTH trace, selected property framework, exact command, observed ISO
+8601 time, commit/worktree/artifact, and durable source. The framework selection
+and observed exact version must satisfy the approved `TECH-*` decision. A PASS
+must meet the planned case and/or time threshold and record both failure fields
+as `NONE`.
+
+For a failure, preserve the smallest observed counterexample and use exactly one
+classification: `IMPLEMENTATION_DEFECT`, `SPECIFICATION_AMBIGUITY_OR_DEFECT`,
+`GENERATOR_OR_ORACLE_DEFECT`, or `ENVIRONMENT_DEFECT`. Add later evidence
+without deleting the failure; a DONE task requires the latest uniquely timed row
+for its task/property pair to PASS. Every property row must have a matching Task completion evidence row
+with the same EV ID and binding fields; use `FAILED` for
+a failed observation and `LOCAL_PASS` or `VERIFIED` for a passing one. A
+specification or invariant change
+invalidates the affected Gate A or Gate B revision; implementation and
+test-machinery corrections may continue only inside the approved construction
+boundary.
 
 ## Construction and release readiness checks
 

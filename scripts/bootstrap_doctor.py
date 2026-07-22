@@ -57,6 +57,107 @@ PROJECT_MODES = {"greenfield", "brownfield"}
 DELIVERY_PROFILES = {"quick-mvp", "standard", "high-risk"}
 RISK_LEVELS = {"low", "moderate", "high", "critical"}
 AWS_LANES = {"documentation-only", "read-only", "fast-dev", "explicit-gate"}
+TECHNOLOGY_DECISION_HEADING = "### Technology and toolchain decision register"
+TECHNOLOGY_DECISION_HEADERS = (
+    "Decision ID",
+    "Concern",
+    "Selection",
+    "Version policy",
+    "Source",
+    "Basis IDs",
+    "Alternatives and rationale",
+    "Compatibility/migration",
+    "Validation",
+)
+REQUIRED_TECHNOLOGY_CONCERNS = (
+    "APPLICATION_RUNTIME",
+    "APPLICATION_FRAMEWORK",
+    "FRONTEND_FRAMEWORK",
+    "INFRASTRUCTURE_AS_CODE",
+    "PACKAGE_BUILD_TOOLING",
+    "TEST_TOOLING",
+    "PROPERTY_TESTING",
+    "SECURITY_VALIDATION",
+    "DEPLOYMENT_TOOLING",
+)
+TECHNOLOGY_DECISION_ID = re.compile(r"TECH-\d{4}")
+TECHNOLOGY_CONCERN = re.compile(r"[A-Z][A-Z0-9_]*")
+STABLE_CONTRACT_ID = re.compile(
+    r"[A-Z][A-Z0-9_]*(?:-[A-Z][A-Z0-9_]*)*-\d{3,}"
+)
+TECHNOLOGY_SOURCES = {
+    "OWNER_CONSTRAINT",
+    "REPOSITORY_FACT",
+    "AGENT_RECOMMENDATION",
+}
+PROPERTY_EXECUTION_HEADING = "### Property execution contract"
+PROPERTY_EXECUTION_HEADERS = (
+    "Property ID",
+    "Framework TECH ID",
+    "Exact command",
+    "Run target/time bound",
+    "Seed or reproduction format",
+    "Evidence destination",
+)
+PROPERTY_APPLICABILITY_HEADERS = (
+    "Requirement ID",
+    "Applicability",
+    "Reason or property IDs",
+)
+PROPERTY_DEFINITION_HEADERS = (
+    "Property ID",
+    "Requirement IDs",
+    "Invariant",
+    "Generated inputs or state",
+    "Preconditions",
+    "Oracle",
+    "Boundary or shrink focus",
+    "Layer",
+)
+PROPERTY_SPECIFICATION_HEADING = "## 24. Property-based testing specification"
+PROPERTY_ID = re.compile(r"PROP-\d{3,}")
+PROPERTY_TEST_EVIDENCE_HEADING = "## Property-based test evidence"
+PROPERTY_TEST_EVIDENCE_HEADERS = (
+    "Evidence ID",
+    "Task ID",
+    "REQ / DES / AUTH",
+    "Property ID",
+    "Framework TECH ID",
+    "Framework selection",
+    "Observed exact version",
+    "Exact command",
+    "Observed run",
+    "Replay seed or exact command",
+    "Minimized counterexample",
+    "Failure class / resolution",
+    "Result",
+    "Observed at",
+    "Commit / worktree / artifact",
+    "Durable source",
+)
+PROPERTY_TEST_EVIDENCE_DESTINATION = (
+    "docs/project/VERIFY.md#property-based-test-evidence"
+)
+PROPERTY_TEST_RESULTS = {"NOT_STARTED", "PASS", "FAIL"}
+PROPERTY_TEST_FAILURE_CLASSES = {
+    "IMPLEMENTATION_DEFECT",
+    "SPECIFICATION_AMBIGUITY_OR_DEFECT",
+    "GENERATOR_OR_ORACLE_DEFECT",
+    "ENVIRONMENT_DEFECT",
+}
+PROPERTY_COMMAND_EXECUTABLE = re.compile(
+    r"(?:[a-z0-9][a-z0-9_.+-]*|\.{0,2}/[A-Za-z0-9_./+-]+|/[A-Za-z0-9_./+-]+)"
+)
+PROPERTY_COMMAND_PROSE_VERBS = {
+    "check",
+    "execute",
+    "record",
+    "run",
+    "test",
+    "use",
+    "validate",
+    "verify",
+}
 GATE_A_STATES = {
     "BLOCKED",
     "PENDING_OWNER_APPROVAL",
@@ -171,6 +272,78 @@ class TaskSummary:
         )
 
 
+@dataclass(frozen=True)
+class ContractTable:
+    headers: tuple[str, ...]
+    rows: tuple[tuple[str, ...], ...]
+    canonical_bytes: bytes
+
+
+@dataclass(frozen=True)
+class TechnologyDecision:
+    decision_id: str
+    concern: str
+    selection: str
+    version_policy: str
+    source: str
+    basis_ids: str
+    alternatives_and_rationale: str
+    compatibility_migration: str
+    validation: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "decision_id": self.decision_id,
+            "concern": self.concern,
+            "selection": self.selection,
+            "version_policy": self.version_policy,
+            "source": self.source,
+            "basis_ids": self.basis_ids,
+            "alternatives_and_rationale": self.alternatives_and_rationale,
+            "compatibility_migration": self.compatibility_migration,
+            "validation": self.validation,
+        }
+
+
+@dataclass(frozen=True)
+class PropertyExecution:
+    property_id: str
+    framework_tech_id: str
+    exact_command: str
+    run_target_time_bound: str
+    seed_or_reproduction_format: str
+    evidence_destination: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "property_id": self.property_id,
+            "framework_tech_id": self.framework_tech_id,
+            "exact_command": self.exact_command,
+            "run_target_time_bound": self.run_target_time_bound,
+            "seed_or_reproduction_format": self.seed_or_reproduction_format,
+            "evidence_destination": self.evidence_destination,
+        }
+
+
+@dataclass(frozen=True)
+class DesignContract:
+    status: str = "UNINITIALIZED"
+    design_revision: str | None = None
+    technology_decisions: tuple[TechnologyDecision, ...] = ()
+    property_execution: tuple[PropertyExecution, ...] = ()
+    canonical_sha256: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "status": self.status,
+            "design_revision": self.design_revision,
+            "technology_decisions": [item.to_dict() for item in self.technology_decisions],
+            "property_execution": [item.to_dict() for item in self.property_execution],
+            "canonical_sha256": self.canonical_sha256,
+        }
+
+
 TASK_METADATA_KEYS = (
     "Status",
     "Requirements",
@@ -201,6 +374,11 @@ TASK_META_PATTERN = re.compile(
 )
 TASK_STATUSES = {"BACKLOG", "READY", "IN_PROGRESS", "BLOCKED", "DONE", "SKIPPED"}
 TASK_AWS_MODES = {"NONE", "DOCS_ONLY", "READ_ONLY", "MUTATION"}
+TASK_DESIGN_TRACE_PATTERN = re.compile(
+    r"^(?P<design>DES-\d{4}); TECH: "
+    r"(?:(?P<none>NONE — no technology/toolchain impact)|"
+    r"(?P<technologies>TECH-\d{4}(?:, TECH-\d{4})*))$"
+)
 EVIDENCE_PATTERN = re.compile(
     r"(?:\b(?:EV|EVIDENCE)-[A-Z0-9][A-Z0-9._-]*\b|"
     r"\bVERIFY\.md#[A-Za-z0-9._-]+\b|https?://\S+)",
@@ -312,6 +490,7 @@ ENVELOPE_EXPLICIT_FIELDS = {
     "Project AWS lane",
     "Authorized outcome",
     "Authorized requirement and design IDs",
+    "Design contract SHA-256",
     "Authorized baseline commit",
     "Protected dirty paths",
     "In-scope components and environments",
@@ -359,6 +538,7 @@ GATE_A_READINESS_FIELDS = {
 GATE_B_READINESS_FIELDS = {
     "Design basis IDs",
     "Architecture/components",
+    "Technology/toolchains/version policy",
     "Interfaces/data flow",
     "Identity/secrets",
     "Failure/retry/concurrency",
@@ -379,7 +559,7 @@ AWS_CORE_EVIDENCE_HEADERS = (
     "Returned skill identifier",
     "Documentation query",
     "Source references",
-    "Design decision influenced",
+    "Advisory Design binding",
     "Credentials inspected",
     "AWS account accessed",
     "Observed at",
@@ -452,6 +632,26 @@ class TaskCompletionEvidenceRow:
 
 
 @dataclass(frozen=True)
+class PropertyTestEvidenceRow:
+    evidence_id: str
+    task_id: str
+    requirements_design_authorization: str
+    property_id: str
+    framework_tech_id: str
+    framework_selection: str
+    observed_exact_version: str
+    exact_command: str
+    observed_run: str
+    replay_seed_or_exact_command: str
+    minimized_counterexample: str
+    failure_class_resolution: str
+    result: str
+    observed_at: str
+    commit_worktree_artifact: str
+    durable_source: str
+
+
+@dataclass(frozen=True)
 class AwsCoreEvidenceRow:
     phase: str
     plugin_source: str
@@ -463,7 +663,7 @@ class AwsCoreEvidenceRow:
     returned_skill_identifier: str
     documentation_query: str
     source_references: str
-    design_decision_influenced: str
+    advisory_design_binding: str
     credentials_inspected: str
     aws_account_accessed: str
     observed_at: str
@@ -690,11 +890,70 @@ def parse_aws_core_evidence(
     return rows
 
 
+def validate_advisory_design_binding(
+    value: str,
+    phase: str,
+    *,
+    expected_design_revision: str | None = None,
+    approved_tech_ids: set[str] | None = None,
+) -> None:
+    cleaned = clean_cell(value)
+    not_applicable_prefix = "NOT_APPLICABLE — "
+    if cleaned.startswith(not_applicable_prefix):
+        if phase != "AWS-10" or not explicit_value(
+            cleaned[len(not_applicable_prefix) :], allow_none=False
+        ):
+            raise ValueError(
+                f"{phase} Advisory Design binding has invalid NOT_APPLICABLE form"
+            )
+        return
+    match = re.fullmatch(r"(?P<design>DES-\d{4,}); TECH: (?P<technology>.+)", cleaned)
+    if match is None:
+        raise ValueError(
+            f"{phase} Advisory Design binding must use DES-nnnn; TECH: <TECH IDs> "
+            "or DES-nnnn; TECH: NONE — <reason>"
+        )
+    design_revision = match.group("design")
+    if (
+        expected_design_revision is not None
+        and design_revision != expected_design_revision
+    ):
+        raise ValueError(
+            f"{phase} Advisory Design binding must reference {expected_design_revision}"
+        )
+    technology = match.group("technology")
+    none_prefix = "NONE — "
+    if technology.startswith(none_prefix):
+        if not explicit_value(technology[len(none_prefix) :], allow_none=False):
+            raise ValueError(
+                f"{phase} Advisory Design binding requires a concrete NONE reason"
+            )
+        return
+    identifiers = [item.strip() for item in technology.split(",")]
+    if not identifiers or any(
+        TECHNOLOGY_DECISION_ID.fullmatch(item) is None for item in identifiers
+    ):
+        raise ValueError(
+            f"{phase} Advisory Design binding TECH values must be comma-separated TECH-nnnn IDs"
+        )
+    if len(identifiers) != len(set(identifiers)):
+        raise ValueError(f"{phase} Advisory Design binding contains duplicate TECH IDs")
+    if approved_tech_ids is not None:
+        unknown = sorted(set(identifiers) - approved_tech_ids)
+        if unknown:
+            raise ValueError(
+                f"{phase} Advisory Design binding references unapproved TECH IDs: "
+                + ", ".join(unknown)
+            )
+
+
 def aws_core_phase_evidence_issues(
     rows: dict[tuple[str, str], AwsCoreEvidenceRow],
     phase: str,
     *,
     expected_binding: str | None = None,
+    expected_design_revision: str | None = None,
+    approved_tech_ids: set[str] | None = None,
 ) -> list[str]:
     """Return deterministic reasons that current official evidence is not ready."""
 
@@ -729,13 +988,15 @@ def aws_core_phase_evidence_issues(
             issues.append(f"{label} Credentials inspected must be NO")
         if row.aws_account_accessed != "NO":
             issues.append(f"{label} AWS account accessed must be NO")
-        for field_label, value in (
-            ("Design decision influenced", row.design_decision_influenced),
-        ):
-            try:
-                require_explicit_evidence_value(value, f"{label} {field_label}")
-            except ValueError as exc:
-                issues.append(str(exc))
+        try:
+            validate_advisory_design_binding(
+                row.advisory_design_binding,
+                phase,
+                expected_design_revision=expected_design_revision,
+                approved_tech_ids=approved_tech_ids,
+            )
+        except ValueError as exc:
+            issues.append(str(exc))
         if capability == "retrieve_skill":
             try:
                 requested_skill = require_explicit_evidence_value(
@@ -811,11 +1072,17 @@ def require_aws_core_phase_evidence(
     phase: str,
     *,
     expected_binding: str | None = None,
+    expected_design_revision: str | None = None,
+    approved_tech_ids: set[str] | None = None,
 ) -> None:
     """Block a phase boundary unless both official AWS Core calls are evidenced."""
 
     for issue in aws_core_phase_evidence_issues(
-        rows, phase, expected_binding=expected_binding
+        rows,
+        phase,
+        expected_binding=expected_binding,
+        expected_design_revision=expected_design_revision,
+        approved_tech_ids=approved_tech_ids,
     ):
         ctx.error("AWS_CORE_EVIDENCE_REQUIRED", issue, VERIFY_FILE)
 
@@ -829,6 +1096,30 @@ def require_explicit_evidence_value(value: str, label: str) -> str:
     ):
         raise ValueError(f"{label} is unresolved or placeholder evidence")
     return cleaned
+
+
+def require_durable_evidence_source(value: str, label: str) -> str:
+    """Require one safe local, git, artifact, HTTPS, or S3 evidence reference."""
+
+    source = require_explicit_evidence_value(value, label)
+    candidate = re.sub(r"^artifact\s*:\s*", "", source, flags=re.IGNORECASE)
+    candidate_path = candidate.split("#", 1)[0]
+    path_source = bool(
+        re.fullmatch(
+            r"[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)+(?:#[A-Za-z0-9._-]+)?",
+            candidate,
+        )
+        and ".." not in PurePosixPath(candidate_path).parts
+    )
+    if (
+        re.fullmatch(r"VERIFY\.md#[A-Za-z0-9._-]+", source) is None
+        and re.fullmatch(r"git:[0-9a-fA-F]{7,64}", source, re.IGNORECASE)
+        is None
+        and re.fullmatch(r"(?:https?|s3)://\S+", source, re.IGNORECASE) is None
+        and not path_source
+    ):
+        raise ValueError(f"{label} is not a local durable reference")
+    return source
 
 
 def validate_done_evidence(verify_text: str | None, task: InspectedTask) -> None:
@@ -880,27 +1171,9 @@ def validate_done_evidence(verify_text: str | None, task: InspectedTask) -> None
             is None
         ):
             raise ValueError(f"{label} requires an explicit commit, worktree, or artifact")
-        source = require_explicit_evidence_value(
+        require_durable_evidence_source(
             row.durable_source, f"{label} durable source"
         )
-        candidate = re.sub(
-            r"^artifact\s*:\s*", "", source, flags=re.IGNORECASE
-        )
-        candidate_path = candidate.split("#", 1)[0]
-        path_source = bool(
-            re.fullmatch(
-                r"[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)+(?:#[A-Za-z0-9._-]+)?",
-                candidate,
-            )
-            and ".." not in PurePosixPath(candidate_path).parts
-        )
-        if (
-            re.fullmatch(r"VERIFY\.md#[A-Za-z0-9._-]+", source) is None
-            and re.fullmatch(r"git:[0-9a-fA-F]{7,64}", source, re.IGNORECASE) is None
-            and re.fullmatch(r"(?:https?|s3)://\S+", source, re.IGNORECASE) is None
-            and not path_source
-        ):
-            raise ValueError(f"{label} durable source is not a local durable reference")
         if row.status not in TASK_COMPLETION_EVIDENCE_STATUSES:
             raise ValueError(f"{label} status must be LOCAL_PASS or VERIFIED")
 
@@ -984,6 +1257,9 @@ def validate_task_records(
     text: str,
     snapshot: dict[str, str],
     verify_text: str | None = None,
+    approved_tech_ids: set[str] | None = None,
+    property_execution_by_id: dict[str, PropertyExecution] | None = None,
+    technology_decisions_by_id: dict[str, TechnologyDecision] | None = None,
 ) -> tuple[list[InspectedTask], dict[str, InspectedTask], list[str]]:
     tasks = inspect_task_blocks(text)
     by_id: dict[str, InspectedTask] = {}
@@ -992,8 +1268,55 @@ def validate_task_records(
     current_req = snapshot.get("Requirements revision", "")
     current_des = snapshot.get("Design revision", "")
     current_auth = snapshot.get("Construction authorization", "")
+    done_property_ids = {
+        property_id
+        for task in tasks
+        if task.status == "DONE"
+        for property_id in PROPERTY_ID.findall(
+            clean_cell(task.metadata.get("Requirements", ""))
+        )
+    }
+    property_evidence_rows: list[PropertyTestEvidenceRow] = []
+    completion_evidence_rows: list[TaskCompletionEvidenceRow] = []
+    property_section_present = bool(
+        verify_text is not None
+        and re.search(
+            rf"^{re.escape(PROPERTY_TEST_EVIDENCE_HEADING)}[ \t]*$",
+            without_fenced_code(verify_text),
+            re.MULTILINE,
+        )
+    )
+    if verify_text is not None and property_section_present:
+        try:
+            property_evidence_rows = parse_property_test_evidence(verify_text)
+        except ValueError as exc:
+            errors.append(str(exc))
+    observed_property_evidence = any(
+        row.result in {"PASS", "FAIL"} for row in property_evidence_rows
+    )
+    if done_property_ids or observed_property_evidence:
+        if verify_text is None:
+            errors.append("DONE property tasks require VERIFY.md property-test evidence")
+        elif not property_section_present:
+            errors.append(
+                "VERIFY.md requires exactly one Property-based test evidence section"
+            )
+        else:
+            try:
+                completion_evidence_rows = parse_task_completion_evidence(verify_text)
+            except ValueError as exc:
+                errors.append(str(exc))
 
     for task in tasks:
+        execution_contract_required = task.status in {
+            "READY",
+            "IN_PROGRESS",
+            "BLOCKED",
+            "DONE",
+        } or (
+            task.status == "BACKLOG"
+            and snapshot.get("Task-plan state") == "CURRENT"
+        )
         if task.task_id in by_id:
             errors.append(f"Duplicate task ID: {task.task_id}")
         by_id[task.task_id] = task
@@ -1018,12 +1341,47 @@ def validate_task_records(
             errors.append(f"{task.task_id}: invalid AWS mode {aws_mode!r}")
         for field, expected, pattern in (
             ("Requirements", current_req, REQ_ID),
-            ("Design", current_des, DES_ID),
             ("Authorization", current_auth, AUTH_ID),
         ):
             match = pattern.search(clean_cell(task.metadata.get(field, "")))
             if match is None or match.group(0) != expected:
                 errors.append(f"{task.task_id}: {field} does not match current execution basis")
+        design_value = clean_cell(task.metadata.get("Design", ""))
+        technology_refs: list[str] = []
+        if execution_contract_required:
+            design_match = TASK_DESIGN_TRACE_PATTERN.fullmatch(design_value)
+            if design_match is None:
+                errors.append(
+                    f"{task.task_id}: Design must exactly match "
+                    "DES-nnnn; TECH: TECH-nnnn[, TECH-nnnn...] or "
+                    "DES-nnnn; TECH: NONE — no technology/toolchain impact"
+                )
+            else:
+                if design_match.group("design") != current_des:
+                    errors.append(
+                        f"{task.task_id}: Design does not match current execution basis"
+                    )
+                technologies = design_match.group("technologies")
+                technology_refs = technologies.split(", ") if technologies else []
+                if len(technology_refs) != len(set(technology_refs)):
+                    errors.append(f"{task.task_id}: duplicate TECH reference in Design")
+                if approved_tech_ids is not None:
+                    unknown = [
+                        tech_id
+                        for tech_id in technology_refs
+                        if tech_id not in approved_tech_ids
+                    ]
+                    if unknown:
+                        errors.append(
+                            f"{task.task_id}: Design references unapproved TECH IDs: "
+                            + ", ".join(unknown)
+                        )
+        else:
+            design_match = DES_ID.search(design_value)
+            if design_match is None or design_match.group(0) != current_des:
+                errors.append(
+                    f"{task.task_id}: Design does not match current execution basis"
+                )
         if task.status in {"READY", "IN_PROGRESS"} and snapshot.get("Gate B state") != "APPROVED_FOR_CONSTRUCTION":
             errors.append(f"{task.task_id}: Gate B is not approved for construction")
         if task.status in {"READY", "IN_PROGRESS"} and snapshot.get("Task-plan state") != "CURRENT":
@@ -1072,7 +1430,7 @@ def validate_task_records(
                     errors.append(f"{task.task_id}: waiver {waiver_id} does not match its task pair")
         except ValueError as exc:
             errors.append(str(exc))
-        if task.status in {"READY", "IN_PROGRESS", "DONE"}:
+        if execution_contract_required:
             sections, duplicate_sections = inspect_task_sections(task.block)
             for name in sorted(duplicate_sections):
                 errors.append(f"{task.task_id}: duplicate required section #### {name}")
@@ -1088,6 +1446,16 @@ def validate_task_records(
             validation = sections.get("Validation", "")
             if "```" not in validation or "TODO" in validation.upper():
                 errors.append(f"{task.task_id}: executable validation commands are required")
+            try:
+                validate_task_property_execution_projection(
+                    validation,
+                    task.task_id,
+                    task.metadata.get("Requirements", ""),
+                    technology_refs,
+                    property_execution_by_id,
+                )
+            except ValueError as exc:
+                errors.append(str(exc))
             execution_log = sections.get("Execution log", "")
             normalized_log = execution_log.strip().upper().replace("_", " ")
             if not execution_log.strip() or "TODO" in execution_log.upper():
@@ -1104,6 +1472,73 @@ def validate_task_records(
                 errors.append(f"{task.task_id}: DONE requires an observed Execution log")
             if task.status == "DONE" and "- [ ]" in acceptance:
                 errors.append(f"{task.task_id}: DONE has incomplete acceptance criteria")
+
+    observed_property_pairs = {
+        (row.task_id, row.property_id)
+        for row in property_evidence_rows
+        if row.result in {"PASS", "FAIL"}
+    }
+    done_property_pairs = {
+        (task.task_id, property_id)
+        for task in tasks
+        if task.status == "DONE"
+        for property_id in PROPERTY_ID.findall(
+            clean_cell(task.metadata.get("Requirements", ""))
+        )
+    }
+    for task_id, property_id in sorted(
+        observed_property_pairs | done_property_pairs
+    ):
+        task = by_id.get(task_id)
+        if task is None:
+            errors.append(
+                f"{task_id} {property_id}: observed property-test evidence "
+                "references an unknown current task"
+            )
+            continue
+        task_property_ids = set(
+            PROPERTY_ID.findall(clean_cell(task.metadata.get("Requirements", "")))
+        )
+        if property_id not in task_property_ids:
+            errors.append(
+                f"{task_id} {property_id}: observed property-test evidence is not "
+                "linked by the current task Requirements"
+            )
+            continue
+        if property_execution_by_id is None:
+            errors.append(
+                f"{task_id} {property_id}: current property execution contract is "
+                "unavailable"
+            )
+            continue
+        expected = property_execution_by_id.get(property_id)
+        if expected is None:
+            errors.append(
+                f"{task_id} {property_id}: observed property-test evidence "
+                "references an unknown current property contract"
+            )
+            continue
+        technology = (technology_decisions_by_id or {}).get(
+            expected.framework_tech_id
+        )
+        if technology is None:
+            errors.append(
+                f"{task_id}: {property_id} requires its current PROPERTY_TESTING "
+                "technology decision"
+            )
+            continue
+        try:
+            validate_done_property_evidence(
+                property_evidence_rows,
+                task,
+                snapshot,
+                expected,
+                technology,
+                completion_evidence_rows,
+                require_done_pass=task.status == "DONE",
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
 
     for task in tasks:
         for dependency in task.dependencies:
@@ -1192,6 +1627,26 @@ def validate_task_records(
     if errors:
         raise ValueError("\n".join(errors))
     return tasks, by_id, ready
+
+
+def missing_current_property_task_coverage(
+    tasks: list[InspectedTask],
+    plan_state: str,
+    property_execution_by_id: dict[str, PropertyExecution],
+) -> list[str]:
+    """Return approved properties omitted from a current task plan."""
+
+    if plan_state != "CURRENT":
+        return []
+    covered_property_ids = {
+        property_id
+        for task in tasks
+        if task.status in {"BACKLOG", "READY", "IN_PROGRESS", "BLOCKED", "DONE"}
+        for property_id in PROPERTY_ID.findall(
+            clean_cell(task.metadata.get("Requirements", ""))
+        )
+    }
+    return sorted(set(property_execution_by_id) - covered_property_ids)
 
 
 def clean_cell(value: Any) -> str:
@@ -1334,6 +1789,1090 @@ def markdown_tables(text: str) -> list[list[list[str]]]:
     if len(current) >= 3:
         tables.append(current)
     return tables
+
+
+def task_property_execution_table(
+    validation_section: str, task_id: str
+) -> ContractTable | None:
+    """Return the one exact property-execution projection outside code fences."""
+
+    structural = without_fenced_code(validation_section)
+    source_lines = validation_section.splitlines()
+    structural_lines = structural.splitlines()
+    matches: list[ContractTable] = []
+    index = 0
+    while index < len(source_lines):
+        if not structural_lines[index].strip().startswith("|"):
+            index += 1
+            continue
+        raw_lines: list[str] = []
+        while index < len(source_lines) and structural_lines[index].strip().startswith("|"):
+            raw_lines.append(source_lines[index])
+            index += 1
+        header = split_markdown_table_row(raw_lines[0])
+        if header is None or not header or clean_cell(header[0]) != "Property ID":
+            continue
+        try:
+            matches.append(
+                _parse_contract_table_lines(raw_lines, PROPERTY_EXECUTION_HEADERS)
+            )
+        except ValueError as exc:
+            raise ValueError(
+                f"{task_id}: property execution projection {exc}"
+            ) from exc
+    if len(matches) > 1:
+        raise ValueError(
+            f"{task_id}: Validation must contain exactly one property execution projection"
+        )
+    return matches[0] if matches else None
+
+
+def validate_task_property_execution_projection(
+    validation_section: str,
+    task_id: str,
+    requirements: str,
+    technology_refs: list[str],
+    property_execution_by_id: dict[str, PropertyExecution] | None,
+) -> None:
+    """Require an exact PRD projection and one exact command per referenced property."""
+
+    property_ids = PROPERTY_ID.findall(clean_cell(requirements))
+    if len(property_ids) != len(set(property_ids)):
+        raise ValueError(f"{task_id}: Requirements contains duplicate PROP IDs")
+    table = task_property_execution_table(validation_section, task_id)
+    if not property_ids:
+        if table is not None:
+            raise ValueError(
+                f"{task_id}: Validation has a property execution projection without a PROP requirement"
+            )
+        return
+    if property_execution_by_id is None:
+        raise ValueError(
+            f"{task_id}: property execution contract is unavailable for PROP validation"
+        )
+    unknown = [item for item in property_ids if item not in property_execution_by_id]
+    if unknown:
+        raise ValueError(
+            f"{task_id}: Requirements references unknown PROP IDs: " + ", ".join(unknown)
+        )
+    if table is None:
+        raise ValueError(
+            f"{task_id}: Validation requires the exact property execution projection"
+        )
+    projected_ids = [row[0] for row in table.rows]
+    if projected_ids != property_ids or len(projected_ids) != len(set(projected_ids)):
+        raise ValueError(
+            f"{task_id}: property execution projection IDs must exactly match Requirements"
+        )
+    for row in table.rows:
+        expected = property_execution_by_id[row[0]]
+        if not valid_property_execution_command(expected.exact_command):
+            raise ValueError(
+                f"{task_id}: {row[0]} Exact command is not an executable local command"
+            )
+        if not valid_property_execution_command(row[2]):
+            raise ValueError(
+                f"{task_id}: projected {row[0]} Exact command is not an executable "
+                "local command"
+            )
+        expected_row = (
+            expected.property_id,
+            expected.framework_tech_id,
+            expected.exact_command,
+            expected.run_target_time_bound,
+            expected.seed_or_reproduction_format,
+            expected.evidence_destination,
+        )
+        if row != expected_row:
+            raise ValueError(
+                f"{task_id}: property execution projection for {row[0]} does not match the PRD contract"
+            )
+        if expected.framework_tech_id not in technology_refs:
+            raise ValueError(
+                f"{task_id}: Design must reference {expected.framework_tech_id} for {row[0]}"
+            )
+    commands = validation_commands(validation_section, task_id)
+    for command in dict.fromkeys(
+        property_execution_by_id[item].exact_command for item in property_ids
+    ):
+        if commands.count(command) != 1:
+            raise ValueError(
+                f"{task_id}: property command {command!r} must appear exactly once in Validation"
+            )
+
+
+def _canonical_contract_table(raw_lines: list[str]) -> bytes:
+    return ("\n".join(line.rstrip() for line in raw_lines) + "\n").encode("utf-8")
+
+
+def _parse_contract_table_lines(
+    raw_lines: list[str], expected_headers: tuple[str, ...]
+) -> ContractTable:
+    if len(raw_lines) < 2:
+        raise ValueError("Markdown contract table requires a header and separator")
+    parsed: list[tuple[str, ...]] = []
+    for raw_line in raw_lines:
+        cells = split_markdown_table_row(raw_line)
+        if cells is None:
+            raise ValueError("Malformed Markdown contract table row")
+        parsed.append(tuple(clean_cell(cell) for cell in cells))
+    if parsed[0] != expected_headers:
+        raise ValueError(
+            "Contract table headers must be exactly: " + " | ".join(expected_headers)
+        )
+    if len(parsed[1]) != len(expected_headers) or any(
+        re.fullmatch(r":?-{3,}:?", cell) is None for cell in parsed[1]
+    ):
+        raise ValueError("Contract table separator is malformed")
+    for row in parsed[2:]:
+        if len(row) != len(expected_headers):
+            raise ValueError(
+                f"Contract table row has {len(row)} cells; expected {len(expected_headers)}"
+            )
+    return ContractTable(
+        headers=expected_headers,
+        rows=tuple(parsed[2:]),
+        canonical_bytes=_canonical_contract_table(raw_lines),
+    )
+
+
+def _heading_section_lines(
+    text: str, heading: str
+) -> tuple[list[str], list[str]] | None:
+    structural = without_fenced_code(text)
+    matches = list(
+        re.finditer(rf"^{re.escape(heading)}[ \t]*$", structural, re.MULTILINE)
+    )
+    if not matches:
+        return None
+    if len(matches) != 1:
+        raise ValueError(f"Expected exactly one heading {heading!r}; found {len(matches)}")
+    level = len(heading) - len(heading.lstrip("#"))
+    start = matches[0].end()
+    following = re.search(
+        rf"^#{{1,{level}}}[ \t]+", structural[start:], re.MULTILINE
+    )
+    end = start + following.start() if following else len(text)
+    return text[start:end].splitlines(), structural[start:end].splitlines()
+
+
+def contract_table_after_heading(
+    text: str, heading: str, expected_headers: tuple[str, ...]
+) -> ContractTable | None:
+    section = _heading_section_lines(text, heading)
+    if section is None:
+        return None
+    lines, structural_lines = section
+    start = next(
+        (
+            index
+            for index, structural_line in enumerate(structural_lines)
+            if structural_line.strip().startswith("|")
+        ),
+        None,
+    )
+    if start is None:
+        raise ValueError(f"No Markdown table after {heading!r}")
+    raw_lines: list[str] = []
+    for line, structural_line in zip(lines[start:], structural_lines[start:]):
+        if not structural_line.strip().startswith("|"):
+            break
+        raw_lines.append(line)
+    return _parse_contract_table_lines(raw_lines, expected_headers)
+
+
+def contract_table_in_section(
+    text: str, heading: str, expected_headers: tuple[str, ...]
+) -> ContractTable | None:
+    section = _heading_section_lines(text, heading)
+    if section is None:
+        return None
+    lines, structural_lines = section
+    matches: list[ContractTable] = []
+    index = 0
+    while index < len(lines):
+        if not structural_lines[index].strip().startswith("|"):
+            index += 1
+            continue
+        raw_lines: list[str] = []
+        while index < len(lines) and structural_lines[index].strip().startswith("|"):
+            raw_lines.append(lines[index])
+            index += 1
+        header = split_markdown_table_row(raw_lines[0])
+        if header is None or tuple(clean_cell(cell) for cell in header) != expected_headers:
+            continue
+        matches.append(_parse_contract_table_lines(raw_lines, expected_headers))
+    if len(matches) > 1:
+        raise ValueError(
+            f"Expected one table with headers {' | '.join(expected_headers)} after {heading!r}"
+        )
+    return matches[0] if matches else None
+
+
+def parse_property_test_evidence(text: str) -> list[PropertyTestEvidenceRow]:
+    """Parse the exact durable property-test evidence table from VERIFY.md."""
+
+    table = contract_table_after_heading(
+        text,
+        PROPERTY_TEST_EVIDENCE_HEADING,
+        PROPERTY_TEST_EVIDENCE_HEADERS,
+    )
+    if table is None:
+        raise ValueError(
+            "VERIFY.md requires exactly one Property-based test evidence section"
+        )
+    rows: list[PropertyTestEvidenceRow] = []
+    seen_evidence_ids: set[str] = set()
+    for cells in table.rows:
+        row = PropertyTestEvidenceRow(*cells)
+        if re.fullmatch(r"EV-\d{4,}", row.evidence_id) is None:
+            raise ValueError(
+                "VERIFY.md Property-based test evidence Evidence ID must be EV-nnnn"
+            )
+        if row.evidence_id in seen_evidence_ids:
+            raise ValueError(
+                "VERIFY.md Property-based test evidence Evidence IDs must be unique"
+            )
+        seen_evidence_ids.add(row.evidence_id)
+        if PROPERTY_ID.fullmatch(row.property_id) is None:
+            raise ValueError(
+                "VERIFY.md Property-based test evidence Property ID must be PROP-nnn"
+            )
+        if row.result not in PROPERTY_TEST_RESULTS:
+            raise ValueError(
+                f"{row.property_id}: property-test Result must be NOT_STARTED, PASS, or FAIL"
+            )
+        rows.append(row)
+    return rows
+
+
+def parse_property_run_target(value: str) -> tuple[int | None, Decimal | None]:
+    """Parse the canonical minimum-case and/or maximum-duration execution target."""
+
+    cleaned = clean_cell(value)
+    match = re.fullmatch(
+        r"(?:MIN_CASES: (?P<cases>[1-9]\d*)"
+        r"(?:; MAX_SECONDS: (?P<case_seconds>[1-9]\d*))?"
+        r"|MAX_SECONDS: (?P<seconds>[1-9]\d*))",
+        cleaned,
+    )
+    if match is None:
+        raise ValueError(
+            "run target/time bound must be MIN_CASES: <positive integer>, "
+            "MAX_SECONDS: <positive number>, or both in that order"
+        )
+    minimum_cases = int(match.group("cases")) if match.group("cases") else None
+    seconds_text = match.group("case_seconds") or match.group("seconds")
+    maximum_seconds = Decimal(seconds_text) if seconds_text is not None else None
+    if maximum_seconds is not None and (
+        not maximum_seconds.is_finite() or maximum_seconds <= 0
+    ):
+        raise ValueError("MAX_SECONDS must be finite and greater than zero")
+    return minimum_cases, maximum_seconds
+
+
+def parse_observed_property_run(value: str) -> tuple[int, Decimal]:
+    """Parse one exact observed case count and elapsed duration."""
+
+    match = re.fullmatch(
+        r"CASES: (?P<cases>[1-9]\d*); "
+        r"ELAPSED_SECONDS: (?P<seconds>\d+(?:\.\d+)?)",
+        clean_cell(value),
+    )
+    if match is None:
+        raise ValueError(
+            "Observed run must be CASES: <positive integer>; "
+            "ELAPSED_SECONDS: <nonnegative number>"
+        )
+    elapsed = Decimal(match.group("seconds"))
+    if not elapsed.is_finite() or elapsed < 0:
+        raise ValueError("ELAPSED_SECONDS must be finite and nonnegative")
+    return int(match.group("cases")), elapsed
+
+
+def parsed_numeric_version(value: str) -> tuple[int, ...] | None:
+    """Return the numeric release tuple for one exact package version."""
+
+    cleaned = clean_cell(value)
+    match = re.fullmatch(r"v?(?P<numeric>\d+(?:\.\d+)*)", cleaned)
+    if match is None:
+        return None
+    return tuple(int(part) for part in match.group("numeric").split("."))
+
+
+def technology_version_policy_allows(policy: str, observed: str) -> bool:
+    """Check an observed exact version against the machine-comparable policy forms."""
+
+    if technology_contract_value_is_unresolved(
+        policy
+    ) or technology_contract_value_is_unresolved(observed):
+        return False
+    if policy.startswith("EXACT: "):
+        return observed == policy.removeprefix("EXACT: ")
+    observed_parts = parsed_numeric_version(observed)
+    if observed_parts is None:
+        return False
+    if policy.startswith("COMPATIBLE_MAJOR: "):
+        return observed_parts[0] == int(policy.removeprefix("COMPATIBLE_MAJOR: "))
+    if policy.startswith("MINIMUM: "):
+        minimum = parsed_numeric_version(policy.removeprefix("MINIMUM: "))
+        if minimum is None:
+            return False
+        width = max(len(observed_parts), len(minimum))
+        return observed_parts + (0,) * (width - len(observed_parts)) >= minimum + (
+            0,
+        ) * (width - len(minimum))
+    # These policies require external evidence mapping the observed version to
+    # the dated LTS release or organization constraint. A numeric-looking
+    # version alone cannot prove either policy, so local validation fails closed.
+    return False
+
+
+def replay_evidence_matches_contract(
+    approved_format: str,
+    observed_replay: str,
+    exact_command: str,
+) -> bool:
+    """Bind replay evidence to the current PRD reproduction-format contract."""
+
+    approved = clean_cell(approved_format)
+    observed = clean_cell(observed_replay)
+    if unresolved(approved) or unresolved(observed):
+        return False
+    lowered_approved = approved.casefold()
+    lowered_observed = observed.casefold()
+    if EVIDENCE_PLACEHOLDER_PATTERN.search(observed) is not None or re.search(
+        r"\b(?:unavailable|missing|not[ _-]*recorded|not[ _-]*captured)\b",
+        lowered_observed,
+    ):
+        return False
+    if "seed" in lowered_approved:
+        match = re.fullmatch(
+            r"(?:seed\s*[:=]\s*|.*(?:^|\s)--seed(?:=|\s+))(?P<seed>\S+)",
+            observed,
+            re.IGNORECASE,
+        )
+        if match is None:
+            return False
+        seed = match.group("seed").strip("'\"")
+        if not seed or EVIDENCE_PLACEHOLDER_PATTERN.fullmatch(seed) is not None:
+            return False
+        if "integer" in lowered_approved and re.fullmatch(r"\d+", seed) is None:
+            return False
+        return True
+    if "command" in lowered_approved:
+        return observed == exact_command
+    return observed == approved
+
+
+def valid_replay_format_contract(value: str) -> bool:
+    """Require a property plan to declare a machine-checkable replay mode."""
+
+    cleaned = clean_cell(value)
+    if unresolved(cleaned):
+        return False
+    lowered = cleaned.casefold()
+    return "seed" in lowered or "command" in lowered
+
+
+def valid_property_execution_command(value: str) -> bool:
+    """Recognize one explicit local command rather than prose or a sentinel."""
+
+    cleaned = clean_cell(value)
+    if (
+        unresolved(cleaned)
+        or EVIDENCE_PLACEHOLDER_PATTERN.search(cleaned) is not None
+        or SHELL_CONTROL.search(cleaned) is not None
+        or cleaned.startswith(("-", "#"))
+    ):
+        return False
+    executable = cleaned.split(maxsplit=1)[0].strip("'\"")
+    return bool(
+        PROPERTY_COMMAND_EXECUTABLE.fullmatch(executable)
+        and executable.casefold() not in PROPERTY_COMMAND_PROSE_VERBS
+    )
+
+
+def evidence_timestamp(value: str, label: str) -> datetime:
+    if not explicit_timestamp(value):
+        raise ValueError(f"{label} must be ISO 8601 with timezone")
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def validate_done_property_evidence(
+    rows: list[PropertyTestEvidenceRow],
+    task: InspectedTask,
+    snapshot: dict[str, str],
+    expected: PropertyExecution,
+    technology: TechnologyDecision,
+    completion_rows: list[TaskCompletionEvidenceRow],
+    *,
+    require_done_pass: bool = True,
+) -> None:
+    """Validate observed property history and, for DONE, require a final pass."""
+
+    task_id = task.task_id
+    if expected.evidence_destination != PROPERTY_TEST_EVIDENCE_DESTINATION:
+        raise ValueError(
+            f"{task_id}: {expected.property_id} PRD evidence destination does not "
+            "identify the exact VERIFY.md property evidence section"
+        )
+    observed = [
+        row
+        for row in rows
+        if row.task_id == task_id
+        and row.property_id == expected.property_id
+        and row.result in {"PASS", "FAIL"}
+    ]
+    if not observed and require_done_pass:
+        raise ValueError(
+            f"{task_id}: DONE {expected.property_id} requires observed property-test evidence"
+        )
+    if not observed:
+        return
+    expected_basis = (
+        f"{snapshot.get('Requirements revision', '')} / "
+        f"{snapshot.get('Design revision', '')} / "
+        f"{snapshot.get('Construction authorization', '')}"
+    )
+    completion_by_id = {row.evidence_id: row for row in completion_rows}
+    task_evidence_ids = set(
+        LOCAL_EVIDENCE_ID.findall(clean_cell(task.metadata.get("Evidence", "")))
+    )
+    passing = False
+    timestamps: list[tuple[datetime, PropertyTestEvidenceRow]] = []
+    for index, row in enumerate(observed, start=1):
+        label = f"{task_id} {expected.property_id} evidence row {index}"
+        if re.fullmatch(r"EV-\d{4,}", row.evidence_id) is None:
+            raise ValueError(f"{label} Evidence ID must be EV-nnnn")
+        if row.requirements_design_authorization != expected_basis:
+            raise ValueError(f"{label} REQ / DES / AUTH is not current")
+        if row.framework_tech_id != expected.framework_tech_id:
+            raise ValueError(
+                f"{label} Framework TECH ID does not match the current PRD property contract"
+            )
+        if row.framework_selection != technology.selection:
+            raise ValueError(
+                f"{label} Framework selection does not match {technology.decision_id}"
+            )
+        observed_version = require_explicit_evidence_value(
+            row.observed_exact_version,
+            f"{label} observed exact version",
+        )
+        if not technology_version_policy_allows(
+            technology.version_policy, observed_version
+        ):
+            raise ValueError(
+                f"{label} observed exact version does not satisfy "
+                f"{technology.version_policy}"
+            )
+        if row.exact_command != expected.exact_command:
+            raise ValueError(
+                f"{label} Exact command does not match the current PRD property contract"
+            )
+        try:
+            observed_cases, observed_seconds = parse_observed_property_run(
+                row.observed_run
+            )
+            minimum_cases, maximum_seconds = parse_property_run_target(
+                expected.run_target_time_bound
+            )
+        except ValueError as exc:
+            raise ValueError(f"{label} {exc}") from exc
+        replay = require_explicit_evidence_value(
+            row.replay_seed_or_exact_command,
+            f"{label} replay seed or exact command",
+        )
+        if not replay_evidence_matches_contract(
+            expected.seed_or_reproduction_format,
+            replay,
+            expected.exact_command,
+        ):
+            raise ValueError(
+                f"{label} replay evidence does not match the approved PRD "
+                "Seed or reproduction format"
+            )
+        observed_at = evidence_timestamp(row.observed_at, f"{label} Observed at")
+        timestamps.append((observed_at, row))
+        material = require_explicit_evidence_value(
+            row.commit_worktree_artifact,
+            f"{label} commit/worktree/artifact",
+        )
+        require_durable_evidence_source(row.durable_source, f"{label} durable source")
+        completion = completion_by_id.get(row.evidence_id)
+        if completion is None:
+            raise ValueError(
+                f"{label} Evidence ID is missing from Task completion evidence"
+            )
+        if (
+            completion.task_id != task_id
+            or completion.command_or_observation != row.exact_command
+            or completion.observed_at != row.observed_at
+            or completion.commit_worktree_artifact != material
+            or completion.durable_source != row.durable_source
+        ):
+            raise ValueError(
+                f"{label} does not match its Task completion evidence binding"
+            )
+        require_explicit_evidence_value(
+            completion.result,
+            f"{label} Task completion result",
+        )
+        require_explicit_evidence_value(
+            completion.actor,
+            f"{label} Task completion actor",
+        )
+        if row.result == "PASS":
+            passing = True
+            if require_done_pass and row.evidence_id not in task_evidence_ids:
+                raise ValueError(
+                    f"{label} PASS Evidence ID is not cited by the DONE task"
+                )
+            if completion.status not in TASK_COMPLETION_EVIDENCE_STATUSES:
+                raise ValueError(
+                    f"{label} PASS completion status must be LOCAL_PASS or VERIFIED"
+                )
+            if minimum_cases is not None and observed_cases < minimum_cases:
+                raise ValueError(
+                    f"{label} observed cases do not meet MIN_CASES: {minimum_cases}"
+                )
+            if maximum_seconds is not None and observed_seconds > maximum_seconds:
+                raise ValueError(
+                    f"{label} elapsed time exceeds MAX_SECONDS: {maximum_seconds}"
+                )
+            if row.minimized_counterexample != "NONE":
+                raise ValueError(
+                    f"{label} PASS must record Minimized counterexample as NONE"
+                )
+            if row.failure_class_resolution != "NONE":
+                raise ValueError(
+                    f"{label} PASS must record Failure class / resolution as NONE"
+                )
+            continue
+        if completion.status != "FAILED":
+            raise ValueError(f"{label} FAIL completion status must be FAILED")
+        counterexample = require_explicit_evidence_value(
+            row.minimized_counterexample,
+            f"{label} minimized counterexample",
+        )
+        if counterexample == "NONE":
+            raise ValueError(f"{label} FAIL requires a minimized counterexample")
+        failure_match = re.fullmatch(
+            "(?P<class>" + "|".join(sorted(PROPERTY_TEST_FAILURE_CLASSES))
+            + r") — (?P<resolution>.+)",
+            row.failure_class_resolution,
+        )
+        if failure_match is None:
+            raise ValueError(
+                f"{label} FAIL requires one supported failure class and a concrete "
+                "resolution separated by an em dash"
+            )
+        try:
+            require_explicit_evidence_value(
+                failure_match.group("resolution"),
+                f"{label} failure resolution",
+            )
+        except ValueError as exc:
+            raise ValueError(
+                f"{label} FAIL requires one supported failure class and a concrete "
+                "resolution separated by an em dash"
+            ) from exc
+    if len({stamp for stamp, _row in timestamps}) != len(timestamps):
+        raise ValueError(
+            f"{task_id}: {expected.property_id} observed timestamps must be unique"
+        )
+    if require_done_pass and not passing:
+        raise ValueError(
+            f"{task_id}: DONE {expected.property_id} requires preserved failure rows "
+            "and a later PASS row"
+        )
+    latest = max(timestamps, key=lambda item: item[0])[1]
+    if require_done_pass and latest.result != "PASS":
+        raise ValueError(
+            f"{task_id}: DONE {expected.property_id} requires the latest observed "
+            "property-test result to be PASS"
+        )
+
+
+def valid_technology_version_policy(value: str) -> bool:
+    cleaned = clean_cell(value)
+    if technology_contract_value_is_unresolved(cleaned):
+        return False
+    if cleaned.startswith("COMPATIBLE_MAJOR: "):
+        return re.fullmatch(r"COMPATIBLE_MAJOR: [1-9]\d*", cleaned) is not None
+    if cleaned.startswith("CURRENT_LTS_AS_OF: "):
+        match = re.fullmatch(r"CURRENT_LTS_AS_OF: (\d{4}-\d{2}-\d{2})", cleaned)
+        if match is None:
+            return False
+        try:
+            datetime.strptime(match.group(1), "%Y-%m-%d")
+        except ValueError:
+            return False
+        return True
+    if cleaned.startswith("EXACT: "):
+        return explicit_value(cleaned.removeprefix("EXACT: "), allow_none=False)
+    if cleaned.startswith("MINIMUM: "):
+        minimum = cleaned.removeprefix("MINIMUM: ")
+        return (
+            explicit_value(minimum, allow_none=False)
+            and parsed_numeric_version(minimum) is not None
+        )
+    if cleaned.startswith("ORG_MANAGED: "):
+        return explicit_value(
+            cleaned.removeprefix("ORG_MANAGED: "), allow_none=False
+        )
+    prefix = "NOT_APPLICABLE — "
+    return cleaned.startswith(prefix) and explicit_value(
+        cleaned[len(prefix) :], allow_none=False
+    )
+
+
+def machine_comparable_property_version_policy(value: str) -> bool:
+    """Require an active property framework policy with deterministic comparison."""
+
+    cleaned = clean_cell(value)
+    if not valid_technology_version_policy(cleaned):
+        return False
+    if cleaned.startswith("EXACT: "):
+        return explicit_value(cleaned.removeprefix("EXACT: "), allow_none=False)
+    if cleaned.startswith("COMPATIBLE_MAJOR: "):
+        return re.fullmatch(r"COMPATIBLE_MAJOR: [1-9]\d*", cleaned) is not None
+    if cleaned.startswith("MINIMUM: "):
+        return parsed_numeric_version(cleaned.removeprefix("MINIMUM: ")) is not None
+    return False
+
+
+def technology_value_is_not_applicable(value: str) -> bool:
+    return clean_cell(value).startswith("NOT_APPLICABLE — ")
+
+
+def technology_contract_value_is_unresolved(value: str) -> bool:
+    """Reject the complete contract sentinel vocabulary in technology cells."""
+
+    cleaned = clean_cell(value)
+    return unresolved(cleaned) or EVIDENCE_PLACEHOLDER_PATTERN.search(cleaned) is not None
+
+
+def valid_technology_selection(value: str) -> bool:
+    """Accept one concrete selection or the one canonical non-applicable form."""
+
+    cleaned = clean_cell(value)
+    if technology_contract_value_is_unresolved(cleaned):
+        return False
+    if technology_value_is_not_applicable(cleaned):
+        reason = cleaned.removeprefix("NOT_APPLICABLE — ")
+        return (
+            explicit_value(reason, allow_none=False)
+            and EVIDENCE_PLACEHOLDER_PATTERN.search(reason) is None
+        )
+    normalized = re.sub(r"[\s_-]+", "_", cleaned.upper())
+    if cleaned.startswith("NOT_APPLICABLE") or normalized in {
+        "N/A",
+        "NA",
+        "NONE",
+        "NOT_APPLICABLE",
+        "DOES_NOT_APPLY",
+    }:
+        return False
+    return explicit_value(cleaned, allow_none=False)
+
+
+def valid_technology_basis_ids(value: str) -> bool:
+    """Require a canonical, duplicate-free comma-space stable-ID list."""
+
+    cleaned = clean_cell(value)
+    if unresolved(cleaned):
+        return False
+    identifiers = cleaned.split(", ")
+    return bool(identifiers) and all(
+        STABLE_CONTRACT_ID.fullmatch(identifier) is not None
+        for identifier in identifiers
+    ) and len(identifiers) == len(set(identifiers))
+
+
+def authoritative_requirement_ids(text: str) -> set[str]:
+    """Return every stable ID in an authoritative requirement table."""
+
+    identifiers: set[str] = set()
+    for table in markdown_tables(text):
+        if not table or tuple(table[0]) != ("ID", "Requirement", "Acceptance criteria"):
+            continue
+        for row in table[2:]:
+            if len(row) == 3 and STABLE_CONTRACT_ID.fullmatch(row[0]) is not None:
+                identifiers.add(row[0])
+    return identifiers
+
+
+def current_prd_basis_ids(
+    text: str,
+    design_revision: str | None,
+) -> set[str]:
+    """Return stable IDs actually declared outside the technology register."""
+
+    identifiers = authoritative_requirement_ids(text)
+    if design_revision is not None:
+        identifiers.add(design_revision)
+    try:
+        document = table_after_heading(text, "## Document status")
+    except ValueError:
+        document = {}
+    for field in (
+        "Current requirements revision",
+        "Current design revision",
+        "Current construction authorization ID",
+    ):
+        value = clean_cell(document.get(field, ""))
+        if STABLE_CONTRACT_ID.fullmatch(value) is not None:
+            identifiers.add(value)
+    technology_headers = list(TECHNOLOGY_DECISION_HEADERS)
+    for table in markdown_tables(text):
+        if not table or table[0] == technology_headers:
+            continue
+        for row in table[2:]:
+            if row and STABLE_CONTRACT_ID.fullmatch(row[0]) is not None:
+                identifiers.add(row[0])
+    return identifiers
+
+
+def _exact_property_ids(value: str) -> list[str]:
+    cleaned = clean_cell(value)
+    if unresolved(cleaned):
+        raise ValueError("property IDs are unresolved")
+    identifiers = [item.strip() for item in cleaned.split(",")]
+    if not identifiers or any(PROPERTY_ID.fullmatch(item) is None for item in identifiers):
+        raise ValueError("property IDs must be comma-separated PROP-nnn IDs")
+    if len(identifiers) != len(set(identifiers)):
+        raise ValueError("property ID list contains duplicates")
+    return identifiers
+
+
+def derive_design_contract(
+    text: str,
+    design_revision: str | None,
+    *,
+    required: bool = False,
+) -> tuple[DesignContract, list[str]]:
+    issues: list[str] = []
+    try:
+        technology_table = contract_table_after_heading(
+            text, TECHNOLOGY_DECISION_HEADING, TECHNOLOGY_DECISION_HEADERS
+        )
+    except ValueError as exc:
+        technology_table = None
+        issues.append(f"Technology decision register: {exc}")
+    try:
+        execution_table = contract_table_after_heading(
+            text, PROPERTY_EXECUTION_HEADING, PROPERTY_EXECUTION_HEADERS
+        )
+    except ValueError as exc:
+        execution_table = None
+        issues.append(f"Property execution contract: {exc}")
+
+    both_missing = technology_table is None and execution_table is None and not issues
+    if technology_table is None:
+        issues.append(f"Missing {TECHNOLOGY_DECISION_HEADING}")
+    if execution_table is None:
+        issues.append(f"Missing {PROPERTY_EXECUTION_HEADING}")
+
+    technologies: list[TechnologyDecision] = []
+    seen_technology_ids: set[str] = set()
+    concern_counts: dict[str, int] = {}
+    allowed_basis_ids = current_prd_basis_ids(text, design_revision)
+    if technology_table is not None:
+        if not technology_table.rows:
+            issues.append("Technology decision register has no stored rows")
+        for row in technology_table.rows:
+            decision = TechnologyDecision(*row)
+            technologies.append(decision)
+            if TECHNOLOGY_DECISION_ID.fullmatch(decision.decision_id) is None:
+                issues.append(f"Invalid technology decision ID {decision.decision_id!r}")
+            elif decision.decision_id in seen_technology_ids:
+                issues.append(f"Duplicate technology decision ID {decision.decision_id}")
+            seen_technology_ids.add(decision.decision_id)
+            if TECHNOLOGY_CONCERN.fullmatch(decision.concern) is None:
+                issues.append(
+                    f"{decision.decision_id}: invalid technology concern {decision.concern!r}"
+                )
+            concern_counts[decision.concern] = concern_counts.get(decision.concern, 0) + 1
+            if any(technology_contract_value_is_unresolved(cell) for cell in row):
+                issues.append(f"{decision.decision_id}: unresolved technology decision cell")
+            if not unresolved(decision.selection) and not valid_technology_selection(
+                decision.selection
+            ):
+                issues.append(
+                    f"{decision.decision_id}: invalid selection {decision.selection!r}; "
+                    "use NOT_APPLICABLE — <reason> when the concern does not apply"
+                )
+            if not unresolved(decision.version_policy) and not valid_technology_version_policy(
+                decision.version_policy
+            ):
+                issues.append(
+                    f"{decision.decision_id}: invalid version policy {decision.version_policy!r}"
+                )
+            if (
+                not unresolved(decision.selection)
+                and not unresolved(decision.version_policy)
+                and technology_value_is_not_applicable(decision.selection)
+                != technology_value_is_not_applicable(decision.version_policy)
+            ):
+                issues.append(
+                    f"{decision.decision_id}: Selection and Version policy must both "
+                    "use NOT_APPLICABLE — <reason>, or both be applicable"
+                )
+            if not unresolved(decision.source) and decision.source not in TECHNOLOGY_SOURCES:
+                issues.append(f"{decision.decision_id}: invalid source {decision.source!r}")
+            if not unresolved(decision.basis_ids):
+                if not valid_technology_basis_ids(decision.basis_ids):
+                    issues.append(
+                        f"{decision.decision_id}: Basis IDs must be exact comma-separated "
+                        "stable IDs without prose or duplicates"
+                    )
+                else:
+                    basis_ids = decision.basis_ids.split(", ")
+                    unknown_basis_ids = [
+                        identifier
+                        for identifier in basis_ids
+                        if identifier not in allowed_basis_ids
+                    ]
+                    if unknown_basis_ids:
+                        issues.append(
+                            f"{decision.decision_id}: Basis IDs are not current PRD IDs: "
+                            + ", ".join(unknown_basis_ids)
+                        )
+                    if design_revision is not None and design_revision not in basis_ids:
+                        issues.append(
+                            f"{decision.decision_id}: Basis IDs must include current "
+                            f"design revision {design_revision}"
+                        )
+        for concern in REQUIRED_TECHNOLOGY_CONCERNS:
+            count = concern_counts.get(concern, 0)
+            if count != 1:
+                issues.append(
+                    f"Technology concern {concern} must appear exactly once; found {count}"
+                )
+
+    executions: list[PropertyExecution] = []
+    seen_execution_ids: set[str] = set()
+    if execution_table is not None:
+        for row in execution_table.rows:
+            execution = PropertyExecution(*row)
+            executions.append(execution)
+            if PROPERTY_ID.fullmatch(execution.property_id) is None:
+                issues.append(f"Invalid property execution ID {execution.property_id!r}")
+            elif execution.property_id in seen_execution_ids:
+                issues.append(f"Duplicate property execution ID {execution.property_id}")
+            seen_execution_ids.add(execution.property_id)
+            if TECHNOLOGY_DECISION_ID.fullmatch(execution.framework_tech_id) is None:
+                issues.append(
+                    f"{execution.property_id}: invalid Framework TECH ID {execution.framework_tech_id!r}"
+                )
+            if any(unresolved(cell) for cell in row):
+                issues.append(f"{execution.property_id}: unresolved property execution cell")
+            if not valid_property_execution_command(execution.exact_command):
+                issues.append(
+                    f"{execution.property_id}: Exact command must be one explicit "
+                    "local command, not prose or placeholder content"
+                )
+            if not unresolved(execution.run_target_time_bound):
+                try:
+                    parse_property_run_target(execution.run_target_time_bound)
+                except ValueError as exc:
+                    issues.append(f"{execution.property_id}: {exc}")
+            if not unresolved(
+                execution.seed_or_reproduction_format
+            ) and not valid_replay_format_contract(
+                execution.seed_or_reproduction_format
+            ):
+                issues.append(
+                    f"{execution.property_id}: Seed or reproduction format must "
+                    "declare a seed or exact-command replay mode"
+                )
+            if execution.evidence_destination != PROPERTY_TEST_EVIDENCE_DESTINATION:
+                issues.append(
+                    f"{execution.property_id}: Evidence destination must be exactly "
+                    f"{PROPERTY_TEST_EVIDENCE_DESTINATION}"
+                )
+
+    technology_by_id = {
+        decision.decision_id: decision for decision in technologies
+    }
+    for execution in executions:
+        property_technology = technology_by_id.get(execution.framework_tech_id)
+        if (
+            property_technology is None
+            or property_technology.concern != "PROPERTY_TESTING"
+        ):
+            issues.append(
+                f"{execution.property_id}: Framework TECH ID must reference the PROPERTY_TESTING decision"
+            )
+            continue
+        if technology_value_is_not_applicable(
+            property_technology.selection
+        ) or technology_value_is_not_applicable(property_technology.version_policy):
+            issues.append(
+                f"{property_technology.decision_id}: active property execution cannot "
+                "use a NOT_APPLICABLE PROPERTY_TESTING selection or version policy"
+            )
+        elif not machine_comparable_property_version_policy(
+            property_technology.version_policy
+        ):
+            issues.append(
+                f"{property_technology.decision_id}: active property execution "
+                "requires an EXACT, COMPATIBLE_MAJOR, or numeric MINIMUM version policy"
+            )
+
+    try:
+        applicability_table = contract_table_in_section(
+            text, PROPERTY_SPECIFICATION_HEADING, PROPERTY_APPLICABILITY_HEADERS
+        )
+        definition_table = contract_table_in_section(
+            text, PROPERTY_SPECIFICATION_HEADING, PROPERTY_DEFINITION_HEADERS
+        )
+    except ValueError as exc:
+        applicability_table = definition_table = None
+        issues.append(f"Property-based testing specification: {exc}")
+    if applicability_table is None:
+        issues.append("Missing exact property applicability table")
+    if definition_table is None:
+        issues.append("Missing exact property definition table")
+
+    applicable_property_ids: set[str] = set()
+    applicable_requirements_by_property: dict[str, set[str]] = {}
+    classified_requirement_ids: set[str] = set()
+    if applicability_table is not None:
+        seen_requirements: set[str] = set()
+        for requirement_id, applicability, reason_or_ids in applicability_table.rows:
+            if unresolved(requirement_id) or unresolved(applicability) or unresolved(reason_or_ids):
+                issues.append("Property applicability row contains unresolved cells")
+                continue
+            if requirement_id in seen_requirements:
+                issues.append(f"Duplicate property applicability requirement {requirement_id}")
+            seen_requirements.add(requirement_id)
+            if STABLE_CONTRACT_ID.fullmatch(requirement_id) is None:
+                issues.append(
+                    f"Invalid property applicability requirement ID {requirement_id!r}"
+                )
+                continue
+            classified_requirement_ids.add(requirement_id)
+            if applicability == "APPLICABLE":
+                try:
+                    property_ids = _exact_property_ids(reason_or_ids)
+                    applicable_property_ids.update(property_ids)
+                    for property_id in property_ids:
+                        applicable_requirements_by_property.setdefault(
+                            property_id, set()
+                        ).add(requirement_id)
+                except ValueError as exc:
+                    issues.append(f"{requirement_id}: {exc}")
+            elif applicability == "NOT_APPLICABLE":
+                if (
+                    not explicit_value(reason_or_ids, allow_none=False)
+                    or EVIDENCE_PLACEHOLDER_PATTERN.search(reason_or_ids) is not None
+                ):
+                    issues.append(
+                        f"{requirement_id}: NOT_APPLICABLE requires a concrete reason"
+                    )
+            else:
+                issues.append(
+                    f"{requirement_id}: applicability must be APPLICABLE or NOT_APPLICABLE"
+                )
+        required_classifications = authoritative_requirement_ids(text)
+        missing_classifications = sorted(
+            required_classifications - classified_requirement_ids
+        )
+        unknown_classifications = sorted(
+            classified_requirement_ids - required_classifications
+        )
+        if missing_classifications:
+            issues.append(
+                "Property applicability is missing current requirement IDs: "
+                + ", ".join(missing_classifications)
+            )
+        if unknown_classifications:
+            issues.append(
+                "Property applicability references non-requirement IDs: "
+                + ", ".join(unknown_classifications)
+            )
+
+    definitions: dict[str, tuple[str, ...]] = {}
+    if definition_table is not None:
+        for row in definition_table.rows:
+            property_id = row[0]
+            if PROPERTY_ID.fullmatch(property_id) is None:
+                issues.append(f"Invalid property definition ID {property_id!r}")
+                continue
+            if property_id in definitions:
+                issues.append(f"Duplicate property definition ID {property_id}")
+            definitions[property_id] = row
+            for header, value in zip(PROPERTY_DEFINITION_HEADERS[2:], row[2:]):
+                if (
+                    not explicit_value(value, allow_none=False)
+                    or EVIDENCE_PLACEHOLDER_PATTERN.search(value) is not None
+                ):
+                    issues.append(
+                        f"{property_id}: {header} must be concrete semantic content, "
+                        "not a placeholder or sentinel"
+                    )
+    extra_definition_ids = sorted(set(definitions) - applicable_property_ids)
+    if extra_definition_ids:
+        issues.append(
+            "Property definitions are not referenced as APPLICABLE: "
+            + ", ".join(extra_definition_ids)
+        )
+    for property_id in sorted(applicable_property_ids):
+        definition = definitions.get(property_id)
+        if definition is None:
+            issues.append(f"{property_id}: applicable property has no definition")
+        elif any(unresolved(cell) for cell in definition):
+            issues.append(f"{property_id}: applicable property definition is unresolved")
+        else:
+            expected_requirement_ids = sorted(
+                applicable_requirements_by_property.get(property_id, set())
+            )
+            expected_requirement_value = ", ".join(expected_requirement_ids)
+            if definition[1] != expected_requirement_value:
+                issues.append(
+                    f"{property_id}: Requirement IDs must exactly match the "
+                    "applicability table's current inverse mapping: "
+                    f"{expected_requirement_value}"
+                )
+
+    execution_ids = {execution.property_id for execution in executions}
+    for property_id in sorted(applicable_property_ids - execution_ids):
+        issues.append(f"{property_id}: applicable property has no execution row")
+    for property_id in sorted(execution_ids - applicable_property_ids):
+        issues.append(f"{property_id}: execution row is not referenced as APPLICABLE")
+
+    canonical_sha256: str | None = None
+    if (
+        technology_table is not None
+        and applicability_table is not None
+        and definition_table is not None
+        and execution_table is not None
+    ):
+        canonical_sha256 = "sha256:" + hashlib.sha256(
+            technology_table.canonical_bytes
+            + applicability_table.canonical_bytes
+            + definition_table.canonical_bytes
+            + execution_table.canonical_bytes
+        ).hexdigest()
+    status = (
+        "UNINITIALIZED"
+        if both_missing and not required
+        else "READY"
+        if not issues
+        else "BLOCKED"
+    )
+    return (
+        DesignContract(
+            status=status,
+            design_revision=design_revision,
+            technology_decisions=tuple(technologies),
+            property_execution=tuple(executions),
+            canonical_sha256=canonical_sha256,
+        ),
+        issues,
+    )
 
 
 def canonical_envelope_sha256(prd_text: str) -> str:
@@ -2110,6 +3649,7 @@ def validate_construction_envelope(
     fields: dict[str, str],
     selections: dict[str, str | None],
     cost_posture: str,
+    design_contract: DesignContract,
 ) -> None:
     missing = sorted(ENVELOPE_EXPLICIT_FIELDS - set(envelope))
     if missing:
@@ -2162,8 +3702,34 @@ def validate_construction_envelope(
             ctx.error("GATE_B_ENVELOPE", "Authorized ID basis must include the current REQ revision", PRD_FILE)
         if fields.get("design_revision") != authorized_ids[1]:
             ctx.error("GATE_B_ENVELOPE", "Authorized ID basis must include the current DES revision", PRD_FILE)
+        required_scope_ids = {
+            decision.decision_id for decision in design_contract.technology_decisions
+        }
+        required_scope_ids.update(
+            execution.property_id for execution in design_contract.property_execution
+        )
+        missing_scope_ids = sorted(required_scope_ids - set(authorized_ids[2:]))
+        if missing_scope_ids:
+            ctx.error(
+                "GATE_B_ENVELOPE",
+                "Authorized SCOPE_IDS are missing current design contract IDs: "
+                + ", ".join(missing_scope_ids),
+                PRD_FILE,
+            )
     except ValueError as exc:
         ctx.error("GATE_B_ENVELOPE", str(exc), PRD_FILE)
+
+    if (
+        design_contract.status != "READY"
+        or design_contract.canonical_sha256 is None
+        or envelope.get("Design contract SHA-256")
+        != design_contract.canonical_sha256
+    ):
+        ctx.error(
+            "GATE_B_DESIGN_CONTRACT_HASH",
+            "Construction envelope Design contract SHA-256 must equal the current derived design contract hash",
+            PRD_FILE,
+        )
 
     if envelope.get("Autonomous construction") not in {"ALLOWED", "PROHIBITED"}:
         ctx.error("GATE_B_ENVELOPE", "Autonomous construction must be ALLOWED or PROHIBITED", PRD_FILE)
@@ -2315,10 +3881,10 @@ def validate_readiness_card(
 def validate_prd(
     ctx: Context,
     state: dict[str, Any],
-) -> tuple[dict[str, str], dict[str, str], dict[str, str], bool]:
+) -> tuple[dict[str, str], dict[str, str], dict[str, str], bool, DesignContract]:
     text = ctx.texts.get(PRD_FILE) or safe_read_text(ctx, PRD_FILE)
     if text is None:
-        return {}, {}, {}, False
+        return {}, {}, {}, False, DesignContract()
     try:
         document = table_after_heading(text, "## Document status")
         workload = table_after_heading(text, "## 1. Workload profile")
@@ -2335,7 +3901,7 @@ def validate_prd(
         marked_receipt(text, "gate-b")
     except ValueError as exc:
         ctx.error("PRD_STRUCTURE", str(exc), PRD_FILE)
-        return {}, {}, {}, False
+        return {}, {}, {}, False, DesignContract()
 
     project = state.get("project", {})
     lifecycle = state.get("lifecycle", {})
@@ -2406,6 +3972,15 @@ def validate_prd(
         "READY_FOR_OWNER_APPROVAL",
     }
     gate_b_agent_ready = gate_b_agent.get("Agent recommendation") == "READY_FOR_CONSTRUCTION_APPROVAL"
+    design_contract_required = gate_b_agent_ready or gate_b_ready_or_current
+    design_contract, design_contract_issues = derive_design_contract(
+        text,
+        fields.get("design_revision"),
+        required=design_contract_required,
+    )
+    if design_contract_required:
+        for issue in design_contract_issues:
+            ctx.error("DESIGN_CONTRACT_INVALID", issue, PRD_FILE)
     card_cost_posture = clean_cell(gate_a_card.get("Cost posture", ""))
     if gate_a_agent_ready or gate_a_ready_or_current:
         validate_readiness_card(ctx, gate_a_card, GATE_A_READINESS_FIELDS, "GATE_A")
@@ -2421,6 +3996,22 @@ def validate_prd(
             )
     if gate_b_agent_ready or gate_b_ready_or_current:
         validate_readiness_card(ctx, gate_b_card, GATE_B_READINESS_FIELDS, "GATE_B")
+        expected_technology_ids = ", ".join(
+            decision.decision_id
+            for decision in design_contract.technology_decisions
+        )
+        if (
+            not expected_technology_ids
+            or gate_b_card.get("Technology/toolchains/version policy")
+            != expected_technology_ids
+        ):
+            ctx.error(
+                "GATE_B_READINESS_CARD",
+                "Technology/toolchains/version policy must exactly enumerate the "
+                "current technology decision IDs in register order: "
+                + (expected_technology_ids or "NONE"),
+                PRD_FILE,
+            )
         if gate_b_card.get("Outstanding gaps") != "NONE":
             ctx.error("GATE_B_READINESS_CARD", "Gate B readiness requires Outstanding gaps NONE", PRD_FILE)
     if gate_a_agent_ready and fields["gate_a"] == "BLOCKED":
@@ -2570,6 +4161,7 @@ def validate_prd(
             fields,
             selections,
             str(project.get("cost_posture", "")),
+            design_contract,
         )
 
     if fields["gate_b"] == "APPROVED_FOR_CONSTRUCTION":
@@ -2627,7 +4219,13 @@ def validate_prd(
         except ValueError as exc:
             ctx.error("GATE_B_RECEIPT_MISMATCH", str(exc), PRD_FILE)
 
-    return fields, envelope, selections, requirements_present or gate_b_agent_ready
+    return (
+        fields,
+        envelope,
+        selections,
+        requirements_present or gate_b_agent_ready,
+        design_contract,
+    )
 
 
 def path_boundary_contains(allowed: str, requested: str) -> bool:
@@ -2782,7 +4380,11 @@ def validate_tasks_against_envelope(
 
         sections, _duplicates = inspect_task_sections(task.block)
         referenced_ids = set(ID_LIKE.findall(task.metadata.get("Requirements", "")))
-        referenced_ids.update(ID_LIKE.findall(task.metadata.get("Design", "")))
+        referenced_ids.update(
+            item
+            for item in ID_LIKE.findall(task.metadata.get("Design", ""))
+            if TECHNOLOGY_DECISION_ID.fullmatch(item) is None
+        )
         referenced_ids.update(ID_LIKE.findall(sections.get("Outcome", "")))
         outside_ids = sorted(referenced_ids - authorized_ids)
         if outside_ids:
@@ -3319,6 +4921,7 @@ def validate_tasks(
     state: dict[str, Any],
     prd_fields: dict[str, str],
     envelope: dict[str, str],
+    design_contract: DesignContract,
 ) -> TaskSummary:
     summary = TaskSummary()
     text = ctx.texts.get(TASKS_FILE) or safe_read_text(ctx, TASKS_FILE)
@@ -3431,10 +5034,42 @@ def validate_tasks(
 
     verify_text = ctx.texts.get(VERIFY_FILE) or safe_read_text(ctx, VERIFY_FILE)
     try:
-        tasks, _by_id, ready = validate_task_records(text, snapshot, verify_text)
+        approved_tech_ids = {
+            decision.decision_id
+            for decision in design_contract.technology_decisions
+        }
+        property_execution_by_id = {
+            execution.property_id: execution
+            for execution in design_contract.property_execution
+        }
+        technology_decisions_by_id = {
+            decision.decision_id: decision
+            for decision in design_contract.technology_decisions
+        }
+        tasks, _by_id, ready = validate_task_records(
+            text,
+            snapshot,
+            verify_text,
+            approved_tech_ids,
+            property_execution_by_id,
+            technology_decisions_by_id,
+        )
     except ValueError as exc:
         ctx.error("TASK_GRAPH_INVALID", str(exc), TASKS_FILE)
         return summary
+
+    missing_property_ids = missing_current_property_task_coverage(
+        tasks,
+        summary.plan_state,
+        property_execution_by_id,
+    )
+    if missing_property_ids:
+        ctx.error(
+            "TASK_PROPERTY_COVERAGE",
+            "CURRENT task plan does not cover approved property execution IDs: "
+            + ", ".join(missing_property_ids),
+            TASKS_FILE,
+        )
 
     if summary.plan_revision is None and tasks:
         ctx.error("TASK_PLAN_STATE", "UNINITIALIZED task plan contains task blocks", TASKS_FILE)
@@ -3612,7 +5247,13 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
             manifest=manifest,
             state=state,
         )
-    prd_fields, envelope, _selections, requirements_present = validate_prd(ctx, state)
+    (
+        prd_fields,
+        envelope,
+        _selections,
+        requirements_present,
+        design_contract,
+    ) = validate_prd(ctx, state)
     aws_core_rows: dict[tuple[str, str], AwsCoreEvidenceRow] = {}
     verify_text = ctx.texts.get(VERIFY_FILE) or safe_read_text(ctx, VERIFY_FILE)
     if verify_text is not None:
@@ -3620,7 +5261,7 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
             aws_core_rows = parse_aws_core_evidence(verify_text)
         except ValueError as exc:
             ctx.error("AWS_CORE_EVIDENCE_STRUCTURE", str(exc), VERIFY_FILE)
-    tasks = validate_tasks(ctx, state, prd_fields, envelope)
+    tasks = validate_tasks(ctx, state, prd_fields, envelope, design_contract)
     release_decision = validate_release_decision(ctx)
     validate_placeholders(ctx)
 
@@ -3636,11 +5277,17 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
         "PENDING_OWNER_APPROVAL",
         "APPROVED_FOR_CONSTRUCTION",
     }:
+        approved_tech_ids = {
+            decision.decision_id
+            for decision in design_contract.technology_decisions
+        }
         require_aws_core_phase_evidence(
             ctx,
             aws_core_rows,
             "DESIGN-10",
             expected_binding=prd_fields.get("design_revision"),
+            expected_design_revision=prd_fields.get("design_revision"),
+            approved_tech_ids=approved_tech_ids,
         )
     lifecycle_state, next_prompt = derive_route(
         gate_a,
@@ -3667,6 +5314,11 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
                 aws_core_rows,
                 "AWS-10",
                 expected_binding=artifact_binding,
+                expected_design_revision=prd_fields.get("design_revision"),
+                approved_tech_ids={
+                    decision.decision_id
+                    for decision in design_contract.technology_decisions
+                },
             )
             aws_execution_planning_ready = not aws_10_issues
     if next_prompt == "AWS-10":
@@ -3691,6 +5343,7 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
         release_decision=release_decision,
         envelope=envelope,
         aws_execution_planning_ready=aws_execution_planning_ready,
+        design_contract=design_contract,
     )
 
 
@@ -3725,6 +5378,7 @@ def build_report(
     release_decision: str = "NOT_READY",
     envelope: dict[str, str] | None = None,
     aws_execution_planning_ready: bool = False,
+    design_contract: DesignContract | None = None,
 ) -> dict[str, Any]:
     manifest = manifest or {}
     state = state or {}
@@ -3734,6 +5388,13 @@ def build_report(
         state.get("lifecycle") if isinstance(state.get("lifecycle"), dict) else {}
     )
     envelope = envelope or {}
+    if design_contract is None:
+        design_contract = DesignContract(
+            design_revision=(
+                prd_fields.get("design_revision")
+                or lifecycle.get("design_revision")
+            )
+        )
     if ctx.template_source:
         classification = "TEMPLATE_SOURCE"
     elif setup.get("status") == "UNCONFIGURED_TEMPLATE":
@@ -3814,6 +5475,7 @@ def build_report(
             "design_revision": prd_fields.get("design_revision"),
             "construction_authorization": prd_fields.get("construction_authorization"),
         },
+        "design_contract": design_contract.to_dict(),
         "tasks": {
             "total": tasks.total,
             "ready": len(tasks.ready),
