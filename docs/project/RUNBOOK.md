@@ -33,6 +33,7 @@ boundary; it does not create one.
 | Region and environment | {{AWS_REGION}} / TODO |
 | Stack, application, and exact resources | TODO / `NONE` |
 | Approved operation and artifact/change set | TODO / `NONE` |
+| IaC plan/change-set binding | TODO / `NONE` |
 | Planning cost posture | {{COST_POSTURE}} |
 | Expected billing dimensions and exact mutation cost ceiling | TODO / `NONE` |
 | Rollback boundary | TODO / `NONE` |
@@ -90,6 +91,7 @@ Account: <12-digit account ID or approved alias>
 Region: <AWS Region>
 Environment: <non-production or production>
 Artifact digest: <immutable digest>
+IaC plan/change-set binding: TYPE: <CLOUDFORMATION_CHANGE_SET|TERRAFORM_PLAN|CONTAINER_IMAGE|OTHER>; IDENTIFIER: <exact identifier>; DIGEST: sha256:<64 lowercase hex>
 Stack, application, and resources: <exact boundary>
 Allowed operations: <exact create/update/delete operations>
 Cost ceiling: <finite positive ISO-currency amount, for example USD: 20.00>
@@ -117,10 +119,14 @@ Approver: <name/handle>
 ```
 
 The owner's exact message remains the authorization source. Before mutation,
-copy it verbatim into the protected external-operation journal named by the
-construction envelope and record its stable source, observed ISO 8601 time, and
-SHA-256 in docs/project/VERIFY.md's action-authorization evidence table. The copy and mirror
-do not create or widen authority. A missing durable source blocks mutation.
+copy it verbatim into the matching uniquely marked deployment or teardown
+receipt block in docs/project/VERIFY.md and the protected external-operation journal named
+by the construction envelope. Recompute SHA-256 from the exact normalized
+marked receipt; do not copy or self-assert a digest. Record the same `Role or
+profile`, `Approver`, stable source, observed ISO 8601 time, and recomputed
+digest in docs/project/VERIFY.md's action-authorization evidence table. The copy and
+mirror do not create or widen authority. A missing durable source, mismatched
+role/profile or approver, or non-resolving receipt blocks mutation.
 
 ## 1. Environments
 
@@ -134,6 +140,9 @@ do not create or widen authority. A missing durable source blocks mutation.
 
 - Required tools and versions: TODO
 - Required AWS profile or role: TODO
+- Workload identity: Prefer narrowly scoped GitHub Actions OIDC with short-lived
+  role credentials over persistent AWS secrets when GitHub-hosted automation is
+  approved; otherwise name the exact approved temporary-credential method.
 - Required permissions: TODO
 - Required environment variables: TODO
 - Required secret locations: TODO
@@ -167,6 +176,18 @@ Confirm:
 - current lane and complete action authorization when required;
 - no protected brownfield ownership, drift, or preservation conflict.
 
+Run IAM Access Analyzer `ValidatePolicy` only here, after current Gate B, as an
+authenticated read-only policy-analysis call under the named scope. Record its
+findings; do not treat access-analyzer availability as deployment authority.
+Creating a CloudFormation change set is not a read-only preflight action: it
+creates account-side state and requires exact mutation authority through
+AWS-20. AWS-10 may inspect an existing change set created under valid authority,
+or review a local deterministic diff/plan while creation remains pending.
+
+Primary references: [IAM Access Analyzer policy validation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-analyzer-policy-validation.html),
+[CloudFormation change sets](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html),
+and [GitHub OIDC federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html).
+
 Perform this stage through AWS-10. Execute deployment or corrective mutation
 only through AWS-20, reconcile it through AWS-30, review residual resources
 through AWS-40, and execute teardown only through AWS-50. BUILD-10, BUILD-20,
@@ -183,6 +204,11 @@ Add workload-specific read-only checks:
 ```
 
 ## 4. Local validation
+
+Use only the applicable validation path selected in the PRD's IaC and delivery
+validation contract. Every observed row in `docs/project/VERIFY.md` uses
+`COMMAND: <single local command>` or `API: <service>.<Operation>` and binds the
+current TECH IDs and immutable artifact/plan.
 
 ```bash
 # Formatting
@@ -221,7 +247,10 @@ The objective is to minimize total expected cost and idle spend, not to consume
 an available budget. Do not reduce required identity, encryption, secrets,
 validation, isolation, recovery, logging, or evidence controls for savings.
 Treat the ceiling as an authorization boundary, not a guaranteed AWS billing
-stop; retain alerts, teardown, and observed billing checks.
+stop. AWS Budgets and billing data are delayed, alerts may arrive after more
+cost has accrued, and a threshold is not an immediate kill switch. Retain
+alerts, teardown, service-side quotas where suitable, and observed billing
+checks. See [AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html).
 
 ## Brownfield deployment readiness
 
@@ -271,6 +300,7 @@ Record the exact reviewed artifact:
 - operator or workflow identity:
 - construction and AWS action authorization IDs:
 - final read-only plan or change-set identifier:
+- exact artifact and plan/change-set digests:
 
 Deployment commands:
 
@@ -291,6 +321,15 @@ plan is fully contained in the active boundary. Stop on any mismatch, unexpected
 replacement, deletion, IAM/network exposure, shared-resource effect, retained
 data impact, cost increase, alarm, or rollback trigger. Do not improvise broader
 permissions or resources.
+
+For CloudFormation, list `CreateChangeSet` and `ExecuteChangeSet` as separate
+allowed operations. Creation is itself a mutation; execution is allowed only
+when the reviewed identifier and canonical plan digest still match the exact
+receipt. For Terraform, bind the saved plan digest to the reviewed configuration,
+lockfile, variables, state/refresh mode, account, Region, and environment. For
+container delivery, bind the immutable image digest and selected dependency,
+SBOM, and image-validation evidence. Prefer an approved GitHub OIDC role with
+short-lived credentials to persistent GitHub AWS secrets.
 
 Checkpoint before the first mutation and after each bounded external action.
 Record actual identifiers and results in `docs/project/VERIFY.md`; a submitted request is not
@@ -422,6 +461,14 @@ shared dependencies, cost effect, approver, and validity window. A deployment,
 rollback, Gate B fast-dev, or tool authorization does not substitute for this
 teardown authorization.
 
+Before execution, derive the expected removal/retention manifest from the
+approved IaC, observed stack state, and retention rules. After each bounded
+action, reconcile that manifest against stack events or equivalent operation
+history, retained resources, created or retained snapshots/backups, and live
+inventory. State the discovery limits explicitly: resource inventory can lag,
+omit unsupported or cross-account/cross-Region resources, and cannot prove
+absence outside the authorized search boundary.
+
 ```bash
 # Dry run or inventory
 TODO
@@ -462,8 +509,12 @@ TODO
 
 Record:
 
+- expected removal/retention manifest and stack/application identifier;
+- stack events or equivalent operation history and terminal status;
 - residual resources;
 - intentional retention;
+- snapshots and backups created, retained, expired, or still pending;
+- inventory/discovery services, account/Region scope, cutoff, and known limits;
 - expected delayed billing records;
 - follow-up date;
 - owner.
@@ -482,7 +533,9 @@ For every deployment, rollback, restore, or teardown, record:
 - remaining evidence gaps.
 
 Also record the current REQ/DES/AUTH and action authorization IDs, coordinator
-checkpoint, changed resources, billable residuals, and whether the observed
-operation state is `SUCCEEDED`, `FAILED`, `PARTIAL`, or `UNKNOWN`. GitHub status
+checkpoint, exact account/Region/environment, resource and operation boundary,
+artifact and plan/change-set binding, cost ceiling/validity period, rollback,
+expiry, changed resources, billable residuals, and whether the observed operation
+state is `SUCCEEDED`, `FAILED`, `PARTIAL`, or `UNKNOWN`. GitHub status
 or comment updates are written only when AUTH permits those exact operations;
 otherwise record `PENDING_SYNC` locally.
