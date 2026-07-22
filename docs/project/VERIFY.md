@@ -102,7 +102,10 @@ Do not record credentials, local plugin/cache paths, usernames, session
 identifiers, hook-trust state or trust-database data, secrets, or private
 machine information. Every passing row also records an ISO 8601 observation
 time and a current binding: the current DES revision for DESIGN-10 or the
-Active evidence scope artifact for AWS-10.
+Active evidence scope artifact for AWS-10. DESIGN-10 uses `DES-0001; TECH:
+TECH-0001, TECH-0002` (or the defined no-impact form). AWS-10 uses `ARTIFACT:
+sha256:<64 lowercase hex>; DES: DES-0001; TECH: TECH-0001, TECH-0002` (or
+`TECH: NONE — no technology/toolchain impact`).
 
 | Phase | Plugin source | Invoked plugin identity | Observed plugin version | Capability | Observation actor | Requested skill | Returned skill identifier | Documentation query | Source references | Advisory Design binding | Credentials inspected | AWS account accessed | Observed at | Evidence binding | Observed status |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -110,6 +113,30 @@ Active evidence scope artifact for AWS-10.
 | `DESIGN-10` | TODO | TODO | TODO | `search_documentation` | TODO | — | — | TODO | TODO | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
 | `AWS-10` | TODO | TODO | TODO | `retrieve_skill` | TODO | TODO | TODO | — | — | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
 | `AWS-10` | TODO | TODO | TODO | `search_documentation` | TODO | — | — | TODO | TODO | TODO | `NO` | `NO` | TODO | TODO | `NOT_STARTED` |
+
+## IaC validation evidence
+
+Record only observed checks selected by the PRD's current IaC and delivery
+validation contract. `TECH IDs` is `TECH: TECH-nnnn, TECH-nnnn` in sorted,
+unique order. `Validation method` is exactly `CLOUDFORMATION`, `SAM`, `CDK`,
+`TERRAFORM`, `CONTAINER`, or `OTHER`; `OTHER` requires its exact equivalent in
+a referenced TECH Validation cell. `Exact command or API` is `COMMAND: <single
+local command>` or `API: <service>.<Operation>`. A local/static row uses exactly
+`NOT_APPLICABLE — local/static validation` for account, Region, and environment.
+
+An observed binding is exactly `ARTIFACT: sha256:<64 lowercase hex>; PLAN:
+sha256:<64 lowercase hex>`, `ARTIFACT: sha256:<64 lowercase hex>; CHANGE_SET:
+<exact ARN or ID>; PLAN: sha256:<64 lowercase hex>`, or `ARTIFACT: sha256:<64
+lowercase hex>; PLAN: NOT_APPLICABLE — local/static validation`.
+
+| Phase | TECH IDs | Validation method | Exact command or API | Artifact / plan / change-set binding | AWS account | AWS Region | AWS environment | Result | Observed at | Durable source |
+|---|---|---|---|---|---|---|---|---|---|---|
+| TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | `NOT_STARTED` | TODO | TODO |
+
+Use AWS-10 for authenticated `API: accessanalyzer.ValidatePolicy` evidence.
+Use AWS-20 for `API: cloudformation.CreateChangeSet`; creating a change set is
+a mutation even though executing it is separate. Do not invent a universal
+scanner or substitute a tool not selected by the current TECH register.
 
 ## Task completion evidence
 
@@ -191,6 +218,7 @@ evidence-based readiness check performed within the active authorization.
 | Task graph | Dependencies validate, waivers are explicit, and required tasks are complete | `NOT_STARTED` |
 | Build | Formatting, linting, typing, tests, and packaging pass | `NOT_STARTED` |
 | Infrastructure | IaC, policy, and brownfield drift checks pass | `NOT_STARTED` |
+| IaC delivery contract | Every applicable TECH-selected IaC, policy, plan, SBOM, and image check has current attributable evidence | `NOT_STARTED` |
 | Security | No unresolved release-blocking security finding remains | `NOT_STARTED` |
 | Reliability | Failure, recovery, idempotency, and rollback evidence passes | `NOT_STARTED` |
 | Performance | Required targets pass for the identified artifact and environment | `NOT_STARTED` |
@@ -227,18 +255,89 @@ or unknown state before continuing.
 
 This table proves which exact owner message was checked before an external
 mutation; it does not itself authorize an action or widen Gate B. The stable
-source must resolve to the complete verbatim receipt defined in docs/project/RUNBOOK.md and
-the prompt pack.
+source must resolve to the applicable complete verbatim receipt in the uniquely
+marked block below, and that receipt must equal the owner's exact message after
+trimming only surrounding whitespace. `Role or profile` and `Approver` must
+match the receipt and current approved boundary. Recompute `Verbatim receipt
+SHA-256` from the exact normalized marked receipt every time any receipt value
+changes; a copied, stale, self-authored, or independently typed digest is not
+authorization.
 
-| Action | Authorization ID | Construction AUTH | Stable owner-message source | Observed at | Verbatim receipt SHA-256 | Preflight evidence | Identity and boundary match | Result |
-|---|---|---|---|---|---|---|---|---|
-| Deployment | TODO | `AUTH-0001` | TODO | TODO (ISO 8601 with timezone) | TODO | TODO / `NONE` | TODO | `NOT_STARTED` |
-| Teardown | TODO | `AUTH-0001` | TODO | TODO (ISO 8601 with timezone) | TODO | TODO / `NONE` | TODO | `NOT_STARTED` |
+| Action | Authorization ID | Construction AUTH | Role or profile | Artifact digest | IaC plan/change-set binding | Account / Region / environment | Resources and operations | Cost ceiling and validity | Rollback boundary | Stable owner-message source | Approver | Observed at | Verbatim receipt SHA-256 | Preflight evidence | Identity and boundary match | Result |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Deployment | TODO | `AUTH-0001` | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO (ISO 8601 with timezone) | TODO | TODO / `NONE` | TODO | `NOT_STARTED` |
+| Teardown | TODO | `AUTH-0001` | TODO | `NOT_APPLICABLE — teardown binds the observed inventory` | `NOT_APPLICABLE — teardown uses its removal/retention manifest` | TODO | TODO | TODO | TODO | TODO | TODO | TODO (ISO 8601 with timezone) | TODO | TODO / `NONE` | TODO | `NOT_STARTED` |
+
+For a deployment row, use `sha256:<64 lowercase hex>` for Artifact digest;
+`TYPE: <CLOUDFORMATION_CHANGE_SET|TERRAFORM_PLAN|CONTAINER_IMAGE|OTHER>;
+IDENTIFIER: <exact identifier>; DIGEST: sha256:<64 lowercase hex>` for the IaC
+binding; `ACCOUNT: <value>; REGION: <value>; ENVIRONMENT: <value>`; `RESOURCES:
+<comma-separated exact list>; OPERATIONS: <comma-separated exact list>`; and
+`COST: <ISO_CURRENCY: amount>; VALID_UNTIL: <ISO 8601 with timezone>`. These
+fields mirror the owner receipt and observed preflight; they do not create
+authority.
+
+Replace every placeholder in exactly one applicable block only after receiving
+that complete owner message. Preserve its line order and punctuation, then
+recompute the table digest from the exact text between the fence lines. A
+deployment receipt never authorizes teardown, and the teardown receipt remains
+separate even when a deployment used `fast-dev`.
+
+<!-- bootstrap:aws-deployment-receipt:start -->
+```text
+AUTHORIZE AWS DEPLOYMENT
+AWS authorization: AWS-AUTH-0001
+Construction authorization: AUTH-0001
+Profile or role: <allowlisted profile or role>
+Account: <12-digit account ID or approved alias>
+Region: <AWS Region>
+Environment: <non-production or production>
+Artifact digest: <immutable digest>
+IaC plan/change-set binding: TYPE: <CLOUDFORMATION_CHANGE_SET|TERRAFORM_PLAN|CONTAINER_IMAGE|OTHER>; IDENTIFIER: <exact identifier>; DIGEST: sha256:<64 lowercase hex>
+Stack, application, and resources: <exact boundary>
+Allowed operations: <exact create/update/delete operations>
+Cost ceiling: <finite positive ISO-currency amount, for example USD: 20.00>
+Rollback boundary: <exact allowed rollback or NONE>
+Valid until: <ISO 8601 time or exact one-operation condition>
+Approver: <name/handle>
+```
+<!-- bootstrap:aws-deployment-receipt:end -->
+
+<!-- bootstrap:aws-teardown-receipt:start -->
+```text
+AUTHORIZE AWS TEARDOWN
+Teardown authorization: TEARDOWN-AUTH-0001
+Construction authorization: AUTH-0001
+Profile or role: <allowlisted profile or role>
+Account: <12-digit account ID or approved alias>
+Region: <AWS Region>
+Environment: <environment>
+Stack, application, and resources to remove: <exact boundary>
+Resources and data to retain: <exact list or NONE>
+Allowed deletion operations: <exact operations>
+Shared dependencies: <exact list or NONE>
+Cost effect: <expected continuing and removed billing dimensions>
+Post-teardown verification: <read-only checks>
+Valid until: <ISO 8601 time or exact one-operation condition>
+Approver: <name/handle>
+```
+<!-- bootstrap:aws-teardown-receipt:end -->
 
 For an AWS mutation, record the authorization source and receipt digest before
 execution, then link the AWS-10 or AWS-40 identity/boundary evidence. Record
 `FAILED` or `BLOCKED` on any mismatch. Deployment evidence is reconciled by
 AWS-30; residual and teardown evidence is reconciled read-only after AWS-50.
+
+## Teardown reconciliation evidence
+
+Separate the expected removal/retention manifest from observed operation
+history and live inventory. An empty inventory result proves only the named
+account, Region, resource types, discovery methods, permissions, and cutoff;
+record every known blind spot rather than claiming global absence.
+
+| Evidence ID | Phase | Expected manifest or stack | Stack events and terminal status | Resources removed | Resources retained | Snapshots and backups | Residual resources | Inventory or discovery limits | Account / Region / environment | Observed at | Durable source | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| EV-0301 | `AWS-40` / `AWS-50` | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | `NOT_STARTED` |
 
 ## Known gaps and accepted risks
 
