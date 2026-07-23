@@ -20,8 +20,13 @@ AWS_CORE_RUNTIME_PACKAGE = "uv"
 AWS_CORE_REQUIRED_CAPABILITIES = ("retrieve_skill", "search_documentation")
 SETUP_ASSISTANT_SCRIPT = "scripts/setup_assistant.py"
 SETUP_STATES = (
-    "LOCAL_PREREQUISITES_REQUIRED",
-    "READY_FOR_INTAKE",
+    "PREREQUISITES_REQUIRED",
+    "CODEX_LOGIN_REQUIRED",
+    "PLATFORM_SANDBOX_REQUIRED",
+    "UV_REQUIRED",
+    "AWS_CORE_REQUIRED",
+    "AWS_CORE_NATIVE_TRUST_REQUIRED",
+    "PREREQUISITES_READY",
 )
 
 REQUIRED_SKILLS = (
@@ -149,7 +154,7 @@ def inspect_repository(root: Path) -> dict[str, Any]:
             "plugin": "aws-core",
             "installation_policy": "OWNER_MANAGED",
             "setup_mode": "INSTRUCTIONS_ONLY",
-            "availability_policy": "DEFERRED_UNTIL_AWS_DESIGN",
+            "availability_policy": "REQUIRED_FOR_FRESH_INITIALIZATION",
             "version_policy": "OFFICIAL_CURRENT_NO_TEMPLATE_PIN",
             "setup_assistant": {
                 "status": "SETUP_ASSISTANCE_AVAILABLE",
@@ -158,8 +163,9 @@ def inspect_repository(root: Path) -> dict[str, Any]:
                 "states": list(SETUP_STATES),
                 "automatic_runtime_installation": False,
                 "package_manager_execution": False,
-                "runtime_probe_execution": False,
+                "runtime_probe_execution": True,
                 "user_state_persisted_in_repository": False,
+                "initialized_resume_skips_prerequisites": True,
             },
             "runtime_verification": {
                 "status": "NOT_CHECKED",
@@ -171,7 +177,8 @@ def inspect_repository(root: Path) -> dict[str, Any]:
                 "required_runtime_command": AWS_CORE_RUNTIME_COMMAND,
                 "runtime_package": AWS_CORE_RUNTIME_PACKAGE,
                 "automatic_runtime_installation": False,
-                "required_at_boot": False,
+                "required_at_boot": True,
+                "required_only_for_fresh_initialization": True,
                 "required_evidence_phases": ["DESIGN-10", "AWS-10"],
             },
         },
@@ -194,7 +201,7 @@ def print_human(report: dict[str, Any]) -> None:
     runtime = toolkit["runtime_verification"]
     print(
         "AWS Core runtime: NOT CHECKED; manage with "
-        f"{runtime['management_command']} when AWS-specific design begins; "
+        f"{runtime['management_command']} during fresh-template prerequisites; "
         f"runtime {runtime['required_runtime_command']} is owner managed"
     )
     for item in report["diagnostics"]:

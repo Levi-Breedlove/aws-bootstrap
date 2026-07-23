@@ -25,7 +25,9 @@ class BootstrapDependencyTests(unittest.TestCase):
         self.assertEqual(toolkit["marketplace_slug"], "aws/agent-toolkit-for-aws")
         self.assertEqual(toolkit["plugin_identity"], "aws-core@agent-toolkit-for-aws")
         self.assertEqual(toolkit["version_policy"], "OFFICIAL_CURRENT_NO_TEMPLATE_PIN")
-        self.assertEqual(toolkit["availability_policy"], "DEFERRED_UNTIL_AWS_DESIGN")
+        self.assertEqual(
+            toolkit["availability_policy"], "REQUIRED_FOR_FRESH_INITIALIZATION"
+        )
         self.assertNotIn("last_tested_version", toolkit)
         self.assertEqual(toolkit["installation_policy"], "OWNER_MANAGED")
         self.assertEqual(toolkit["setup_mode"], "INSTRUCTIONS_ONLY")
@@ -37,13 +39,24 @@ class BootstrapDependencyTests(unittest.TestCase):
         setup = toolkit["setup_assistant"]
         self.assertEqual(
             setup["states"],
-            ["LOCAL_PREREQUISITES_REQUIRED", "READY_FOR_INTAKE"],
+            [
+                "PREREQUISITES_REQUIRED",
+                "CODEX_LOGIN_REQUIRED",
+                "PLATFORM_SANDBOX_REQUIRED",
+                "UV_REQUIRED",
+                "AWS_CORE_REQUIRED",
+                "AWS_CORE_NATIVE_TRUST_REQUIRED",
+                "PREREQUISITES_READY",
+            ],
         )
         self.assertFalse(setup["automatic_runtime_installation"])
         self.assertFalse(setup["package_manager_execution"])
+        self.assertTrue(setup["runtime_probe_execution"])
+        self.assertTrue(setup["initialized_resume_skips_prerequisites"])
 
         runtime = toolkit["runtime_verification"]
-        self.assertFalse(runtime["required_at_boot"])
+        self.assertTrue(runtime["required_at_boot"])
+        self.assertTrue(runtime["required_only_for_fresh_initialization"])
         self.assertEqual(
             runtime["required_evidence_phases"],
             ["DESIGN-10", "AWS-10"],

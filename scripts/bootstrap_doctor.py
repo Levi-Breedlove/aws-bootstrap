@@ -5273,14 +5273,21 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
         gate_b_agent_ready = gate_b_agent.get("Agent recommendation") == "READY_FOR_CONSTRUCTION_APPROVAL"
     except ValueError:
         gate_b_agent_ready = False
+    approved_tech_ids = {
+        decision.decision_id for decision in design_contract.technology_decisions
+    }
+    design_aws_core_issues = aws_core_phase_evidence_issues(
+        aws_core_rows,
+        "DESIGN-10",
+        expected_binding=prd_fields.get("design_revision"),
+        expected_design_revision=prd_fields.get("design_revision"),
+        approved_tech_ids=approved_tech_ids,
+    )
+    design_aws_core_ready = not design_aws_core_issues
     if gate_b_agent_ready or gate_b in {
         "PENDING_OWNER_APPROVAL",
         "APPROVED_FOR_CONSTRUCTION",
     }:
-        approved_tech_ids = {
-            decision.decision_id
-            for decision in design_contract.technology_decisions
-        }
         require_aws_core_phase_evidence(
             ctx,
             aws_core_rows,
@@ -5343,6 +5350,7 @@ def inspect_project(root: Path, *, template_source: bool = False) -> dict[str, A
         release_decision=release_decision,
         envelope=envelope,
         aws_execution_planning_ready=aws_execution_planning_ready,
+        design_aws_core_ready=design_aws_core_ready,
         design_contract=design_contract,
     )
 
@@ -5366,6 +5374,108 @@ def inspect_git_baseline(root: Path) -> str:
     return commit if re.fullmatch(r"[0-9a-fA-F]{40,64}", commit) else "PENDING"
 
 
+def derive_interaction(
+    lifecycle_state: str,
+    next_prompt: str,
+    *,
+    has_errors: bool,
+    diagnostic_codes: list[str],
+    design_aws_core_ready: bool,
+    aws_execution_planning_ready: bool,
+) -> dict[str, Any]:
+    """Derive stable owner interaction metadata without conversational prose."""
+
+    if lifecycle_state in {
+        "INTAKE_REQUIRED",
+        "REQUIREMENTS_ANALYSIS",
+        "REQUIREMENTS_STALE",
+        "WAITING_GATE_A",
+    }:
+        owner_stage = "DEFINE"
+    elif lifecycle_state in {"DESIGN_REQUIRED", "DESIGN_STALE", "WAITING_GATE_B"}:
+        owner_stage = "DESIGN"
+    else:
+        owner_stage = "DELIVER"
+
+    aws_evidence_failure = any(code.startswith("AWS_CORE_") for code in diagnostic_codes)
+    if has_errors or lifecycle_state == "BLOCKED":
+        response_mode = "BLOCKER"
+        state = "BLOCKED"
+        action_kind = "ENABLE_AWS_CORE" if aws_evidence_failure else "FIX_VALIDATION_FAILURE"
+        automatic = False
+        formal_receipt = False
+    elif lifecycle_state == "WAITING_GATE_A":
+        response_mode = "GATE_A"
+        state = "AWAITING_APPROVAL"
+        action_kind = "APPROVE_GATE_A"
+        automatic = False
+        formal_receipt = True
+    elif lifecycle_state == "WAITING_GATE_B":
+        response_mode = "GATE_B"
+        state = "AWAITING_APPROVAL"
+        action_kind = "APPROVE_GATE_B"
+        automatic = False
+        formal_receipt = True
+    elif next_prompt.startswith("AWS-") and aws_execution_planning_ready:
+        response_mode = "AWS_RECEIPT"
+        state = "AWAITING_APPROVAL"
+        action_kind = "AUTHORIZE_AWS_OPERATION"
+        automatic = False
+        formal_receipt = True
+    elif next_prompt.startswith("AWS-"):
+        response_mode = "OWNER_UPDATE"
+        state = "WORKING"
+        action_kind = "NONE_CONTINUE_AUTOMATICALLY"
+        automatic = True
+        formal_receipt = False
+    elif lifecycle_state in {"INTAKE_REQUIRED", "REQUIREMENTS_STALE"}:
+        response_mode = "OWNER_UPDATE"
+        state = "NEEDS_INPUT"
+        action_kind = "ANSWER_OPEN_DECISIONS"
+        automatic = False
+        formal_receipt = False
+    elif lifecycle_state == "RELEASE_VERIFIED":
+        response_mode = "OWNER_UPDATE"
+        state = "COMPLETE"
+        action_kind = "NONE_CONTINUE_AUTOMATICALLY"
+        automatic = False
+        formal_receipt = False
+    else:
+        response_mode = "OWNER_UPDATE"
+        state = "WORKING"
+        action_kind = "NONE_CONTINUE_AUTOMATICALLY"
+        automatic = True
+        formal_receipt = False
+
+    material = owner_stage == "DESIGN" or next_prompt.startswith("AWS-")
+    if not material:
+        evidence_status = "NOT_REQUIRED"
+    elif next_prompt.startswith("AWS-"):
+        evidence_status = "CURRENT" if aws_execution_planning_ready else (
+            "BLOCKED" if has_errors else "REQUIRED"
+        )
+    else:
+        evidence_status = "CURRENT" if design_aws_core_ready else (
+            "BLOCKED" if has_errors else "REQUIRED"
+        )
+
+    return {
+        "owner_stage": owner_stage,
+        "response_mode": response_mode,
+        "state": state,
+        "route_reason_code": lifecycle_state,
+        "owner_action_required": action_kind != "NONE_CONTINUE_AUTOMATICALLY",
+        "owner_action_kind": action_kind,
+        "blocking_ids": sorted(set(diagnostic_codes)) if state == "BLOCKED" else [],
+        "automatic_continuation_allowed": automatic,
+        "formal_receipt_required": formal_receipt,
+        "aws_core": {
+            "materiality": "MATERIAL" if material else "NOT_MATERIAL",
+            "evidence_status": evidence_status,
+        },
+    }
+
+
 def build_report(
     ctx: Context,
     lifecycle_state: str,
@@ -5378,6 +5488,7 @@ def build_report(
     release_decision: str = "NOT_READY",
     envelope: dict[str, str] | None = None,
     aws_execution_planning_ready: bool = False,
+    design_aws_core_ready: bool = False,
     design_contract: DesignContract | None = None,
 ) -> dict[str, Any]:
     manifest = manifest or {}
@@ -5436,8 +5547,17 @@ def build_report(
         and aws_boundary in {"READ_ONLY", "MUTATE_LISTED_RESOURCES"}
         else "NONE"
     )
+    diagnostic_codes = [item.code for item in ctx.diagnostics]
+    interaction = derive_interaction(
+        lifecycle_state,
+        next_prompt,
+        has_errors=ctx.has_errors,
+        diagnostic_codes=diagnostic_codes,
+        design_aws_core_ready=design_aws_core_ready,
+        aws_execution_planning_ready=aws_execution_planning_ready,
+    )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "bootstrap_version": manifest.get(
             "bootstrap_version", state.get("bootstrap_version")
         ),
@@ -5447,6 +5567,7 @@ def build_report(
         "lifecycle_state": lifecycle_state,
         "resume_safe": not ctx.has_errors,
         "next_prompt": next_prompt,
+        "interaction": interaction,
         "project": {
             "name": project.get("name"),
             "region": project.get("region"),

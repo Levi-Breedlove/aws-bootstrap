@@ -11,16 +11,19 @@ Send:
 init template
 ```
 
-Codex welcomes the owner and asks once for:
+For a fresh template, Codex first verifies the CLI login, Git, Python,
+platform sandbox tools, `uvx`, and official AWS Core. Missing dependencies are
+returned together as one owner-run checklist. After they pass, Codex welcomes
+the owner and asks once for:
 
 1. project name;
 2. preferred AWS Region; and
 3. development budget posture.
 
 Use a finite cap with currency when one exists, or answer
-`minimize cost; no hard cap`. Codex initializes or resumes the project, runs
-the doctor, and immediately begins the next lifecycle prompt. A configured
-project never returns to BOOT-00 merely because AWS Core is unavailable.
+`minimize cost; no hard cap`. Codex initializes the project, runs the doctor,
+and immediately begins the next lifecycle prompt. A configured project skips
+fresh prerequisites and resumes its derived stage.
 
 ## Lifecycle
 
@@ -51,9 +54,9 @@ current AWS facts materially affect:
 - reliability, quotas, observability, and cost drivers;
 - release readiness, deployment, rollback, operations, and teardown.
 
-AWS Core is not a BOOT-00 or intake prerequisite. If it is absent at an
-AWS-specific design or operating step, Codex pauses only that step and gives one
-concise setup action. It never repeats completed intake.
+Official AWS Core is a fresh-template prerequisite and is reused when already
+available. After initialization, missing or stale AWS Core evidence pauses only
+the affected material AWS step and never repeats completed setup or intake.
 
 DESIGN-10 and AWS-10 record fresh attributable `retrieve_skill` and
 `search_documentation` results in `docs/project/VERIFY.md`. A generic

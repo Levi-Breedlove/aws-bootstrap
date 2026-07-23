@@ -920,7 +920,7 @@ class BootstrapDoctorTests(unittest.TestCase):
         report = doctor.inspect_project(PROJECT_ROOT, template_source=True)
 
         self.assertTrue(report["ok"], report["diagnostics"])
-        self.assertEqual(report["schema_version"], 1)
+        self.assertEqual(report["schema_version"], 2)
         self.assertEqual(report["bootstrap_version"], "1.1.0")
         self.assertEqual(report["classification"], "TEMPLATE_SOURCE")
         self.assertEqual(report["next_prompt"], "INTAKE-10")

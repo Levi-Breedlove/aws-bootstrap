@@ -2,8 +2,13 @@
 
 Use for BOOT-00, INTAKE-10, REQ-10, and Gate A.
 
-- Initialize dry-run-first or resume the derived stage. Never repeat completed
-  setup questions.
+- Before a fresh-template welcome or write, require the read-only prerequisite
+  result `PREREQUISITES_READY`. Render all missing dependencies as one owner
+  checklist. Never install or persist client state.
+- After prerequisites pass, ask project name, preferred Region, and optional
+  budget exactly once, then initialize dry-run-first.
+- Initialized projects skip prerequisites and resume the derived stage. Never
+  repeat completed setup questions.
 - Ask no more than three related, plain-language owner decisions per response.
 - Separate owner facts, repository facts, recommendations, proposed
   assumptions, and unresolved decisions.

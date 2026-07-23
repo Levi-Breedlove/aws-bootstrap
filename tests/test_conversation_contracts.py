@@ -1,0 +1,141 @@
+from __future__ import annotations
+
+import importlib.util
+import sys
+import unittest
+from pathlib import Path
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = REPOSITORY_ROOT / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+
+def load(name: str, filename: str):
+    path = SCRIPTS / filename
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+setup = load("conversation_setup_assistant", "setup_assistant.py")
+doctor = load("conversation_bootstrap_doctor", "bootstrap_doctor.py")
+presenter = load("conversation_fastlane_presenter", "fastlane_presenter.py")
+
+
+def ready_evidence(**updates: object) -> dict[str, object]:
+    evidence: dict[str, object] = {
+        "repository_ready": True,
+        "codex_cli_available": True,
+        "codex_cli_supported": True,
+        "codex_login_status_supported": True,
+        "codex_login_ready": True,
+        "git_available": True,
+        "python_available": True,
+        "python_version_supported": True,
+        "uvx_available": True,
+        "bubblewrap_required": True,
+        "bubblewrap_available": True,
+        "platform_supported": True,
+        "platform_family": "LINUX",
+        "is_wsl2": False,
+        "pipx_available": True,
+        "winget_available": False,
+        "brew_available": False,
+        "safe_probes_executed": True,
+        "official_plugin_installed": True,
+        "official_plugin_enabled": True,
+        "official_plugin_loaded_in_session": True,
+        "official_plugin_source_verified": True,
+        "observed_marketplace_repository": setup.OFFICIAL_AWS_MARKETPLACE,
+        "observed_plugin_source": setup.OFFICIAL_AWS_MARKETPLACE_NAME,
+        "observed_plugin_identity": setup.OFFICIAL_AWS_CORE_IDENTITY,
+        "native_hook_review_required": False,
+        "native_hook_review_attested": False,
+        "retrieve_skill_result": "PASS",
+        "retrieve_skill_identifier": "aws-serverless",
+        "search_documentation_result": "PASS",
+        "search_documentation_query": "AWS serverless security guidance",
+        "search_documentation_references": [
+            "https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html"
+        ],
+        "credentials_inspected": False,
+        "aws_account_accessed": False,
+    }
+    evidence.update(updates)
+    return evidence
+
+
+class ConversationContractTests(unittest.TestCase):
+    def test_missing_prerequisites_return_one_complete_action_then_ready_welcome(self) -> None:
+        blocked = setup.reduce_prerequisites(
+            ready_evidence(
+                codex_cli_available=False,
+                codex_cli_supported=False,
+                uvx_available=False,
+                official_plugin_loaded_in_session=False,
+            )
+        )
+        rendered = setup.render_setup_response(blocked)
+        self.assertEqual(blocked["owner_action_id"], "COMPLETE_PREREQUISITE_CHECKLIST")
+        self.assertEqual(rendered.count("Need from you:"), 1)
+        self.assertIn("Codex CLI", rendered)
+        self.assertIn("Astral uv", rendered)
+        self.assertIn("official AWS Core", rendered)
+
+        ready = setup.reduce_prerequisites(ready_evidence())
+        welcome = setup.render_setup_response(ready)
+        self.assertEqual(ready["state"], "PREREQUISITES_READY")
+        for label in ("Project name:", "Preferred AWS Region:", "Development budget:"):
+            self.assertEqual(welcome.count(label), 1)
+
+    def test_initialized_intake_resume_does_not_repeat_setup(self) -> None:
+        interaction = doctor.derive_interaction(
+            "INTAKE_REQUIRED",
+            "INTAKE-10",
+            has_errors=False,
+            diagnostic_codes=[],
+            design_aws_core_ready=False,
+            aws_execution_planning_ready=False,
+        )
+        rendered = presenter.render_owner_update({"interaction": interaction})
+        self.assertTrue(rendered.startswith("FASTLANE · DEFINE"))
+        self.assertEqual(rendered.count("Need from you:"), 1)
+        for forbidden in (
+            "Welcome to AWS Codex Fastlane",
+            "Project name:",
+            "Preferred AWS Region:",
+            "Development budget:",
+            "init template",
+        ):
+            self.assertNotIn(forbidden, rendered)
+
+    def test_formal_gate_state_cannot_be_rendered_as_routine_status(self) -> None:
+        interaction = doctor.derive_interaction(
+            "WAITING_GATE_A",
+            "INTAKE-20",
+            has_errors=False,
+            diagnostic_codes=[],
+            design_aws_core_ready=False,
+            aws_execution_planning_ready=False,
+        )
+        self.assertTrue(interaction["formal_receipt_required"])
+        with self.assertRaises(presenter.PresentationError):
+            presenter.render_owner_update({"interaction": interaction})
+
+    def test_setup_evidence_never_becomes_repository_or_aws_authority(self) -> None:
+        report = setup.reduce_prerequisites(ready_evidence())
+        self.assertEqual(report["repository_writes"], "NONE")
+        self.assertEqual(report["aws_credentials"], "NOT_INSPECTED")
+        self.assertEqual(report["aws_access"], "NOT_USED")
+        self.assertEqual(report["aws_authorization"], "NONE")
+        self.assertFalse(report["user_state_persisted_in_repository"])
+
+
+if __name__ == "__main__":
+    unittest.main()

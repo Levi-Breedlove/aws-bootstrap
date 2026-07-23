@@ -31,8 +31,8 @@ jobs:
       - name: Run maintainer safety tests
         run: python -m unittest discover -s tests -v
 
-      - name: Render instruction-only setup status
-        run: python scripts/setup_assistant.py status --root . --json
+      - name: Exercise the read-only prerequisite CLI
+        run: python scripts/setup_assistant.py prerequisites --root . --json || test $? -eq 1
 
       - name: Verify template manifest hashes
         run: python scripts/update_manifest.py --check
@@ -58,62 +58,20 @@ jobs:
         shell: pwsh
         run: python -m unittest discover -s tests -v
 
-      - name: Verify deterministic Windows setup states and owner guide
+      - name: Verify deterministic Windows and WSL prerequisite rendering
+        shell: pwsh
+        run: >-
+          python -m unittest
+          tests.test_setup_assistant.SetupAssistantTests.test_windows_prefers_supported_python3_when_python_is_old
+          tests.test_setup_assistant.SetupAssistantTests.test_wsl1_is_unsupported_and_wsl2_requires_bubblewrap
+          tests.test_setup_assistant.SetupAssistantTests.test_platform_specific_checklists_are_exact_and_owner_run
+          -v
+
+      - name: Exercise the Windows read-only prerequisite CLI
         shell: pwsh
         run: |
-          @'
-          import importlib.util
-          from pathlib import Path
-
-          script = Path("scripts/setup_assistant.py")
-          spec = importlib.util.spec_from_file_location("setup_assistant", script)
-          if spec is None or spec.loader is None:
-              raise RuntimeError("Unable to load setup assistant")
-          setup = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(setup)
-
-          base = {
-              "repository_ready": True,
-              "dependencies_ready": True,
-              "doctor_passed": True,
-              "git_available": True,
-              "python_available": True,
-              "fastlane_python_command": "python",
-              "python_version_supported": True,
-              "system": "WINDOWS",
-              "surface": "CODEX_CLI",
-              "unknown_plugin_sources": [],
-          }
-
-          missing_aws_core = setup.reduce_setup(base)
-          assert missing_aws_core["state"] == "READY_FOR_INTAKE"
-          assert missing_aws_core["aws_core_status"] == "DEFERRED_UNTIL_DESIGN"
-
-          official = dict(base)
-          official.update({
-              "official_plugin_enabled": True,
-              "official_plugin_loaded_in_session": True,
-              "official_plugin_source_verified": True,
-              "observed_marketplace_repository": setup.OFFICIAL_AWS_MARKETPLACE,
-              "observed_plugin_source": setup.OFFICIAL_AWS_MARKETPLACE_NAME,
-              "observed_plugin_identity": setup.OFFICIAL_AWS_CORE_IDENTITY,
-          })
-          available = setup.reduce_setup(official)
-          assert available["state"] == "READY_FOR_INTAKE"
-          assert available["aws_core_status"] == "AVAILABLE"
-
-          guide = setup.render_guide(setup.build_guide(Path("."), system="Windows"))
-          for required in (
-              "winget install --id astral-sh.uv",
-              "codex plugin marketplace add aws/agent-toolkit-for-aws",
-              "owner-run instructions",
-          ):
-              assert required in guide, f"Windows setup guide omitted: {required}"
-          '@ | python -
-
-      - name: Render Windows instruction-only setup status
-        shell: pwsh
-        run: python .\scripts\setup_assistant.py status --root . --json
+          python .\scripts\setup_assistant.py prerequisites --root . --json
+          if ($LASTEXITCODE -notin 0, 1) { exit $LASTEXITCODE }
 
       - name: Verify manifest and release package
         shell: pwsh
@@ -144,8 +102,8 @@ jobs:
           tests.test_package_release.PackageReleaseTests.test_extracted_release_configures_in_place_and_passes_doctor
           -v
 
-      - name: Render macOS instruction-only setup status
-        run: python scripts/setup_assistant.py status --root . --json
+      - name: Exercise the macOS read-only prerequisite CLI
+        run: python scripts/setup_assistant.py prerequisites --root . --json || test $? -eq 1
 
       - name: Verify macOS manifest and release package
         run: |
