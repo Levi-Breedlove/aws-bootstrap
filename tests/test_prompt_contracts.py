@@ -346,6 +346,50 @@ class PromptPackContractTests(unittest.TestCase):
             gate_b,
         )
 
+    def test_architecture_selection_contract_is_explicit_and_fail_closed(self) -> None:
+        design = self.prompt_section("DESIGN-10")
+        design_reference = (
+            PROJECT_ROOT / ".agents/skills/fastlane/references/design.md"
+        ).read_text(encoding="utf-8")
+        challenger = (
+            PROJECT_ROOT / ".codex/agents/fastlane-architecture-challenger.toml"
+        ).read_text(encoding="utf-8")
+
+        for heading in (
+            "### Architecture drivers",
+            "### Whole-system candidates",
+            "### Selected architecture",
+            "### Architecture traceability",
+            "### Material AWS evidence",
+        ):
+            self.assertIn(heading, self.prd)
+        for stable_id in ("DRV-*", "CAND-*", "ARCH-*", "AWS-EV-*"):
+            self.assertIn(stable_id, design)
+            self.assertIn(stable_id, design_reference)
+        self.assertIn("hard constraints before preferences", design)
+        self.assertIn("select only an eligible candidate", design)
+        self.assertIn("managed-serverless baseline", design)
+        self.assertIn("never add a straw option", design_reference)
+        self.assertIn("arbitrary numerical scoring", design_reference)
+        self.assertIn("Generic connectors, memory, or", design_reference)
+        self.assertIn("challenger prose cannot replace those calls", design_reference)
+        self.assertIn("name the selected `ARCH-*` as the", design)
+        self.assertIn("include the selected `ARCH-*`", design)
+        self.assertIn("full architecture+technology+property digest", self.prd)
+        self.assertIn("grandfathered until the next design-controlled change", self.prd)
+        for finding in (
+            "unsupported AWS claim",
+            "unmet requirement",
+            "hard-constraint violation",
+            "reliability or recovery gap",
+            "rejected-alternative concern",
+            "unresolved current AWS fact",
+        ):
+            self.assertIn(finding, challenger)
+        self.assertIn("Never edit files", challenger)
+        self.assertIn("Never", challenger)
+        self.assertIn("satisfy AWS evidence", challenger)
+
     def test_technology_register_is_authoritative_and_exact(self) -> None:
         heading = "### Technology and toolchain decision register"
         self.assertIn(heading, self.prd)
@@ -1120,6 +1164,11 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("| Design contract SHA-256 |", self.prd)
         self.assertIn("doctor-derived current value", self.prompts)
         for table_name in (
+            "Architecture driver",
+            "Candidate",
+            "Selection",
+            "Traceability",
+            "Material AWS evidence",
             "Technology decision",
             "Property applicability",
             "Property definition",

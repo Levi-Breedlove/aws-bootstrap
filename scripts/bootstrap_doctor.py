@@ -90,6 +90,64 @@ TECHNOLOGY_SOURCES = {
     "REPOSITORY_FACT",
     "AGENT_RECOMMENDATION",
 }
+ARCHITECTURE_DRIVER_HEADING = "### Architecture drivers"
+ARCHITECTURE_DRIVER_HEADERS = (
+    "Driver ID",
+    "Requirement basis",
+    "Class",
+    "Decision implication",
+    "Validation",
+)
+ARCHITECTURE_CANDIDATE_HEADING = "### Whole-system candidates"
+ARCHITECTURE_CANDIDATE_HEADERS = (
+    "Candidate ID",
+    "Architecture summary",
+    "Requirement coverage",
+    "AWS evidence",
+    "Eligibility",
+    "Failed constraints",
+    "Tradeoffs",
+)
+ARCHITECTURE_SELECTION_HEADING = "### Selected architecture"
+ARCHITECTURE_SELECTION_HEADERS = (
+    "Architecture ID",
+    "Selected candidate",
+    "Requirement and driver basis",
+    "Rationale",
+    "Rejected alternatives",
+    "Risks",
+    "Mitigations",
+    "Cost effect",
+    "Breakpoints",
+    "Revisit triggers",
+    "Validation",
+)
+ARCHITECTURE_TRACEABILITY_HEADING = "### Architecture traceability"
+ARCHITECTURE_TRACEABILITY_HEADERS = (
+    "Requirement ID",
+    "ARCH / COMP / API / DATA / CTRL IDs",
+    "Property/test IDs",
+    "Evidence IDs",
+)
+MATERIAL_AWS_EVIDENCE_HEADING = "### Material AWS evidence"
+MATERIAL_AWS_EVIDENCE_HEADERS = (
+    "Evidence ID",
+    "Design IDs",
+    "Material claim",
+    "AWS Core capability",
+    "Official reference",
+    "Observed date",
+)
+ARCHITECTURE_DRIVER_ID = re.compile(r"DRV-\d{4,}")
+ARCHITECTURE_CANDIDATE_ID = re.compile(r"CAND-\d{4,}")
+ARCHITECTURE_ID = re.compile(r"ARCH-\d{4,}")
+ARCHITECTURE_DESIGN_ID = re.compile(r"(?:ARCH|COMP|API|DATA|CTRL)-\d{3,}")
+ARCHITECTURE_TEST_ID = re.compile(r"(?:PROP|EX|TEST)-\d{3,}")
+AWS_MATERIAL_EVIDENCE_ID = re.compile(r"AWS-EV-\d{4,}")
+ARCHITECTURE_DRIVER_CLASSES = {"HARD_CONSTRAINT", "PREFERENCE", "REVISIT_TRIGGER"}
+ARCHITECTURE_ELIGIBILITY = {"ELIGIBLE", "INELIGIBLE"}
+AWS_DOCUMENTATION_CAPABILITIES = {"retrieve_skill", "search_documentation"}
+MANAGED_SERVERLESS_MARKER = "MANAGED_SERVERLESS_BASELINE:"
 PROPERTY_EXECUTION_HEADING = "### Property execution contract"
 PROPERTY_EXECUTION_HEADERS = (
     "Property ID",
@@ -326,20 +384,156 @@ class PropertyExecution:
 
 
 @dataclass(frozen=True)
+class ArchitectureDriver:
+    driver_id: str
+    requirement_basis: str
+    driver_class: str
+    decision_implication: str
+    validation: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "driver_id": self.driver_id,
+            "requirement_basis": self.requirement_basis,
+            "class": self.driver_class,
+            "decision_implication": self.decision_implication,
+            "validation": self.validation,
+        }
+
+
+@dataclass(frozen=True)
+class ArchitectureCandidate:
+    candidate_id: str
+    architecture_summary: str
+    requirement_coverage: str
+    aws_evidence: str
+    eligibility: str
+    failed_constraints: str
+    tradeoffs: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "candidate_id": self.candidate_id,
+            "architecture_summary": self.architecture_summary,
+            "requirement_coverage": self.requirement_coverage,
+            "aws_evidence": self.aws_evidence,
+            "eligibility": self.eligibility,
+            "failed_constraints": self.failed_constraints,
+            "tradeoffs": self.tradeoffs,
+        }
+
+
+@dataclass(frozen=True)
+class ArchitectureSelection:
+    architecture_id: str
+    selected_candidate: str
+    requirement_and_driver_basis: str
+    rationale: str
+    rejected_alternatives: str
+    risks: str
+    mitigations: str
+    cost_effect: str
+    breakpoints: str
+    revisit_triggers: str
+    validation: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "architecture_id": self.architecture_id,
+            "selected_candidate": self.selected_candidate,
+            "requirement_and_driver_basis": self.requirement_and_driver_basis,
+            "rationale": self.rationale,
+            "rejected_alternatives": self.rejected_alternatives,
+            "risks": self.risks,
+            "mitigations": self.mitigations,
+            "cost_effect": self.cost_effect,
+            "breakpoints": self.breakpoints,
+            "revisit_triggers": self.revisit_triggers,
+            "validation": self.validation,
+        }
+
+
+@dataclass(frozen=True)
+class ArchitectureTrace:
+    requirement_id: str
+    design_ids: str
+    property_test_ids: str
+    evidence_ids: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "requirement_id": self.requirement_id,
+            "design_ids": self.design_ids,
+            "property_test_ids": self.property_test_ids,
+            "evidence_ids": self.evidence_ids,
+        }
+
+
+@dataclass(frozen=True)
+class MaterialAwsEvidence:
+    evidence_id: str
+    design_ids: str
+    material_claim: str
+    capability: str
+    official_reference: str
+    observed_date: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "evidence_id": self.evidence_id,
+            "design_ids": self.design_ids,
+            "material_claim": self.material_claim,
+            "capability": self.capability,
+            "official_reference": self.official_reference,
+            "observed_date": self.observed_date,
+        }
+
+
+@dataclass(frozen=True)
+class ArchitectureContract:
+    schema_version: int = 1
+    status: str = "UNINITIALIZED"
+    drivers: tuple[ArchitectureDriver, ...] = ()
+    candidates: tuple[ArchitectureCandidate, ...] = ()
+    selection: ArchitectureSelection | None = None
+    traceability: tuple[ArchitectureTrace, ...] = ()
+    aws_evidence: tuple[MaterialAwsEvidence, ...] = ()
+    canonical_sha256: str | None = None
+    grandfathered_v1: bool = False
+    canonical_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "status": self.status,
+            "drivers": [item.to_dict() for item in self.drivers],
+            "candidates": [item.to_dict() for item in self.candidates],
+            "selection": self.selection.to_dict() if self.selection else None,
+            "traceability": [item.to_dict() for item in self.traceability],
+            "aws_evidence": [item.to_dict() for item in self.aws_evidence],
+            "canonical_sha256": self.canonical_sha256,
+            "grandfathered_v1": self.grandfathered_v1,
+        }
+
+
+@dataclass(frozen=True)
 class DesignContract:
+    schema_version: int = 1
     status: str = "UNINITIALIZED"
     design_revision: str | None = None
     technology_decisions: tuple[TechnologyDecision, ...] = ()
     property_execution: tuple[PropertyExecution, ...] = ()
+    architecture: ArchitectureContract = field(default_factory=ArchitectureContract)
     canonical_sha256: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": self.schema_version,
             "status": self.status,
             "design_revision": self.design_revision,
             "technology_decisions": [item.to_dict() for item in self.technology_decisions],
             "property_execution": [item.to_dict() for item in self.property_execution],
+            "architecture": self.architecture.to_dict(),
             "canonical_sha256": self.canonical_sha256,
         }
 
@@ -2546,6 +2740,412 @@ def _exact_property_ids(value: str) -> list[str]:
     return identifiers
 
 
+def _canonical_id_list(
+    value: str,
+    pattern: re.Pattern[str],
+    field_name: str,
+) -> list[str]:
+    """Parse a stable ID list and require its exact comma-space representation."""
+
+    identifiers = parse_exact_id_list(value, pattern, field_name)
+    if clean_cell(value) != ", ".join(identifiers):
+        raise ValueError(f"{field_name} must use comma-space-separated IDs")
+    return identifiers
+
+
+def _none_with_reason(value: str) -> bool:
+    cleaned = clean_cell(value)
+    return bool(re.fullmatch(r"NONE\s+(?:-|—)\s+\S.*", cleaned)) and not unresolved(cleaned)
+
+
+def _derive_architecture_contract(
+    text: str,
+    design_revision: str | None,
+    technology_ids: set[str],
+    *,
+    required: bool,
+) -> tuple[ArchitectureContract, list[str]]:
+    issues: list[str] = []
+    specifications = (
+        ("drivers", ARCHITECTURE_DRIVER_HEADING, ARCHITECTURE_DRIVER_HEADERS),
+        ("candidates", ARCHITECTURE_CANDIDATE_HEADING, ARCHITECTURE_CANDIDATE_HEADERS),
+        ("selection", ARCHITECTURE_SELECTION_HEADING, ARCHITECTURE_SELECTION_HEADERS),
+        ("traceability", ARCHITECTURE_TRACEABILITY_HEADING, ARCHITECTURE_TRACEABILITY_HEADERS),
+        ("evidence", MATERIAL_AWS_EVIDENCE_HEADING, MATERIAL_AWS_EVIDENCE_HEADERS),
+    )
+    tables: dict[str, ContractTable | None] = {}
+    parse_issues: list[str] = []
+    for key, heading, headers in specifications:
+        try:
+            tables[key] = contract_table_after_heading(text, heading, headers)
+        except ValueError as exc:
+            tables[key] = None
+            parse_issues.append(f"{heading}: {exc}")
+    issues.extend(parse_issues)
+
+    all_missing = all(tables[key] is None for key, _, _ in specifications)
+    gate_b_state = ""
+    try:
+        gate_b_state = table_after_heading(text, "## Document status").get(
+            "Gate B derived status", ""
+        )
+    except ValueError:
+        pass
+    grandfathered = all_missing and gate_b_state == "APPROVED_FOR_CONSTRUCTION"
+    if all_missing:
+        if required and not grandfathered:
+            issues.extend(f"Missing {heading}" for _, heading, _ in specifications)
+        return (
+            ArchitectureContract(
+                schema_version=1,
+                status="READY" if grandfathered and not issues else "UNINITIALIZED" if not required else "BLOCKED",
+                grandfathered_v1=grandfathered,
+            ),
+            issues,
+        )
+    for key, heading, _ in specifications:
+        if tables[key] is None:
+            issues.append(f"Missing {heading}")
+
+    drivers: list[ArchitectureDriver] = []
+    candidates: list[ArchitectureCandidate] = []
+    selection: ArchitectureSelection | None = None
+    traces: list[ArchitectureTrace] = []
+    evidence: list[MaterialAwsEvidence] = []
+    requirements = authoritative_requirement_ids(text)
+    expected_requirement_order = sorted(requirements)
+
+    driver_table = tables["drivers"]
+    seen_driver_ids: set[str] = set()
+    hard_constraint_ids: set[str] = set()
+    if driver_table is not None:
+        if not driver_table.rows:
+            issues.append("Architecture drivers has no stored rows")
+        for row in driver_table.rows:
+            driver = ArchitectureDriver(*row)
+            drivers.append(driver)
+            if ARCHITECTURE_DRIVER_ID.fullmatch(driver.driver_id) is None:
+                issues.append(f"Invalid architecture driver ID {driver.driver_id!r}")
+            elif driver.driver_id in seen_driver_ids:
+                issues.append(f"Duplicate architecture driver ID {driver.driver_id}")
+            seen_driver_ids.add(driver.driver_id)
+            if driver.driver_class not in ARCHITECTURE_DRIVER_CLASSES:
+                issues.append(f"{driver.driver_id}: invalid driver class {driver.driver_class!r}")
+            elif driver.driver_class == "HARD_CONSTRAINT":
+                hard_constraint_ids.add(driver.driver_id)
+            try:
+                basis = _canonical_id_list(
+                    driver.requirement_basis,
+                    STABLE_CONTRACT_ID,
+                    f"{driver.driver_id} requirement basis",
+                )
+                unknown = sorted(set(basis) - requirements)
+                if unknown:
+                    issues.append(
+                        f"{driver.driver_id}: requirement basis is not Gate A requirement IDs: "
+                        + ", ".join(unknown)
+                    )
+            except ValueError as exc:
+                issues.append(str(exc))
+            for label, value in (
+                ("Decision implication", driver.decision_implication),
+                ("Validation", driver.validation),
+            ):
+                if not explicit_value(value, allow_none=False):
+                    issues.append(f"{driver.driver_id}: {label} must be concrete")
+
+    candidate_table = tables["candidates"]
+    seen_candidate_ids: set[str] = set()
+    if candidate_table is not None:
+        if not candidate_table.rows:
+            issues.append("Whole-system candidates has no stored rows")
+        for row in candidate_table.rows:
+            candidate = ArchitectureCandidate(*row)
+            candidates.append(candidate)
+            if ARCHITECTURE_CANDIDATE_ID.fullmatch(candidate.candidate_id) is None:
+                issues.append(f"Invalid architecture candidate ID {candidate.candidate_id!r}")
+            elif candidate.candidate_id in seen_candidate_ids:
+                issues.append(f"Duplicate architecture candidate ID {candidate.candidate_id}")
+            seen_candidate_ids.add(candidate.candidate_id)
+            if not explicit_value(candidate.architecture_summary, allow_none=False):
+                issues.append(f"{candidate.candidate_id}: architecture summary must be concrete")
+            try:
+                coverage = _canonical_id_list(
+                    candidate.requirement_coverage,
+                    STABLE_CONTRACT_ID,
+                    f"{candidate.candidate_id} requirement coverage",
+                )
+                if coverage != expected_requirement_order:
+                    issues.append(
+                        f"{candidate.candidate_id}: requirement coverage must exactly enumerate current requirement IDs: "
+                        + ", ".join(expected_requirement_order)
+                    )
+            except ValueError as exc:
+                issues.append(str(exc))
+            if candidate.eligibility not in ARCHITECTURE_ELIGIBILITY:
+                issues.append(f"{candidate.candidate_id}: invalid eligibility {candidate.eligibility!r}")
+            if candidate.eligibility == "ELIGIBLE":
+                if candidate.failed_constraints != "NONE":
+                    issues.append(f"{candidate.candidate_id}: an eligible candidate must have Failed constraints NONE")
+            elif candidate.eligibility == "INELIGIBLE":
+                try:
+                    failed = _canonical_id_list(
+                        candidate.failed_constraints,
+                        ARCHITECTURE_DRIVER_ID,
+                        f"{candidate.candidate_id} failed constraints",
+                    )
+                    non_hard = sorted(set(failed) - hard_constraint_ids)
+                    if non_hard:
+                        issues.append(
+                            f"{candidate.candidate_id}: failed constraints must reference HARD_CONSTRAINT drivers: "
+                            + ", ".join(non_hard)
+                        )
+                except ValueError as exc:
+                    issues.append(str(exc))
+            if not explicit_value(candidate.tradeoffs, allow_none=False):
+                issues.append(f"{candidate.candidate_id}: tradeoffs must be concrete")
+
+    selection_table = tables["selection"]
+    if selection_table is not None:
+        if len(selection_table.rows) != 1:
+            issues.append("Selected architecture must contain exactly one row")
+        elif selection_table.rows:
+            selection = ArchitectureSelection(*selection_table.rows[0])
+            if ARCHITECTURE_ID.fullmatch(selection.architecture_id) is None:
+                issues.append(f"Invalid selected architecture ID {selection.architecture_id!r}")
+            if selection.selected_candidate not in seen_candidate_ids:
+                issues.append("Selected architecture must reference a current candidate")
+            selected = next(
+                (item for item in candidates if item.candidate_id == selection.selected_candidate),
+                None,
+            )
+            if selected is not None and selected.eligibility != "ELIGIBLE":
+                issues.append("A hard-constraint-failing candidate cannot be selected")
+            expected_basis = [*expected_requirement_order, *(item.driver_id for item in drivers)]
+            try:
+                basis = _canonical_id_list(
+                    selection.requirement_and_driver_basis,
+                    STABLE_CONTRACT_ID,
+                    f"{selection.architecture_id} requirement and driver basis",
+                )
+                if basis != expected_basis:
+                    issues.append(
+                        f"{selection.architecture_id}: basis must exactly enumerate current requirements and drivers: "
+                        + ", ".join(expected_basis)
+                    )
+            except ValueError as exc:
+                issues.append(str(exc))
+            nonselected = [
+                item.candidate_id
+                for item in candidates
+                if item.candidate_id != selection.selected_candidate
+            ]
+            eligible = [item for item in candidates if item.eligibility == "ELIGIBLE"]
+            if selection.rejected_alternatives == "NO_VIABLE_ALTERNATIVE":
+                if len(eligible) != 1 or any(
+                    item.eligibility != "INELIGIBLE"
+                    for item in candidates
+                    if item.candidate_id != selection.selected_candidate
+                ):
+                    issues.append(
+                        "NO_VIABLE_ALTERNATIVE is valid only when exactly one candidate is eligible"
+                    )
+            else:
+                try:
+                    rejected = _canonical_id_list(
+                        selection.rejected_alternatives,
+                        ARCHITECTURE_CANDIDATE_ID,
+                        f"{selection.architecture_id} rejected alternatives",
+                    )
+                    if rejected != nonselected:
+                        issues.append(
+                            f"{selection.architecture_id}: rejected alternatives must enumerate every nonselected candidate in table order"
+                        )
+                except ValueError as exc:
+                    issues.append(str(exc))
+            for label, value in (
+                ("Rationale", selection.rationale),
+                ("Risks", selection.risks),
+                ("Mitigations", selection.mitigations),
+                ("Cost effect", selection.cost_effect),
+                ("Breakpoints", selection.breakpoints),
+                ("Revisit triggers", selection.revisit_triggers),
+                ("Validation", selection.validation),
+            ):
+                if not explicit_value(value, allow_none=False):
+                    issues.append(f"{selection.architecture_id}: {label} must be concrete")
+
+    trace_table = tables["traceability"]
+    seen_trace_requirements: set[str] = set()
+    if trace_table is not None:
+        for row in trace_table.rows:
+            trace = ArchitectureTrace(*row)
+            traces.append(trace)
+            if trace.requirement_id in seen_trace_requirements:
+                issues.append(f"Duplicate architecture traceability requirement {trace.requirement_id}")
+            seen_trace_requirements.add(trace.requirement_id)
+            if trace.requirement_id not in requirements:
+                issues.append(f"Architecture traceability references non-requirement ID {trace.requirement_id}")
+            try:
+                design_ids = _canonical_id_list(
+                    trace.design_ids,
+                    ARCHITECTURE_DESIGN_ID,
+                    f"{trace.requirement_id} architecture traceability design IDs",
+                )
+                if selection is not None and selection.architecture_id not in design_ids:
+                    issues.append(f"{trace.requirement_id}: traceability must include {selection.architecture_id}")
+                if not any(identifier != (selection.architecture_id if selection else "") for identifier in design_ids):
+                    issues.append(f"{trace.requirement_id}: traceability must include a component, API, data, or control ID")
+            except ValueError as exc:
+                issues.append(str(exc))
+            if not _none_with_reason(trace.property_test_ids):
+                try:
+                    _canonical_id_list(
+                        trace.property_test_ids,
+                        ARCHITECTURE_TEST_ID,
+                        f"{trace.requirement_id} property/test IDs",
+                    )
+                except ValueError as exc:
+                    issues.append(str(exc))
+        missing_traces = sorted(requirements - seen_trace_requirements)
+        extra_traces = sorted(seen_trace_requirements - requirements)
+        if missing_traces:
+            issues.append("Architecture traceability is missing requirement IDs: " + ", ".join(missing_traces))
+        if extra_traces:
+            issues.append("Architecture traceability has unknown requirement IDs: " + ", ".join(extra_traces))
+
+    evidence_table = tables["evidence"]
+    seen_evidence_ids: set[str] = set()
+    seen_capabilities: set[str] = set()
+    evidence_design_ids: dict[str, set[str]] = {}
+    declared_design_ids = {
+        *(item.driver_id for item in drivers),
+        *(item.candidate_id for item in candidates),
+        *(technology_ids),
+    }
+    if selection is not None:
+        declared_design_ids.add(selection.architecture_id)
+    if evidence_table is not None:
+        if not evidence_table.rows:
+            issues.append("Material AWS evidence has no stored rows")
+        for row in evidence_table.rows:
+            item = MaterialAwsEvidence(*row)
+            evidence.append(item)
+            if AWS_MATERIAL_EVIDENCE_ID.fullmatch(item.evidence_id) is None:
+                issues.append(f"Invalid material AWS evidence ID {item.evidence_id!r}")
+            elif item.evidence_id in seen_evidence_ids:
+                issues.append(f"Duplicate material AWS evidence ID {item.evidence_id}")
+            seen_evidence_ids.add(item.evidence_id)
+            try:
+                bound_ids = _canonical_id_list(
+                    item.design_ids,
+                    STABLE_CONTRACT_ID,
+                    f"{item.evidence_id} design IDs",
+                )
+                evidence_design_ids[item.evidence_id] = set(bound_ids)
+                unknown = sorted(set(bound_ids) - declared_design_ids)
+                if unknown:
+                    issues.append(f"{item.evidence_id}: unknown design IDs: " + ", ".join(unknown))
+            except ValueError as exc:
+                issues.append(str(exc))
+            if not explicit_value(item.material_claim, allow_none=False):
+                issues.append(f"{item.evidence_id}: material claim must be concrete")
+            if item.capability not in AWS_DOCUMENTATION_CAPABILITIES:
+                issues.append(f"{item.evidence_id}: invalid AWS Core capability {item.capability!r}")
+            else:
+                seen_capabilities.add(item.capability)
+            if re.fullmatch(r"https://(?:docs\.)?aws\.amazon\.com/\S+", item.official_reference) is None:
+                issues.append(f"{item.evidence_id}: Official reference must be an AWS HTTPS URL")
+            try:
+                datetime.strptime(item.observed_date, "%Y-%m-%d")
+            except ValueError:
+                issues.append(f"{item.evidence_id}: Observed date must use YYYY-MM-DD")
+        missing_capabilities = sorted(AWS_DOCUMENTATION_CAPABILITIES - seen_capabilities)
+        if missing_capabilities:
+            issues.append(
+                "Material AWS evidence is missing AWS Core capabilities: "
+                + ", ".join(missing_capabilities)
+            )
+
+    for candidate in candidates:
+        try:
+            evidence_ids = _canonical_id_list(
+                candidate.aws_evidence,
+                AWS_MATERIAL_EVIDENCE_ID,
+                f"{candidate.candidate_id} AWS evidence",
+            )
+            unknown = sorted(set(evidence_ids) - seen_evidence_ids)
+            if unknown:
+                issues.append(f"{candidate.candidate_id}: unknown AWS evidence IDs: " + ", ".join(unknown))
+            unbound = sorted(
+                evidence_id
+                for evidence_id in evidence_ids
+                if candidate.candidate_id
+                not in evidence_design_ids.get(evidence_id, set())
+            )
+            if unbound:
+                issues.append(
+                    f"{candidate.candidate_id}: AWS evidence rows are not bound to this candidate: "
+                    + ", ".join(unbound)
+                )
+        except ValueError as exc:
+            issues.append(str(exc))
+    if selection is not None and not any(
+        selection.architecture_id in bound_ids
+        for bound_ids in evidence_design_ids.values()
+    ):
+        issues.append("Selected architecture has no bound material AWS evidence")
+    for trace in traces:
+        if _none_with_reason(trace.evidence_ids):
+            continue
+        try:
+            evidence_ids = _canonical_id_list(
+                trace.evidence_ids,
+                AWS_MATERIAL_EVIDENCE_ID,
+                f"{trace.requirement_id} evidence IDs",
+            )
+            unknown = sorted(set(evidence_ids) - seen_evidence_ids)
+            if unknown:
+                issues.append(f"{trace.requirement_id}: unknown AWS evidence IDs: " + ", ".join(unknown))
+        except ValueError as exc:
+            issues.append(str(exc))
+
+    try:
+        project_mode = table_after_heading(text, "## Document status").get("Project mode", "")
+    except ValueError:
+        project_mode = ""
+    if project_mode == "greenfield" and not any(
+        item.architecture_summary.startswith(MANAGED_SERVERLESS_MARKER)
+        for item in candidates
+    ):
+        issues.append(
+            "Greenfield architecture candidates must evaluate the managed-serverless baseline"
+        )
+
+    canonical_bytes: bytes | None = None
+    canonical_sha256: str | None = None
+    if all(tables[key] is not None for key, _, _ in specifications):
+        canonical_bytes = b"".join(
+            tables[key].canonical_bytes  # type: ignore[union-attr]
+            for key, _, _ in specifications
+        )
+        canonical_sha256 = "sha256:" + hashlib.sha256(canonical_bytes).hexdigest()
+    return (
+        ArchitectureContract(
+            schema_version=2,
+            status="READY" if not issues else "BLOCKED",
+            drivers=tuple(drivers),
+            candidates=tuple(candidates),
+            selection=selection,
+            traceability=tuple(traces),
+            aws_evidence=tuple(evidence),
+            canonical_sha256=canonical_sha256,
+            canonical_bytes=canonical_bytes,
+        ),
+        issues,
+    )
+
+
 def derive_design_contract(
     text: str,
     design_revision: str | None,
@@ -2843,6 +3443,14 @@ def derive_design_contract(
     for property_id in sorted(execution_ids - applicable_property_ids):
         issues.append(f"{property_id}: execution row is not referenced as APPLICABLE")
 
+    architecture, architecture_issues = _derive_architecture_contract(
+        text,
+        design_revision,
+        set(technology_by_id),
+        required=required,
+    )
+    issues.extend(architecture_issues)
+
     canonical_sha256: str | None = None
     if (
         technology_table is not None
@@ -2850,8 +3458,10 @@ def derive_design_contract(
         and definition_table is not None
         and execution_table is not None
     ):
+        architecture_bytes = architecture.canonical_bytes or b""
         canonical_sha256 = "sha256:" + hashlib.sha256(
-            technology_table.canonical_bytes
+            architecture_bytes
+            + technology_table.canonical_bytes
             + applicability_table.canonical_bytes
             + definition_table.canonical_bytes
             + execution_table.canonical_bytes
@@ -2865,10 +3475,12 @@ def derive_design_contract(
     )
     return (
         DesignContract(
+            schema_version=architecture.schema_version,
             status=status,
             design_revision=design_revision,
             technology_decisions=tuple(technologies),
             property_execution=tuple(executions),
+            architecture=architecture,
             canonical_sha256=canonical_sha256,
         ),
         issues,
@@ -3708,6 +4320,10 @@ def validate_construction_envelope(
         required_scope_ids.update(
             execution.property_id for execution in design_contract.property_execution
         )
+        if design_contract.architecture.selection is not None:
+            required_scope_ids.add(
+                design_contract.architecture.selection.architecture_id
+            )
         missing_scope_ids = sorted(required_scope_ids - set(authorized_ids[2:]))
         if missing_scope_ids:
             ctx.error(
@@ -4012,6 +4628,20 @@ def validate_prd(
                 + (expected_technology_ids or "NONE"),
                 PRD_FILE,
             )
+        if design_contract.architecture.schema_version == 2:
+            selected_architecture = design_contract.architecture.selection
+            expected_architecture = (
+                selected_architecture.architecture_id
+                if selected_architecture is not None
+                else "NONE"
+            )
+            if gate_b_card.get("Architecture/components") != expected_architecture:
+                ctx.error(
+                    "GATE_B_READINESS_CARD",
+                    "Architecture/components must equal the current selected ARCH ID: "
+                    + expected_architecture,
+                    PRD_FILE,
+                )
         if gate_b_card.get("Outstanding gaps") != "NONE":
             ctx.error("GATE_B_READINESS_CARD", "Gate B readiness requires Outstanding gaps NONE", PRD_FILE)
     if gate_a_agent_ready and fields["gate_a"] == "BLOCKED":
