@@ -3,6 +3,10 @@
 
 from __future__ import annotations
 
+import argparse
+import json
+import re
+import sys
 from typing import Any, Mapping, Sequence
 
 
@@ -68,6 +72,88 @@ def _interaction(report: Mapping[str, Any]) -> Mapping[str, Any]:
     return value
 
 
+def _task_details(report: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    value = report.get("tasks")
+    return value if isinstance(value, Mapping) else None
+
+
+TASK_ID_PATTERN = re.compile(r"TASK-\d{4,}")
+
+
+def _task_ids(tasks: Mapping[str, Any], field: str) -> list[str]:
+    value = tasks.get(field)
+    if value is None:
+        return []
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise PresentationError("invalid deterministic task identifiers")
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or TASK_ID_PATTERN.fullmatch(item) is None:
+            raise PresentationError("invalid deterministic task identifiers")
+        result.append(item)
+    if len(result) != len(set(result)):
+        raise PresentationError("duplicate deterministic task identifiers")
+    return result
+
+
+def _task_count(tasks: Mapping[str, Any], field: str) -> int:
+    value = tasks.get(field, 0)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise PresentationError("invalid deterministic task progress")
+    return value
+
+
+def _delivery_status(report: Mapping[str, Any], reason: str) -> str | None:
+    if reason not in {"CONSTRUCTION_SINGLE", "CONSTRUCTION_AUTONOMOUS"}:
+        return None
+    tasks = _task_details(report)
+    if tasks is None:
+        return None
+    total = _task_count(tasks, "total")
+    completed = _task_count(tasks, "completed")
+    skipped = _task_count(tasks, "skipped")
+    blocked = _task_count(tasks, "blocked")
+    ready_count = _task_count(tasks, "ready")
+    active_count = _task_count(tasks, "in_progress")
+    active = _task_ids(tasks, "active_ids")
+    ready = _task_ids(tasks, "ready_ids")
+    if total < 1 or sum(
+        (completed, skipped, blocked, ready_count, active_count)
+    ) > total:
+        raise PresentationError("invalid deterministic task progress")
+    if "active_ids" in tasks and len(active) != active_count:
+        raise PresentationError("active task count does not match task identifiers")
+    if "ready_ids" in tasks and len(ready) != ready_count:
+        raise PresentationError("ready task count does not match task identifiers")
+    if "blocked_ids" in tasks:
+        blocked_ids = _task_ids(tasks, "blocked_ids")
+        if len(blocked_ids) != blocked:
+            raise PresentationError("blocked task count does not match task identifiers")
+    status = f"{completed} of {total} tasks complete"
+    if skipped:
+        status += f"; {skipped} skipped with an approved record"
+    if active:
+        status += "; working on " + ", ".join(active)
+    elif ready:
+        status += f"; {ready[0]} is ready next"
+    return status + "."
+
+
+def _delivery_next(report: Mapping[str, Any], reason: str) -> str | None:
+    if reason not in {"CONSTRUCTION_SINGLE", "CONSTRUCTION_AUTONOMOUS"}:
+        return None
+    tasks = _task_details(report)
+    if tasks is None:
+        return None
+    active = _task_ids(tasks, "active_ids")
+    ready = _task_ids(tasks, "ready_ids")
+    if active:
+        return "Codex will finish and validate " + ", ".join(active) + "."
+    if ready:
+        return f"Codex will continue with {ready[0]}."
+    return None
+
+
 def render_owner_update(
     report: Mapping[str, Any],
     *,
@@ -92,19 +178,53 @@ def render_owner_update(
     if required == (action_kind == "NONE_CONTINUE_AUTOMATICALLY"):
         raise PresentationError("owner action requirement conflicts with action kind")
 
+    status_text = _delivery_status(report, reason) or STATUS_TEXT[reason]
+    next_text = _delivery_next(report, reason) or NEXT_TEXT[reason]
     lines = [
         f"FASTLANE · {stage}",
         "",
-        f"Status: {STATUS_TEXT[reason]}",
+        f"Status: {status_text}",
         f"Updated: {updated}",
         f"Need from you: {ACTION_TEXT[action_kind]}",
-        f"Next: {NEXT_TEXT[reason]}",
+        f"Next: {next_text}",
     ]
     if audit:
         lines.append(f"Audit: {audit}")
     reply = COPYABLE_REPLIES.get(action_kind)
     if required and reply:
         lines.extend(("", "Copyable reply:", reply))
+    return "\n".join(lines)
+
+
+def render_side_question_response(
+    report: Mapping[str, Any],
+    *,
+    answer: str,
+    project_state_changed: bool = False,
+) -> str:
+    """Answer directly, then restore the current deterministic owner action."""
+
+    cleaned_answer = answer.strip()
+    if not cleaned_answer:
+        raise PresentationError("side-question answer must not be empty")
+    interaction = _interaction(report)
+    action_kind = str(interaction.get("owner_action_kind", ""))
+    if action_kind not in ACTION_TEXT:
+        raise PresentationError("unknown owner action kind")
+    required = interaction.get("owner_action_required") is True
+    if required == (action_kind == "NONE_CONTINUE_AUTOMATICALLY"):
+        raise PresentationError("owner action requirement conflicts with action kind")
+    lines = [
+        cleaned_answer,
+        "",
+        "Project state changed: " + ("Yes." if project_state_changed else "No."),
+        f"Pending owner action: {ACTION_TEXT[action_kind]}",
+    ]
+    if not required:
+        reason = str(interaction.get("route_reason_code", ""))
+        if reason not in NEXT_TEXT:
+            raise PresentationError("unknown route reason code")
+        lines.append(f"Next: {NEXT_TEXT[reason]}")
     return "\n".join(lines)
 
 
@@ -144,3 +264,50 @@ def render_prerequisite_update(report: Mapping[str, Any]) -> str:
         if instruction:
             lines.append(f"   {instruction}")
     return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Render Fastlane owner conversation from JSON on stdin"
+    )
+    parser.add_argument("mode", choices=("owner", "side-question"))
+    parser.add_argument(
+        "--input-stdin",
+        action="store_true",
+        help="Read one JSON object containing report and presentation fields",
+    )
+    args = parser.parse_args(argv)
+    if not args.input_stdin:
+        parser.error("--input-stdin is required")
+    try:
+        payload = json.load(sys.stdin)
+        if not isinstance(payload, Mapping):
+            raise PresentationError("input must be a JSON object")
+        report = payload.get("report")
+        if not isinstance(report, Mapping):
+            raise PresentationError("input is missing report")
+        if args.mode == "owner":
+            output = render_owner_update(
+                report,
+                updated=str(payload.get("updated", "Nothing.")),
+                audit=(
+                    str(payload["audit"])
+                    if payload.get("audit") not in (None, "")
+                    else None
+                ),
+            )
+        else:
+            output = render_side_question_response(
+                report,
+                answer=str(payload.get("answer", "")),
+                project_state_changed=payload.get("project_state_changed") is True,
+            )
+    except (json.JSONDecodeError, PresentationError) as exc:
+        print(f"Fastlane presentation blocked: {exc}", file=sys.stderr)
+        return 2
+    print(output)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

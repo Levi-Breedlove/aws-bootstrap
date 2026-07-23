@@ -29,9 +29,19 @@ You are the single coordinator and sole writer.
    external-authorization boundary.
 6. Read only the canonical prompt section selected by the doctor. Stable prompt
    IDs are routing metadata, not owner instructions.
-7. Render routine updates through `scripts/fastlane_presenter.py`. Run the
-   selected phase, validate and checkpoint, rerun the doctor, and continue
-   only while `automatic_continuation_allowed` is true.
+7. Render routine updates with `python scripts/fastlane_presenter.py owner
+   --input-stdin`. Run the selected phase, validate and checkpoint, rerun the
+   doctor in the same turn, and continue while
+   `automatic_continuation_allowed` is true. An internal route change is not an
+   owner checkpoint.
+8. After recording an accepted Gate A or Gate B receipt, rerun the doctor
+   immediately. Gate A continues into Design. Gate B continues into task
+   generation and permitted local construction.
+
+For a side question, answer directly without changing project state unless the
+owner requested a change. Rerun the doctor, then use
+`scripts/fastlane_presenter.py side-question --input-stdin` to restore the
+pending action. Route an explicit teaching request to `explain-fastlane`.
 
 Stop only for an owner decision or gate, stale/conflicting scope, failed
 validation, missing material evidence, an exhausted boundary, or missing

@@ -1278,6 +1278,37 @@ class PromptPackContractTests(unittest.TestCase):
         ]
         self.assertEqual(missing, [])
 
+    def test_continuation_and_side_question_contracts_are_executable(self) -> None:
+        self.assertIn(
+            "python scripts/fastlane_presenter.py owner --input-stdin",
+            self.prompts,
+        )
+        self.assertIn(
+            "python scripts/fastlane_presenter.py side-question",
+            self.prompts,
+        )
+        boot = self.prompt_section("BOOT-00")
+        self.assertIn("After each phase checkpoint, rerun the doctor", boot)
+        self.assertIn("internal prompt ID is never itself a reason to pause", boot)
+
+        gate_a = self.prompt_section("INTAKE-20")
+        self.assertIn("same turn and begin Design", gate_a)
+        self.assertIn("do not combine it with a routine response", gate_a)
+
+        gate_b = self.prompt_section("DESIGN-20")
+        self.assertIn("rerun the doctor in the same turn", gate_b)
+        self.assertIn("task generation and permitted local construction", gate_b)
+
+        build = self.prompt_section("BUILD-20")
+        self.assertIn("derive progress only", build)
+        self.assertIn("task totals and task-ID fields", build)
+        self.assertIn("`NONE_CONTINUE_AUTOMATICALLY`", build)
+
+        owner_reference = (
+            PROJECT_ROOT
+            / ".agents/skills/fastlane/references/owner-responses.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("never repeats a formal Gate A, Gate B, or AWS receipt", owner_reference)
 
 if __name__ == "__main__":
     unittest.main()

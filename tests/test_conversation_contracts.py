@@ -136,6 +136,77 @@ class ConversationContractTests(unittest.TestCase):
         self.assertEqual(report["aws_authorization"], "NONE")
         self.assertFalse(report["user_state_persisted_in_repository"])
 
+    def test_golden_define_design_deliver_route_has_only_two_product_stops(self) -> None:
+        sequence = (
+            ("REQUIREMENTS_ANALYSIS", "REQ-10", "DEFINE", "OWNER_UPDATE"),
+            ("WAITING_GATE_A", "INTAKE-20", "DEFINE", "GATE_A"),
+            ("DESIGN_REQUIRED", "DESIGN-10", "DESIGN", "OWNER_UPDATE"),
+            ("WAITING_GATE_B", "DESIGN-20", "DESIGN", "GATE_B"),
+            ("TASK_PLAN_REQUIRED", "TASK-10", "DELIVER", "OWNER_UPDATE"),
+            (
+                "CONSTRUCTION_AUTONOMOUS",
+                "BUILD-20",
+                "DELIVER",
+                "OWNER_UPDATE",
+            ),
+            ("RELEASE_REVIEW", "RELEASE-10", "DELIVER", "OWNER_UPDATE"),
+        )
+        observed: list[tuple[str, str, str]] = []
+        for lifecycle, prompt, stage, mode in sequence:
+            routed = doctor.derive_interaction(
+                lifecycle,
+                prompt,
+                has_errors=False,
+                diagnostic_codes=[],
+                design_aws_core_ready=lifecycle not in {"DESIGN_REQUIRED"},
+                aws_execution_planning_ready=False,
+            )
+            observed.append(
+                (
+                    str(routed["owner_stage"]),
+                    str(routed["response_mode"]),
+                    str(routed["owner_action_kind"]),
+                )
+            )
+            self.assertEqual(routed["owner_stage"], stage)
+            self.assertEqual(routed["response_mode"], mode)
+            if mode == "OWNER_UPDATE":
+                self.assertTrue(routed["automatic_continuation_allowed"])
+                self.assertEqual(
+                    routed["owner_action_kind"], "NONE_CONTINUE_AUTOMATICALLY"
+                )
+                rendered = presenter.render_owner_update({"interaction": routed})
+                self.assertEqual(rendered.count("Need from you:"), 1)
+                self.assertIn("Need from you: Nothing.", rendered)
+                self.assertNotIn(prompt, rendered)
+            else:
+                self.assertFalse(routed["automatic_continuation_allowed"])
+                self.assertTrue(routed["formal_receipt_required"])
+
+        self.assertEqual(
+            [item[2] for item in observed if item[1] != "OWNER_UPDATE"],
+            ["APPROVE_GATE_A", "APPROVE_GATE_B"],
+        )
+
+        side = presenter.render_side_question_response(
+            {
+                "interaction": doctor.derive_interaction(
+                    "DESIGN_REQUIRED",
+                    "DESIGN-10",
+                    has_errors=False,
+                    diagnostic_codes=[],
+                    design_aws_core_ready=True,
+                    aws_execution_planning_ready=False,
+                )
+            },
+            answer="The project remains in Design; no approved artifact changed.",
+        )
+        self.assertIn("Project state changed: No.", side)
+        self.assertIn("Pending owner action: Nothing.", side)
+
+
+
+
 
 if __name__ == "__main__":
     unittest.main()
