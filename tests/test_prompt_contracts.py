@@ -209,7 +209,7 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertEqual(self.prompts.count("~~~") % 2, 0)
         self.assertEqual(self.prd.count("```") % 2, 0)
         self.assertIn("START AWS CODEX FASTLANE", self.prompts)
-        self.assertIn("begin its questions immediately", self.prompt_section("BOOT-00"))
+        self.assertIn("PREREQUISITES_READY", self.prompt_section("BOOT-00"))
 
     def test_plain_language_setup_is_friendly_resumable_and_verifies_aws_core(self) -> None:
         boot = self.prompt_section("BOOT-00")
@@ -234,17 +234,18 @@ class PromptPackContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, boot)
         self.assertNotIn("Technical status:", boot)
-        self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
-        self.assertIn("AWS Core is not required for BOOT-00", self.agents)
+        self.assertIn("PREREQUISITES_READY", boot)
+        self.assertIn("Fresh templates require current official AWS Core", self.agents)
         self.assertIn("never repeat setup", self.agents)
-        self.assertIn("Never ask for another `init template`", boot)
+        self.assertIn("Never ask an initialized project for another", boot)
         self.assertIn("aws-core@agent-toolkit-for-aws", boot)
-        self.assertIn("AWS access: NOT USED", boot)
+        self.assertIn("does not inspect credentials, access an AWS account", boot)
         self.assertIn("pytest", boot)
-        self.assertNotIn(
-            "subprocess",
-            (PROJECT_ROOT / "scripts/setup_assistant.py").read_text(encoding="utf-8"),
+        setup_source = (PROJECT_ROOT / "scripts/setup_assistant.py").read_text(
+            encoding="utf-8"
         )
+        self.assertIn("subprocess.run", setup_source)
+        self.assertNotIn("shell=True", setup_source)
     def test_aws_core_uses_official_current_marketplace_without_pin_fallback(self) -> None:
         boot = self.prompt_section("BOOT-00")
         for document in (boot, self.root_readme, self.agents):
@@ -252,7 +253,7 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn("aws-core@agent-toolkit-for-aws", document)
         self.assertIn("Do not pin", self.agents)
         self.assertIn("does not pin a plugin version or commit", self.root_readme)
-        self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
+        self.assertIn("PREREQUISITES_READY", boot)
 
     def test_optional_challengers_are_conditional_and_non_authoritative(self) -> None:
         requirements = self.prompt_section("REQ-10")
@@ -301,7 +302,7 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("pause only the affected AWS-specific task", deliver_reference)
         self.assertIn("cannot replace those live calls", operate_skill)
         self.assertIn("aws-core@agent-toolkit-for-aws", operate_skill)
-        self.assertIn("not required for BOOT-00", self.agents)
+        self.assertIn("Fresh templates require current official AWS Core", self.agents)
     def test_design_and_aws_preflight_require_fresh_aws_core_evidence(self) -> None:
         design = self.prompt_section("DESIGN-10")
         aws_preflight = self.prompt_section("AWS-10")
@@ -319,7 +320,7 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertNotIn("| `BOOT-00` |", verify)
         self.assertEqual(verify.count("| `retrieve_skill` |"), 2)
         self.assertEqual(verify.count("| `search_documentation` |"), 2)
-        self.assertIn("AWS Core is not required for\nBOOT-00", verify)
+        self.assertIn("Fresh prerequisite capability\nobservations are ephemeral", verify)
         operate_skill = (
             PROJECT_ROOT / ".agents/skills/operate-fastlane-aws/SKILL.md"
         ).read_text(encoding="utf-8")
@@ -330,7 +331,7 @@ class PromptPackContractTests(unittest.TestCase):
             "AWS account accessed` = `NO",
         ):
             self.assertIn(phrase, operate_skill)
-        self.assertIn("not required for BOOT-00", self.agents)
+        self.assertIn("Fresh templates require current official AWS Core", self.agents)
 
     def test_design_edits_existing_diagrams_in_place_and_gate_b_checks_them(self) -> None:
         design = self.prompt_section("DESIGN-10")
@@ -494,7 +495,7 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("Only the passing status may be cited", build)
         self.assertIn("Never weaken an invariant", self.agents)
         self.assertIn("Never narrow a generator", test_agents)
-        self.assertIn("Requires Codex and Python 3.11 or newer", self.root_readme)
+        self.assertIn("Requires the Codex CLI, Git, and Python 3.11 or newer", self.root_readme)
         self.assertIn("reproducible seeds and counterexamples", self.root_readme)
 
     def test_receipts_require_complete_normalized_block_equality(self) -> None:
@@ -555,10 +556,10 @@ class PromptPackContractTests(unittest.TestCase):
     def test_launchpad_routes_from_existing_lifecycle_state(self) -> None:
         boot = self.prompt_section("BOOT-00")
         self.assertIn("The doctor is the lifecycle router", boot)
-        self.assertRegex(boot, r"later\s+prompt, never restart BOOT-00")
+        self.assertIn("Never restart\n   BOOT-00 or prerequisites after initialization", boot)
         self.assertRegex(boot, r"current Gate A receipt\s+awaiting approval goes to INTAKE-20")
         self.assertIn("approved Gate B with an uninitialized or stale task plan", boot)
-        self.assertIn("Otherwise use the exact doctor route or STOP", boot)
+        self.assertIn("Otherwise use the doctor state or stop on conflict", boot)
 
     def test_launchpad_and_build_use_executable_safety_controls(self) -> None:
         boot = self.prompt_section("BOOT-00")
@@ -759,7 +760,9 @@ class PromptPackContractTests(unittest.TestCase):
             "https://github.com/Levi-Breedlove/aws-bootstrap/generate",
             "AWS Core",
             "AWS Agent Toolkit",
-            "does not require AWS credentials or access an AWS account",
+            "does not inspect AWS credentials or access an AWS account",
+            "signed-in interactive Codex CLI",
+            "uvx",
             "short, plain-language questions",
             "organized task plan",
             "exact authorization",
@@ -787,15 +790,9 @@ class PromptPackContractTests(unittest.TestCase):
         self.assertIn("development budget posture", boot)
         self.assertIn("--in-place-template-instance --dry-run", boot)
         self.assertIn("UNCONFIGURED_TEMPLATE", boot)
-        for field in (
-            "Stage:",
-            "Gate A:",
-            "Gate B:",
-            "AWS Core:",
-            "AWS access:",
-            "Next action:",
-        ):
-            self.assertIn(field, boot)
+        self.assertIn("scripts/fastlane_presenter.py", boot)
+        for field in ("Status:", "Updated:", "Need from you:", "Next:"):
+            self.assertIn(field, self.prompts)
         for removed_field in (
             "Project:",
             "Region:",
@@ -804,20 +801,17 @@ class PromptPackContractTests(unittest.TestCase):
             "Next prompt:",
         ):
             self.assertNotIn(removed_field, boot)
-        self.assertIn(
-            "ask the first one to three plain-language questions below the status",
-            boot,
-        )
-        self.assertIn("DEFERRED_UNTIL_DESIGN", boot)
+        self.assertIn("At first intake, ask one to three", boot)
+        self.assertIn("plain-language questions below the Define update", boot)
+        self.assertIn("PREREQUISITES_READY", boot)
         self.assertNotIn("OWNER_ATTESTED_AND_PROBES_VERIFIED", boot)
         self.assertNotIn("hook conflict review", boot)
 
-    def test_boot_resume_and_aws_core_deferral_are_single_action_contracts(self) -> None:
+    def test_boot_setup_first_and_resume_are_single_action_contracts(self) -> None:
         boot = self.prompt_section("BOOT-00")
         for phrase in (
             "If the project is already initialized, do not print the welcome",
-            "never restart BOOT-00 because AWS Core is absent",
-            "reuse it\nwithout setup instructions",
+            "rerun prerequisites",
             "one owner action",
             "owner's attestation",
             "private trust database",
@@ -825,12 +819,12 @@ class PromptPackContractTests(unittest.TestCase):
             self.assertIn(phrase, boot)
         self.assertRegex(
             boot,
-            r"report\s+`DEFERRED_UNTIL_DESIGN` and continue intake",
+            r"Only after `PREREQUISITES_READY`",
         )
         self.assertIn("never repeat setup", self.agents)
         self.assertIn("follows the doctor-selected route", self.agents)
         self.assertIn(
-            "does not compare hook hashes, request screenshots,\nrun synthetic hook probes",
+            "does not compare hook hashes, request screenshots,\nrun synthetic probes",
             boot,
         )
 
@@ -841,16 +835,17 @@ class PromptPackContractTests(unittest.TestCase):
         routine = common.split("#### Routine status", 1)[1].split(
             "#### Gate receipt", 1
         )[0]
+        routine_block = routine.split("~~~text", 1)[1].split("~~~", 1)[0]
         routine_fields = (
-            "Stage:",
-            "Gate A:",
-            "Gate B:",
-            "AWS Core:",
-            "AWS access:",
-            "Next action:",
+            "FASTLANE ·",
+            "Status:",
+            "Updated:",
+            "Need from you:",
+            "Next:",
+            "Audit:",
         )
         for field in routine_fields:
-            self.assertEqual(routine.count(field), 1)
+            self.assertEqual(routine_block.count(field), 1)
         self.assertIn("Use one response type", common)
         self.assertIn("must not append a routine status or AWS receipt", common)
 

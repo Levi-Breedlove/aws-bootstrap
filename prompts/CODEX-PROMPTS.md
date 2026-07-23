@@ -401,22 +401,25 @@ gate, and AWS receipts into one wall of metadata.
 #### Routine status
 
 Use this for BOOT-00, intake, requirements, design work, tasks, construction,
-GitHub synchronization, and release review. Populate exactly these fields:
+GitHub synchronization, and release review. Render the doctor's `interaction`
+state through `scripts/fastlane_presenter.py` using exactly these owner fields:
 
 ~~~text
-FASTLANE STATUS
-Stage: <canonical prompt ID and concise state>
-Gate A: <derived state>
-Gate B: <derived state>
-AWS Core: <AVAILABLE|DEFERRED_UNTIL_DESIGN|REQUIRED_FOR_CURRENT_STEP>
-AWS access: <NOT USED|DOCS_ONLY|READ_ONLY|MUTATION>
-Next action: <one concrete owner action or canonical next step>
+FASTLANE · <DEFINE|DESIGN|DELIVER>
+
+Status: <plain-language state>
+Updated: <material change or Nothing>
+Need from you: <one concrete action or Nothing>
+Next: <automatic next work>
+Audit: <only consequential evidence; omit otherwise>
 ~~~
 
-A routine status contains one status and one next action. Do not include
-internal hashes, file counts, implementation narration, or the exhaustive AWS
-authority fields. Supporting prose may contain only the information needed to
-take that action.
+A routine update contains exactly one `Need from you` action. Include one
+copyable reply when input is required. Omit `Audit` when it adds no decision
+value. Never expose prompt IDs as owner instructions, or include internal
+hashes, file counts, repetitive `NONE` values, implementation narration, or
+the exhaustive AWS authority fields. `Need from you: Nothing` permits
+automatic continuation.
 
 #### Gate receipt
 
@@ -477,10 +480,10 @@ direct evidence.
 
 ## BOOT-00 — Bootstrap Launchpad
 
-**Purpose:** Welcome a first-time owner, safely initialize an untouched
-repository, or resume an initialized project at its derived lifecycle stage.
-AWS Core supports later AWS research; it is not a prerequisite for intake or
-Gate A.
+**Purpose:** Verify prerequisites before a first welcome, safely initialize an
+untouched repository, or resume an initialized project at its derived lifecycle
+stage. Fresh initialization requires attributable official AWS Core; ordinary
+resume does not rerun setup.
 
 **Preconditions:** The owner sent an accepted start or resume command and the
 repository or explicit adoption target is locally accessible.
@@ -490,9 +493,10 @@ Fastlane`, `continue setup`, and the expanded `START AWS CODEX FASTLANE`
 command.
 
 **Authoritative inputs:** Canonical repository and optional adoption-target
-paths; manifest and source hashes; bootstrap dry-run; dependency-check and
-doctor JSON; applicable `AGENTS.md` files; Git state; project source records;
-and only plugin identity visibly available in the current Codex session.
+paths; manifest and source hashes; bootstrap dry-run; prerequisite,
+dependency-check, and doctor JSON; applicable `AGENTS.md` files; Git state;
+project source records; and allowlisted, ephemeral capability observations
+attributable to official AWS Core in the current Codex session.
 
 **Permitted writes:** For an untouched in-place template, only allowlisted
 placeholder rendering after successful source-integrity, path, dirty-file, and
@@ -512,16 +516,16 @@ initialization or inspection. It does not approve requirements, design,
 construction, GitHub activity, plugin changes, hook trust, AWS access, or AWS
 mutation.
 
-**Stop conditions:** Unsafe or ambiguous roots; source/target containment;
-maintainer-source, manifest, hash, symlink, dirty-template, collision,
-adoption-record, partial-write, dependency, doctor, or source-of-truth failure.
-Missing or unverified AWS Core is not a BOOT-00 stop condition.
+**Stop conditions:** Fresh prerequisite failure; unsafe or ambiguous roots;
+source/target containment; maintainer-source, manifest, hash, symlink,
+dirty-template, collision, adoption-record, partial-write, dependency, doctor,
+or source-of-truth failure.
 
-**Receipt:** Routine status followed immediately by the first questions or work
-from the doctor-selected stage.
+**Receipt:** One prerequisite checklist when blocked; otherwise one routine
+owner update followed by the questions or work selected by the doctor.
 
-**Next:** The exact doctor route. For a new project this is normally
-`INTAKE-10`; begin its questions immediately in the same response.
+**Next:** Welcome and setup questions after prerequisites, or the exact doctor
+route for an initialized project.
 
 ~~~text
 [BOOT-00]
@@ -540,24 +544,44 @@ previous local blocker.
    before owner-facing output.
 
    If the project is already initialized, do not print the welcome, ask setup
-   questions, rerun initialization, or narrate repository checks. Run the
-   dependency check and doctor, then resume the exact doctor-selected stage.
+   questions, rerun prerequisites, rerun initialization, or narrate repository
+   checks. Run the dependency check and doctor, then resume its `interaction`
+   state.
 
-2. Only for an unconfigured template, run:
+2. Only for an unconfigured template, first run:
+
+   python scripts/setup_assistant.py prerequisites --root <repository root> --json
+
+   Observe current Codex-session capability attribution without reading
+   credentials or invoking AWS account APIs. Pass only the setup assistant's
+   allowlisted fields through standard input:
+
+   python scripts/setup_assistant.py prerequisites --root <repository root> --evidence-stdin --json
+
+   Do not claim AWS Core readiness from memory, generic documentation tools,
+   installation metadata, or prose. Both `retrieve_skill` and
+   `search_documentation` must be attributable to
+   `aws-core@agent-toolkit-for-aws` from `aws/agent-toolkit-for-aws`, and must
+   confirm no credential inspection or AWS account access.
+
+   When blocked, render the returned checklist as one owner action and stop.
+   Never execute its installation commands, change plugin state, approve native
+   hook trust, inspect private trust storage, or persist its observations.
+
+3. Only after `PREREQUISITES_READY`, run:
 
    python scripts/setup_assistant.py welcome
 
    Reproduce stdout exactly once. Collect no more than these three values in
    one reply: project name, preferred AWS Region, and development budget posture.
-   Do not paraphrase or repeat those questions. Accept either a
-   finite owner cap with ISO currency
-   or "minimize cost; no hard cap." Preserve an owner cap as
+   Do not paraphrase or repeat those questions. Accept either a finite owner cap
+   with ISO currency or "minimize cost; no hard cap." Preserve an owner cap as
    `MINIMIZE_TOTAL_COST; HARD_CAP: <ISO_CURRENCY> <OWNER_AMOUNT>`; otherwise
    use `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`. Recommend `us-west-2`
    only when the owner is unsure. A budget is a ceiling, not a spending target
    or AWS authorization.
 
-3. Run:
+4. Run:
 
    python scripts/bootstrap_dependencies.py --root <repository root> --json
 
@@ -565,7 +589,7 @@ previous local blocker.
    It does not prove plugin installation or grant AWS access. Do not run
    maintainer tests, pytest, installers, or plugin mutations during setup.
 
-4. After all three fresh-template answers arrive, classify the target as
+5. After all three fresh-template answers arrive, classify the target as
    TEMPLATE_SOURCE, UNCONFIGURED_TEMPLATE, NEW_TARGET, ACTIVE_GREENFIELD,
    ACTIVE_BROWNFIELD, or BLOCKED. For an unconfigured template, dry-run before
    applying:
@@ -593,58 +617,42 @@ previous local blocker.
    map. It never hashes decisions alone or omits that context. Reject missing,
    duplicate, reordered, or drifted paths. Never infer `ADOPT_TEMPLATE`.
 
-5. Run:
+6. Run:
 
    python scripts/bootstrap_doctor.py --root <target> --json
 
-   The doctor is the lifecycle router. If it returns `INTAKE-10` or a later
-   prompt, never restart BOOT-00 because AWS Core is absent or because
-   `init template` was sent again.
+   The doctor is the lifecycle router. Its `interaction` object is the only
+   owner stage, response mode, action, continuation, receipt, and AWS Core
+   materiality state. Prompt IDs remain internal metadata.
 
    Route stale state deterministically: Gate A STALE goes to INTAKE-10 when
    owner facts are missing and otherwise REQ-10; a current Gate A receipt
    awaiting approval goes to INTAKE-20; a stale Gate B with current Gate A goes
    to DESIGN-10; approved Gate B with an uninitialized or stale task plan goes
-   to TASK-10. Otherwise use the exact doctor route or STOP on conflict.
+   to TASK-10. Otherwise use the doctor state or stop on conflict. Never restart
+   BOOT-00 or prerequisites after initialization.
 
-6. Treat official AWS Core as a research dependency, not a setup gate:
+7. For a routine interaction, render `interaction` through
+   `scripts/fastlane_presenter.py`. Return one owner action, include a copyable
+   reply when input is required, and omit internal prompt IDs, hashes, file
+   counts, command narration, repetitive empty fields, and AWS authority data.
+   Use the canonical Gate or AWS receipt instead when
+   `formal_receipt_required` is true.
 
-   - reuse visible official `aws-core@agent-toolkit-for-aws` from
-     `aws/agent-toolkit-for-aws` and report `AVAILABLE`;
-   - for missing, unavailable, or unattributable AWS Core, report
-     `DEFERRED_UNTIL_DESIGN` and continue intake;
-   - never install, enable, disable, update, pin, hash, probe, or trust a plugin
-     or hook for the owner.
+8. Execute the selected action immediately when
+   `automatic_continuation_allowed` is true. At first intake, ask one to three
+   plain-language questions below the Define update. At later stages, resume
+   the selected phase. Never ask an initialized project for another
+   `init template` or completed setup value.
 
-7. Return exactly one routine status:
+If current AWS evidence later becomes missing or stale, stop only the affected
+material step and give one official AWS Core action. Do not regenerate the
+project or rerun the fresh prerequisite gate.
 
-   FASTLANE STATUS
-   Stage: <doctor route>
-   Gate A: <derived state>
-   Gate B: <derived state>
-   AWS Core: <AVAILABLE|DEFERRED_UNTIL_DESIGN>
-   AWS access: NOT USED
-   Next action: <one action>
-
-   Do not expose internal hashes, file counts, command narration, plugin setup,
-   or AWS authority fields in this routine response.
-
-8. Execute that one next action immediately when possible. At `INTAKE-10`,
-   ask the first one to three plain-language questions below the status. At a
-   later route, resume that prompt. Never ask for another `init template`,
-   `START GUIDED INTAKE`, plugin setup, or hook verification before resuming.
-
-Only when DESIGN-10 needs a material current AWS fact and official AWS Core is
-unavailable or unattributable, give one owner action: enable official AWS Core
-from Agent Toolkit for AWS in `/plugins` (register
-`aws/agent-toolkit-for-aws` only if absent), restart Codex, and send
-`CONTINUE AWS DESIGN`. If official AWS Core is already available, reuse it
-without setup instructions.
-
-Any hook review is the owner's attestation to the official plugin identity and
-the hook inventory displayed in Codex. Fastlane never claims to observe a
-private trust database and does not compare hook hashes, request screenshots,
-run synthetic hook probes, or create another gate.
+Native hook review is the owner's attestation to the official plugin identity
+and hook inventory displayed by Codex. Fastlane never claims to observe a
+private trust database; it does not compare hook hashes, request screenshots,
+run synthetic probes, or create another product gate.
 
 Do not write requirements, design, tasks, application code, or infrastructure
 during BOOT-00. Outside the exact selected local-Git action, do not alter Git.

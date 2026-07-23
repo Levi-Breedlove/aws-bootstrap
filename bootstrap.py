@@ -1246,7 +1246,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("1. Run: python scripts/bootstrap_doctor.py --root .")
     print("2. If setup was run manually, open this repository in Codex and send: init template")
     print("3. Answer the project name, Region, and budget questions; Codex begins intake.")
-    print("AWS Core may be connected later when AWS-specific design begins.")
+    print(
+        "Fastlane verifies official AWS Core before fresh initialization; "
+        "this generator did not inspect plugin state or access AWS."
+    )
     return 0
 
 

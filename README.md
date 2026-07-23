@@ -4,26 +4,31 @@ AWS Codex Fastlane is a reusable project template that turns an AWS idea into
 approved requirements, an AWS-informed technical PRD, an organized task plan,
 and a safely bounded build.
 
-Requires Codex and Python 3.11 or newer. AWS credentials are needed only for
-an explicitly authorized deployment or other approved AWS operation.
+Requires the Codex CLI, Git, and Python 3.11 or newer. AWS credentials are
+needed only for an explicitly authorized deployment or other approved AWS
+operation.
 
 ## Start
 
-1. Select [Use this template](https://github.com/Levi-Breedlove/aws-bootstrap/generate),
-   clone the new repository, and open it in Codex.
-2. Send:
+1. Select [Use this template](https://github.com/Levi-Breedlove/aws-bootstrap/generate)
+   and clone the new repository.
+2. Open it in a signed-in interactive Codex CLI and send:
 
    ```text
    init template
    ```
 
-3. Answer three short setup questions:
+3. Fastlane checks Codex login, Git, Python, platform sandbox tools, `uvx`, and
+   official AWS Core. If anything is missing, complete its one copyable
+   checklist and send `init template` again.
+4. When prerequisites pass, answer three short setup questions:
    - project name;
    - preferred AWS Region; and
    - development budget or "minimize cost; no hard cap."
 
-Codex validates and configures the template, then begins guided intake. It
-does not require AWS credentials or access an AWS account during setup.
+Codex then configures the template and begins guided intake.
+Setup does not inspect AWS credentials or access an AWS account. Detailed
+platform commands are in [SETUP.md](docs/SETUP.md).
 
 ## What to expect
 
@@ -45,11 +50,9 @@ environment, resources, operations, cost ceiling, rollback plan, and expiry.
 
 Fastlane is built to use official AWS Core from the
 [AWS Agent Toolkit](https://github.com/aws/agent-toolkit-for-aws) for current
-AWS design guidance. AWS Core is not required for project intake or Gate A.
-
-When AWS-specific design needs AWS Core and it is unavailable, Codex gives one
-setup step. Fastlane uses the current official
-`aws-core@agent-toolkit-for-aws`; it does not pin a plugin version or commit.
+AWS guidance. Fresh initialization verifies the current official
+`aws-core@agent-toolkit-for-aws`. It does not pin a plugin version or commit. Initialized projects do not rerun setup, while material AWS phases
+still require current attributable evidence.
 Codex's own `/plugins` and `/hooks` screens manage installation and trust.
 AWS Core advises; it cannot approve either gate or authorize an AWS change.
 

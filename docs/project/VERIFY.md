@@ -79,10 +79,10 @@ This ledger proves observed use of the official
 connectors, cached content, prior conversation, and prose claims are not proof.
 DESIGN-10 and AWS-10 each require fresh successful observations of both
 `retrieve_skill` and `search_documentation`, with one independently
-attributed result row for each capability. AWS Core is not required for
-BOOT-00, intake, requirements analysis, or Gate A. Missing, stale,
-wrong-source, or unattributed DESIGN-10 evidence blocks Gate B readiness; the
-same condition at AWS-10 blocks AWS execution planning.
+attributed result row for each capability. Fresh prerequisite capability
+observations are ephemeral and are never written to this project ledger.
+Missing, stale, wrong-source, or unattributed DESIGN-10 evidence blocks Gate B
+readiness; the same condition at AWS-10 blocks AWS execution planning.
 
 Every completed row must come from observed live calls through
 `aws-core@agent-toolkit-for-aws` and source `aws/agent-toolkit-for-aws`. Every

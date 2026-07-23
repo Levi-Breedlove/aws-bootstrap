@@ -120,12 +120,13 @@ failure.
 
 ## AWS Core and external actions
 
-Use current official AWS Core (`aws-core@agent-toolkit-for-aws`) from
-`aws/agent-toolkit-for-aws` for material current AWS facts. Do not pin its
-version or commit. AWS Core is not required for BOOT-00, ordinary intake, or
-Gate A. Generic connectors, memory, challengers, and installation metadata
-cannot satisfy required live AWS evidence. Missing capability pauses only the
-affected material AWS step.
+Fresh templates require current official AWS Core
+(`aws-core@agent-toolkit-for-aws`) from `aws/agent-toolkit-for-aws` before
+initialization. Do not pin its version or commit. Initialized projects skip
+that prerequisite on ordinary resume; material AWS steps still require current
+attributable evidence. Generic connectors, memory, challengers, and
+installation metadata cannot satisfy live AWS evidence. Missing capability
+pauses only setup or the affected material AWS step.
 
 Plugin installation and native trust are owner-managed. Do not install
 software, change plugin state, inspect private trust storage, compare hook
