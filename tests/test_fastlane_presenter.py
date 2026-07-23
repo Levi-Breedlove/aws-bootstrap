@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -80,6 +83,117 @@ class FastlanePresenterTests(unittest.TestCase):
         self.assertEqual(rendered.count("Need from you:"), 1)
         self.assertIn("Install Codex", rendered)
         self.assertIn("Install uv", rendered)
+
+    def test_delivery_progress_uses_doctor_task_fields(self) -> None:
+        current = report(
+            owner_stage="DELIVER",
+            state="WORKING",
+            route_reason_code="CONSTRUCTION_AUTONOMOUS",
+            owner_action_required=False,
+            owner_action_kind="NONE_CONTINUE_AUTOMATICALLY",
+            automatic_continuation_allowed=True,
+        )
+        current["tasks"] = {
+            "total": 7,
+            "completed": 3,
+            "skipped": 0,
+            "blocked": 0,
+            "ready": 1,
+            "in_progress": 1,
+            "ready_ids": ["TASK-0005"],
+            "active_ids": ["TASK-0004"],
+            "blocked_ids": [],
+        }
+        rendered = presenter.render_owner_update(current)
+        self.assertIn(
+            "Status: 3 of 7 tasks complete; working on TASK-0004.", rendered
+        )
+        self.assertIn("Next: Codex will finish and validate TASK-0004.", rendered)
+
+    def test_invalid_delivery_progress_fails_closed(self) -> None:
+        current = report(
+            owner_stage="DELIVER",
+            state="WORKING",
+            route_reason_code="CONSTRUCTION_SINGLE",
+            owner_action_required=False,
+            owner_action_kind="NONE_CONTINUE_AUTOMATICALLY",
+            automatic_continuation_allowed=True,
+        )
+        current["tasks"] = {"total": 1, "completed": 2, "skipped": 0}
+        with self.assertRaises(presenter.PresentationError):
+            presenter.render_owner_update(current)
+
+        current["tasks"] = {
+            "total": 1,
+            "completed": 0,
+            "skipped": 0,
+            "blocked": 0,
+            "ready": 0,
+            "in_progress": 1,
+            "ready_ids": [],
+            "active_ids": ["not-a-task"],
+        }
+        with self.assertRaises(presenter.PresentationError):
+            presenter.render_owner_update(current)
+
+    def test_side_question_restores_gate_action_without_receipt(self) -> None:
+        pending = report(
+            response_mode="GATE_A",
+            state="AWAITING_APPROVAL",
+            route_reason_code="WAITING_GATE_A",
+            owner_action_kind="APPROVE_GATE_A",
+            formal_receipt_required=True,
+        )
+        rendered = presenter.render_side_question_response(
+            pending,
+            answer="CloudFront is optional unless the approved requirements need edge delivery.",
+        )
+        self.assertTrue(rendered.startswith("CloudFront is optional"))
+        self.assertIn("Project state changed: No.", rendered)
+        self.assertIn(
+            "Pending owner action: Review and decide the Gate A requirements receipt.",
+            rendered,
+        )
+        self.assertNotIn("APPROVE REQUIREMENTS GATE A", rendered)
+
+    def test_side_question_restores_automatic_continuation(self) -> None:
+        working = report(
+            owner_stage="DESIGN",
+            state="WORKING",
+            route_reason_code="DESIGN_REQUIRED",
+            owner_action_required=False,
+            owner_action_kind="NONE_CONTINUE_AUTOMATICALLY",
+            automatic_continuation_allowed=True,
+        )
+        rendered = presenter.render_side_question_response(
+            working,
+            answer="No architecture decision changed.",
+        )
+        self.assertIn("Pending owner action: Nothing.", rendered)
+        self.assertIn("Next: Codex will compare complete architecture candidates.", rendered)
+
+    def test_public_cli_reads_one_json_object_from_stdin(self) -> None:
+        payload = {
+            "report": report(
+                owner_stage="DESIGN",
+                state="WORKING",
+                route_reason_code="DESIGN_REQUIRED",
+                owner_action_required=False,
+                owner_action_kind="NONE_CONTINUE_AUTOMATICALLY",
+                automatic_continuation_allowed=True,
+            ),
+            "updated": "Gate A was approved.",
+        }
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "owner", "--input-stdin"],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("FASTLANE \u00b7 DESIGN", result.stdout)
+        self.assertIn("Updated: Gate A was approved.", result.stdout)
 
     def test_unknown_or_conflicting_state_fails_closed(self) -> None:
         with self.assertRaises(presenter.PresentationError):

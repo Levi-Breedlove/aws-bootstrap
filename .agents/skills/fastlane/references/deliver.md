@@ -15,7 +15,12 @@ Use for TASK-10, BUILD-10, BUILD-20, and RELEASE-10.
   pause only the affected AWS-specific task with one recovery action; never
   guess or restart intake.
 - Continue autonomously while work remains current, ready, safe, and inside
-  Gate B. Pause on validation failure, stale state, exhausted attempts, scope
-  change, or missing external authority.
+  Gate B. After each reconciled task or wave, rerun the doctor and continue in
+  the same turn when it returns `NONE_CONTINUE_AUTOMATICALLY`.
+- Derive owner-visible task progress only from the doctor's task totals and
+  task-ID fields through `fastlane_presenter.py`; never estimate progress from
+  narration.
+- Pause only on validation failure, stale state, exhausted attempts, scope
+  change, missing external authority, or another declared stop condition.
 - Route AWS mutation through AWS-10/AWS-20 and GitHub mutation through the
   approved envelope or current explicit owner request.

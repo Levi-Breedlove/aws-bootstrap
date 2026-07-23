@@ -55,6 +55,16 @@ class DoctorInteractionTests(unittest.TestCase):
         ):
             self.assertIn(field, report)
         self.assertIn(report["interaction"]["owner_stage"], {"DEFINE", "DESIGN", "DELIVER"})
+        for task_field in (
+            "completed",
+            "skipped",
+            "blocked",
+            "ready_ids",
+            "active_ids",
+            "blocked_ids",
+        ):
+            self.assertIn(task_field, report["tasks"])
+
 
     def test_gate_modes_are_formal_and_revision_receipts_remain_separate(self) -> None:
         gate_a = interaction("WAITING_GATE_A", "INTAKE-20")
@@ -80,6 +90,54 @@ class DoctorInteractionTests(unittest.TestCase):
                 self.assertEqual(result["owner_action_kind"], "NONE_CONTINUE_AUTOMATICALLY")
                 self.assertFalse(result["owner_action_required"])
                 self.assertTrue(result["automatic_continuation_allowed"])
+
+    def test_accepted_gates_route_immediately_to_safe_internal_work(self) -> None:
+        empty = doctor.TaskSummary()
+        design_route = doctor.derive_route(
+            "APPROVED_FOR_DESIGN",
+            "BLOCKED",
+            True,
+            False,
+            empty,
+            False,
+            "NONE",
+        )
+        self.assertEqual(design_route, ("DESIGN_REQUIRED", "DESIGN-10"))
+
+        task_route = doctor.derive_route(
+            "APPROVED_FOR_DESIGN",
+            "APPROVED_FOR_CONSTRUCTION",
+            True,
+            True,
+            empty,
+            True,
+            "NONE",
+        )
+        self.assertEqual(task_route, ("TASK_PLAN_REQUIRED", "TASK-10"))
+
+        planned = doctor.TaskSummary(
+            plan_state="CURRENT",
+            statuses={"TASK-0001": "READY"},
+            ready=["TASK-0001"],
+        )
+        build_route = doctor.derive_route(
+            "APPROVED_FOR_DESIGN",
+            "APPROVED_FOR_CONSTRUCTION",
+            True,
+            True,
+            planned,
+            False,
+            "SINGLE_TASK",
+        )
+        self.assertEqual(build_route, ("CONSTRUCTION_SINGLE", "BUILD-10"))
+
+        for lifecycle, prompt in (design_route, task_route, build_route):
+            routed = interaction(lifecycle, prompt, design_ready=True)
+            self.assertEqual(
+                routed["owner_action_kind"], "NONE_CONTINUE_AUTOMATICALLY"
+            )
+            self.assertTrue(routed["automatic_continuation_allowed"])
+
 
     def test_intake_current_aws_and_validation_each_have_one_stable_action(self) -> None:
         intake = interaction("INTAKE_REQUIRED", "INTAKE-10")

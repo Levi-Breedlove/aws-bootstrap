@@ -324,6 +324,24 @@ class TaskSummary:
         return len(self.statuses)
 
     @property
+    def done(self) -> list[str]:
+        return sorted(
+            task_id for task_id, status in self.statuses.items() if status == "DONE"
+        )
+
+    @property
+    def skipped(self) -> list[str]:
+        return sorted(
+            task_id for task_id, status in self.statuses.items() if status == "SKIPPED"
+        )
+
+    @property
+    def blocked(self) -> list[str]:
+        return sorted(
+            task_id for task_id, status in self.statuses.items() if status == "BLOCKED"
+        )
+
+    @property
     def terminal(self) -> bool:
         return bool(self.statuses) and all(
             status in {"DONE", "SKIPPED"} for status in self.statuses.values()
@@ -6229,8 +6247,14 @@ def build_report(
         "design_contract": design_contract.to_dict(),
         "tasks": {
             "total": tasks.total,
+            "completed": len(tasks.done),
+            "skipped": len(tasks.skipped),
+            "blocked": len(tasks.blocked),
             "ready": len(tasks.ready),
             "in_progress": len(tasks.active),
+            "ready_ids": tasks.ready,
+            "active_ids": tasks.active,
+            "blocked_ids": tasks.blocked,
         },
         "diagnostics": [item.to_dict() for item in ctx.diagnostics],
     }

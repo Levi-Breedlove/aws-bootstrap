@@ -401,8 +401,10 @@ gate, and AWS receipts into one wall of metadata.
 #### Routine status
 
 Use this for BOOT-00, intake, requirements, design work, tasks, construction,
-GitHub synchronization, and release review. Render the doctor's `interaction`
-state through `scripts/fastlane_presenter.py` using exactly these owner fields:
+GitHub synchronization, and release review. Pass the current doctor report as
+JSON on stdin to `python scripts/fastlane_presenter.py owner --input-stdin`.
+Do not hand-compose lifecycle routing. The presenter uses exactly these owner
+fields:
 
 ~~~text
 FASTLANE · <DEFINE|DESIGN|DELIVER>
@@ -420,6 +422,14 @@ value. Never expose prompt IDs as owner instructions, or include internal
 hashes, file counts, repetitive `NONE` values, implementation narration, or
 the exhaustive AWS authority fields. `Need from you: Nothing` permits
 automatic continuation.
+
+For a side question, answer directly, rerun the doctor, and pass the unchanged
+report plus the answer to `python scripts/fastlane_presenter.py side-question
+--input-stdin`. State whether project state changed and restore the current
+owner action. Do not repeat a formal Gate A, Gate B, or AWS receipt merely
+because a question was asked. A side question never creates an internal
+checkpoint or changes lifecycle state unless the owner separately requested a
+project change.
 
 #### Gate receipt
 
@@ -633,17 +643,20 @@ previous local blocker.
    BOOT-00 or prerequisites after initialization.
 
 7. For a routine interaction, render `interaction` through
-   `scripts/fastlane_presenter.py`. Return one owner action, include a copyable
-   reply when input is required, and omit internal prompt IDs, hashes, file
-   counts, command narration, repetitive empty fields, and AWS authority data.
-   Use the canonical Gate or AWS receipt instead when
+   `python scripts/fastlane_presenter.py owner --input-stdin`. Return one owner
+   action, include a copyable reply when input is required, and omit internal
+   prompt IDs, hashes, file counts, command narration, repetitive empty fields,
+   and AWS authority data. Use the canonical Gate or AWS receipt instead when
    `formal_receipt_required` is true.
 
 8. Execute the selected action immediately when
    `automatic_continuation_allowed` is true. At first intake, ask one to three
    plain-language questions below the Define update. At later stages, resume
-   the selected phase. Never ask an initialized project for another
-   `init template` or completed setup value.
+   the selected phase. After each phase checkpoint, rerun the doctor in the
+   same turn and repeat this loop until a declared stop condition. A changed
+   internal prompt ID is never itself a reason to pause.
+   Never ask an initialized project for another `init template` or completed
+   setup value.
 
 If current AWS evidence later becomes missing or stale, stop only the affected
 material step and give one official AWS Core action. Do not regenerate the
@@ -904,8 +917,10 @@ mirror to APPROVED_FOR_DESIGN. Record the
 observed ISO 8601 authorization time and exact message/issue/meeting-record
 source as structured provenance without adding either value to the receipt.
 Do not invent a source. After acceptance, return the exact recorded Gate A
-receipt. Before acceptance, put the exact proposed Gate A receipt last after a
-concise readiness summary.
+receipt and do not combine it with a routine response. Then rerun the doctor in
+the same turn and begin Design without requesting another owner message merely
+to cross the internal route. Before acceptance, put the exact proposed Gate A
+receipt last after a concise readiness summary.
 ~~~
 
 ## DESIGN-10 — Technical PRD and Construction Envelope
@@ -1128,6 +1143,9 @@ paths, and `TASK-10` as the next safe action while the plan state is
 UNINITIALIZED or STALE.
 After acceptance, return the exact recorded Gate B receipt. Before acceptance,
 put the exact proposed Gate B receipt last after a concise readiness summary.
+After recording an accepted receipt, rerun the doctor in the same turn and
+continue through task generation and permitted local construction without
+requesting another owner message merely to cross the internal route.
 ~~~
 
 ## BUG-10 — Active Defect Contract
@@ -1493,9 +1511,13 @@ completion. Journal every external operation before execution. Reconcile
 UNKNOWN or partial results read-only before retrying. Keep GitHub operations
 within AUTH. Route AWS mutation through AWS-10/AWS-20.
 
-Continue through safe waves without asking routine questions. Pause only for a
-declared stop condition or authority that Gate B did not grant. Return receipts
-at wave boundaries and a final routine status.
+After every reconciled task or wave, rerun the doctor, derive progress only
+from its task totals and task-ID fields through `fastlane_presenter.py`, and
+continue the next READY task in the same turn when the owner action is
+`NONE_CONTINUE_AUTOMATICALLY`. Continue through safe waves without asking
+routine questions. Pause only for a declared stop condition or authority that
+Gate B did not grant. Return concise routine progress at wave boundaries and a
+final routine status.
 ~~~
 
 ## SYNC-10 — GitHub Reconciliation
