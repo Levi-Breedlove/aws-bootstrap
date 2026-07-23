@@ -99,3 +99,7 @@ never replace this authorization.
 The doctor selects the next prompt. Correct only the reported blocker, then
 resume that prompt. BOOT-00 is rerun only for a real local initialization
 problem, not for missing AWS research tooling or a repeated `init template`.
+
+Maintainers can run the optional, credential-free-to-validate
+[model role-play review](EVALUATION.md) before a release. Live model access is
+never part of ordinary CI.

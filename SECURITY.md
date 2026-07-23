@@ -32,8 +32,11 @@ authority to invoke them.
 
 ## Setup controls
 
-- BOOT-00 asks only for project name, preferred Region, and budget posture.
-- Missing AWS Core never blocks initialization, intake, or ordinary Gate A.
+- After fresh-template prerequisites pass, BOOT-00 asks only for project name,
+  preferred Region, and budget posture.
+- Fresh templates require current official AWS Core before initialization.
+  Initialized projects skip the prerequisite gate during ordinary resume;
+  missing material evidence pauses only the affected AWS-specific step.
 - Installation commands are owner-run; Fastlane never installs software,
   changes plugin state, signs in, or trusts hooks.
 - Only the official Agent Toolkit source is accepted for required AWS evidence.
