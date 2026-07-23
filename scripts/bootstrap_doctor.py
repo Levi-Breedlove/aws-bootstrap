@@ -147,6 +147,67 @@ AWS_MATERIAL_EVIDENCE_ID = re.compile(r"AWS-EV-\d{4,}")
 ARCHITECTURE_DRIVER_CLASSES = {"HARD_CONSTRAINT", "PREFERENCE", "REVISIT_TRIGGER"}
 ARCHITECTURE_ELIGIBILITY = {"ELIGIBLE", "INELIGIBLE"}
 AWS_DOCUMENTATION_CAPABILITIES = {"retrieve_skill", "search_documentation"}
+NORMATIVE_REQUIREMENT_HEADERS = (
+    "ID",
+    "Requirement",
+    "EARS form",
+    "Acceptance criteria",
+    "Acceptance form",
+)
+LEGACY_REQUIREMENT_HEADERS = ("ID", "Requirement", "Acceptance criteria")
+EARS_FORMS = {
+    "UBIQUITOUS",
+    "EVENT_DRIVEN",
+    "STATE_DRIVEN",
+    "UNWANTED_BEHAVIOR",
+    "OPTIONAL_FEATURE",
+    "COMPLEX",
+}
+EARS_PATTERNS = {
+    "UBIQUITOUS": re.compile(
+        r"The (?P<subject>.+?) SHALL (?P<response>.+)\."
+    ),
+    "EVENT_DRIVEN": re.compile(
+        r"WHEN (?P<trigger>.+?), the (?P<subject>.+?) SHALL (?P<response>.+)\."
+    ),
+    "STATE_DRIVEN": re.compile(
+        r"WHILE (?P<state>.+?), the (?P<subject>.+?) SHALL (?P<response>.+)\."
+    ),
+    "UNWANTED_BEHAVIOR": re.compile(
+        r"IF (?P<condition>.+?), THEN the (?P<subject>.+?) SHALL (?P<response>.+)\."
+    ),
+    "OPTIONAL_FEATURE": re.compile(
+        r"WHERE (?P<feature>.+?), the (?P<subject>.+?) SHALL (?P<response>.+)\."
+    ),
+    "COMPLEX": re.compile(
+        r"WHILE (?P<state>.+?), WHEN (?P<trigger>.+?), the "
+        r"(?P<subject>.+?) SHALL (?P<response>.+)\."
+    ),
+}
+REQUIREMENT_SUBJECT = re.compile(
+    r"\b(?:system|application|service|project|design|deployment|operational(?:\s+\w+)*)\b",
+    re.IGNORECASE,
+)
+ACCEPTANCE_FORMS = {"GHERKIN", "MEASURABLE"}
+GHERKIN_ACCEPTANCE = re.compile(
+    r"GIVEN (?P<precondition>.+?), WHEN (?P<trigger>.+?), THEN (?P<result>.+)\."
+)
+MEASURABLE_ACCEPTANCE = re.compile(
+    r"\b(?:test|tests|check|checks|evidence|calculation|bounded|measurement|"
+    r"measure|rehearsal|scan|scans|review|reviews|pass|passes|fail|fails|"
+    r"confirm|confirms|record|records|map|maps|trace|traces|threshold|"
+    r"percentile|zero|exactly|every|all|denied|succeeds)\b",
+    re.IGNORECASE,
+)
+UNDEFINED_QUALITY_TERM = re.compile(
+    r"\b(?:fast|secure|scalable|user[- ]friendly|appropriate)\b",
+    re.IGNORECASE,
+)
+QAS_HEADERS = (
+    "QAS ID", "Requirement IDs", "Source", "Stimulus", "Environment",
+    "Artifact", "Response", "Response measure",
+)
+QAS_ID = re.compile(r"QAS-\d{3,}")
 MANAGED_SERVERLESS_MARKER = "MANAGED_SERVERLESS_BASELINE:"
 PROPERTY_EXECUTION_HEADING = "### Property execution contract"
 PROPERTY_EXECUTION_HEADERS = (
@@ -2707,12 +2768,218 @@ def authoritative_requirement_ids(text: str) -> set[str]:
 
     identifiers: set[str] = set()
     for table in markdown_tables(text):
-        if not table or tuple(table[0]) != ("ID", "Requirement", "Acceptance criteria"):
+        if not table or tuple(table[0]) not in {
+            NORMATIVE_REQUIREMENT_HEADERS,
+            LEGACY_REQUIREMENT_HEADERS,
+        }:
             continue
+        expected_cells = len(table[0])
         for row in table[2:]:
-            if len(row) == 3 and STABLE_CONTRACT_ID.fullmatch(row[0]) is not None:
+            if (
+                len(row) == expected_cells
+                and STABLE_CONTRACT_ID.fullmatch(row[0]) is not None
+            ):
                 identifiers.add(row[0])
     return identifiers
+
+
+def requirement_method_issues(
+    requirement_id: str,
+    requirement: str,
+    ears_form: str,
+    acceptance_criteria: str,
+    acceptance_form: str,
+) -> list[str]:
+    """Return deterministic EARS and acceptance-contract issues for one row."""
+
+    issues: list[str] = []
+    values = {
+        "requirement": requirement,
+        "EARS form": ears_form,
+        "acceptance criteria": acceptance_criteria,
+        "acceptance form": acceptance_form,
+    }
+    for field_name, value in values.items():
+        if unresolved(value):
+            issues.append(f"{requirement_id}: {field_name} is unresolved")
+    if issues:
+        return issues
+
+    if ears_form not in EARS_FORMS:
+        issues.append(
+            f"{requirement_id}: EARS form must be one of "
+            + ", ".join(sorted(EARS_FORMS))
+        )
+        return issues
+    shall_count = len(re.findall(r"\bSHALL\b", requirement))
+    if shall_count == 0:
+        issues.append(f"{requirement_id}: requirement is missing SHALL")
+    elif shall_count != 1:
+        issues.append(
+            f"{requirement_id}: requirement must contain exactly one uppercase SHALL"
+        )
+    grammar = EARS_PATTERNS[ears_form].fullmatch(requirement)
+    if grammar is None:
+        issues.append(
+            f"{requirement_id}: requirement does not match {ears_form} clause order"
+        )
+    elif REQUIREMENT_SUBJECT.search(grammar.group("subject")) is None:
+        issues.append(
+            f"{requirement_id}: requirement subject must identify a system, "
+            "application, service, project, design, deployment, or operational subject"
+        )
+    vague_requirement = UNDEFINED_QUALITY_TERM.search(requirement)
+    if vague_requirement is not None:
+        issues.append(
+            f"{requirement_id}: requirement contains undefined qualitative term "
+            f"{vague_requirement.group(0)!r}"
+        )
+
+    if acceptance_form not in ACCEPTANCE_FORMS:
+        issues.append(
+            f"{requirement_id}: Acceptance form must be GHERKIN or MEASURABLE"
+        )
+        return issues
+    if acceptance_form == "GHERKIN":
+        if (
+            GHERKIN_ACCEPTANCE.fullmatch(acceptance_criteria) is None
+            or len(re.findall(r"\bGIVEN\b", acceptance_criteria)) != 1
+            or len(re.findall(r"\bWHEN\b", acceptance_criteria)) != 1
+            or len(re.findall(r"\bTHEN\b", acceptance_criteria)) != 1
+        ):
+            issues.append(
+                f"{requirement_id}: GHERKIN acceptance must use GIVEN, one WHEN, "
+                "and THEN in canonical order"
+            )
+    elif (
+        MEASURABLE_ACCEPTANCE.search(acceptance_criteria) is None
+        or UNDEFINED_QUALITY_TERM.search(acceptance_criteria) is not None
+    ):
+        issues.append(
+            f"{requirement_id}: MEASURABLE acceptance requires an explicit observable "
+            "test, calculation, policy check, or bounded result"
+        )
+    return issues
+
+
+def quality_attribute_scenario_issues(
+    text: str,
+    requirement_ids: set[str],
+) -> list[str]:
+    """Validate the compact QAS register or its concrete non-applicable reason."""
+
+    structural = without_fenced_code(text)
+    heading = re.search(
+        r"^### Quality attribute scenarios\s*$", structural, re.MULTILINE
+    )
+    if heading is None:
+        return ["QAS-SECTION: Quality attribute scenarios section is missing"]
+    following = re.search(
+        r"^#{1,3}\s+", structural[heading.end():], re.MULTILINE
+    )
+    end = heading.end() + following.start() if following else len(structural)
+    section = structural[heading.end():end]
+    tables = [
+        table
+        for table in markdown_tables(section)
+        if table and tuple(table[0]) == QAS_HEADERS
+    ]
+    if not tables:
+        non_applicable = re.search(
+            r"^NOT_APPLICABLE — (?P<reason>.+)$", section, re.MULTILINE
+        )
+        if non_applicable is None or unresolved(non_applicable.group("reason")):
+            return [
+                "QAS-SECTION: require one complete QAS table or "
+                "NOT_APPLICABLE — <concrete reason>"
+            ]
+        return []
+    if len(tables) != 1:
+        return ["QAS-SECTION: exactly one Quality attribute scenarios table is required"]
+
+    issues: list[str] = []
+    seen: set[str] = set()
+    for row in tables[0][2:]:
+        row_id = clean_cell(row[0]) if row else "QAS-UNKNOWN"
+        if len(row) != len(QAS_HEADERS):
+            issues.append(
+                f"{row_id}: QAS row must have exactly {len(QAS_HEADERS)} fields"
+            )
+            continue
+        if QAS_ID.fullmatch(row_id) is None:
+            issues.append(f"{row_id}: QAS ID must use QAS-nnn")
+            continue
+        if row_id in seen:
+            issues.append(f"{row_id}: QAS ID is duplicated")
+        seen.add(row_id)
+        for field_name, value in zip(QAS_HEADERS[1:], row[1:]):
+            if unresolved(value):
+                issues.append(f"{row_id}: {field_name} is unresolved")
+        try:
+            basis = parse_exact_id_list(row[1], STABLE_CONTRACT_ID, "Requirement IDs")
+        except ValueError as exc:
+            issues.append(f"{row_id}: {exc}")
+        else:
+            unknown = sorted(set(basis) - requirement_ids)
+            if unknown:
+                issues.append(
+                    f"{row_id}: Requirement IDs reference unknown requirements: "
+                    + ", ".join(unknown)
+                )
+        if (
+            not unresolved(row[7])
+            and (
+                MEASURABLE_ACCEPTANCE.search(row[7]) is None
+                or UNDEFINED_QUALITY_TERM.search(row[7]) is not None
+            )
+        ):
+            issues.append(
+                f"{row_id}: Response measure requires an explicit observable bound"
+            )
+    return issues
+
+
+def validate_gate_a_method_contract(ctx: Context, text: str) -> None:
+    """Fail closed on normative method contracts once Gate A is agent-ready."""
+
+    found = False
+    for table in markdown_tables(text):
+        if not table:
+            continue
+        headers = tuple(table[0])
+        if headers == LEGACY_REQUIREMENT_HEADERS:
+            found = True
+            for row in table[2:]:
+                row_id = clean_cell(row[0]) if row else "REQ-UNKNOWN"
+                ctx.error(
+                    "REQUIREMENT_METHOD_CONTRACT",
+                    f"{row_id}: normative table is missing EARS form and Acceptance form",
+                    PRD_FILE,
+                )
+            continue
+        if headers != NORMATIVE_REQUIREMENT_HEADERS:
+            continue
+        found = True
+        for row in table[2:]:
+            row_id = clean_cell(row[0]) if row else "REQ-UNKNOWN"
+            if len(row) != len(NORMATIVE_REQUIREMENT_HEADERS):
+                ctx.error(
+                    "REQUIREMENT_METHOD_CONTRACT",
+                    f"{row_id}: normative requirement row must have exactly five fields",
+                    PRD_FILE,
+                )
+                continue
+            for issue in requirement_method_issues(*row):
+                ctx.error("REQUIREMENT_METHOD_CONTRACT", issue, PRD_FILE)
+    if not found:
+        ctx.error(
+            "REQUIREMENT_METHOD_CONTRACT",
+            "REQ-SECTION: no authoritative normative requirement table was found",
+            PRD_FILE,
+        )
+    requirement_ids = authoritative_requirement_ids(text)
+    for issue in quality_attribute_scenario_issues(text, requirement_ids):
+        ctx.error("QAS_CONTRACT", issue, PRD_FILE)
 
 
 def current_prd_basis_ids(
@@ -4617,6 +4884,7 @@ def validate_prd(
             ctx.error("DESIGN_CONTRACT_INVALID", issue, PRD_FILE)
     card_cost_posture = clean_cell(gate_a_card.get("Cost posture", ""))
     if gate_a_agent_ready or gate_a_ready_or_current:
+        validate_gate_a_method_contract(ctx, text)
         validate_readiness_card(ctx, gate_a_card, GATE_A_READINESS_FIELDS, "GATE_A")
         try:
             parse_cost_posture(card_cost_posture)

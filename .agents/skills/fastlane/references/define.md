@@ -14,6 +14,17 @@ Use for BOOT-00, INTAKE-10, REQ-10, and Gate A.
   assumptions, and unresolved decisions.
 - Give requirements and assumptions stable IDs and observable acceptance
   criteria. Preserve brownfield behavior and protected user work.
+- Translate only normative requirement rows into one canonical EARS form and
+  one `GHERKIN` or `MEASURABLE` acceptance form. Keep goals, stories, facts,
+  assumptions, decisions, tasks, tests, receipts, and evidence outside EARS.
+  Do not expose methodology labels unless the owner asks for an explanation.
+- Add `QAS-*` rows only for material performance, availability, reliability,
+  recovery, scalability, security-response, or operational-response concerns;
+  otherwise record `NOT_APPLICABLE — <concrete reason>`.
+- Use STRIDE only when material security trust boundaries require systematic
+  analysis. Use LINDDUN only when materially privacy-sensitive data requires
+  systematic analysis. Record resulting requirements, controls, tests, and
+  evidence in existing Fastlane authorities; neither method adds a gate.
 - Default cost posture to `MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED`; preserve
   an owner cap exactly.
 - Quick MVP uses no challenger by default. Use the requirements challenger only

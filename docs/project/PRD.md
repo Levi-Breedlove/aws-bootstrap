@@ -215,12 +215,17 @@ Describe:
 
 ### Functional requirements
 
-| ID | Requirement | Acceptance criteria |
-|---|---|---|
-| FR-001 | TODO | Given TODO, when TODO, then TODO. |
-| FR-002 | TODO | TODO |
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| FR-001 | TODO | UBIQUITOUS | TODO | MEASURABLE |
+| FR-002 | TODO | UNWANTED_BEHAVIOR | TODO | GHERKIN |
 
-Acceptance criteria must be objective and observable. Replace terms such as "fast," "secure," "large," or "user friendly" with measurable conditions.
+Normative requirement rows use one EARS form and one acceptance form. EARS
+states the observable obligation; acceptance criteria state how it is verified.
+Do not apply these fields to goals, stories, facts, assumptions, decisions,
+architecture, tasks, tests, receipts, or evidence. Acceptance criteria must be
+objective and observable. Replace undefined terms such as "fast," "secure,"
+"large," or "user friendly" with measurable conditions.
 
 ## 7. Primary, alternate, and failure flows
 
@@ -270,25 +275,28 @@ Describe the flow in numbered steps.
 
 ## 8. Data requirements
 
-| ID | Requirement | Acceptance criteria |
-|---|---|---|
-| DATA-001 | Each persistent data category has an explicit authoritative store and owner. | The current data inventory maps every persistent category to exactly one source of truth and accountable owner. |
-| DATA-002 | Each data category has an approved classification and access boundary. | Tests and configuration evidence show approved access succeeds and access outside the recorded boundary is denied. |
-| DATA-003 | Retention, deletion, and audit-data behavior are explicit for every stored category. | Time-bound tests or observed evidence demonstrate the approved retention, deletion, and audit outcomes. |
-| DATA-004 | Backup and restore behavior satisfies the approved recovery requirements when durable recovery is required. | Restore evidence meets the current RTO/RPO, or the row is replaced with `NOT_APPLICABLE — <reason>` when no durable recovery applies. |
-| DATA-005 | Migration, compatibility, and residency constraints are explicit before data-bearing construction. | The approved design traces each applicable constraint to a validation or migration/rollback check. |
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| DATA-001 | The project SHALL identify exactly one authoritative store and accountable owner for each persistent data category. | UBIQUITOUS | A data-inventory check maps every persistent category to exactly one source of truth and one accountable owner. | MEASURABLE |
+| DATA-002 | The project SHALL assign an approved classification and access boundary to each data category. | UBIQUITOUS | Access tests and configuration evidence show approved access succeeds and access outside each recorded boundary is denied. | MEASURABLE |
+| DATA-003 | The project SHALL define retention, deletion, and audit-data behavior for every stored category. | UBIQUITOUS | Time-bounded tests or observed evidence demonstrate the approved retention, deletion, and audit outcomes for every stored category. | MEASURABLE |
+| DATA-004 | WHERE durable recovery applies, the service SHALL restore data within the approved recovery objectives. | OPTIONAL_FEATURE | A timed restore rehearsal meets the current RTO and RPO, or the requirement records why durable recovery does not apply. | MEASURABLE |
+| DATA-005 | WHILE data-bearing construction is planned, the design SHALL identify migration, compatibility, and residency constraints. | STATE_DRIVEN | A traceability check maps every applicable constraint to a validation, migration, or rollback check. | MEASURABLE |
 
 ## 9. Security and privacy requirements
 
-| ID | Requirement | Acceptance criteria |
-|---|---|---|
-| SEC-001 | Only signed-in identities may perform protected operations. | An approved signed-in request succeeds and a signed-out request is denied. |
-| SEC-002 | Each identity may access only its approved data and actions, with checks enforced on the server. | Tests prove approved access succeeds and unapproved access is denied. |
-| SEC-003 | Secrets stay outside source control, generated artifacts, and telemetry. | Secret scans pass and reviewed logs contain no secret values. |
-| SEC-004 | External input must match the documented shape and size limits. | Invalid, malformed, and oversized inputs are rejected without creating an unintended change. |
-| SEC-005 | IAM and trust policies grant only the required actions on the required resources. | Policy review and deployed access checks confirm the approved actions succeed and other actions are denied. |
-| SEC-006 | Sensitive data uses the approved encryption controls in transit and at rest. | Infrastructure definitions and deployed configuration evidence match the approved controls. |
-| SEC-007 | Important access and change events identify the actor, action, target, and time without recording secrets. | Audit-event tests and log review confirm all five conditions. |
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| SEC-001 | WHILE an operation is protected, the application SHALL permit only signed-in identities to perform it. | STATE_DRIVEN | GIVEN an approved protected operation, WHEN a signed-in or signed-out identity requests it, THEN the signed-in request succeeds and the signed-out request is denied. | GHERKIN |
+| SEC-002 | The service SHALL enforce each identity's approved data and action boundary on the server. | UBIQUITOUS | Authorization tests prove approved access succeeds and unapproved access is denied at the recorded identity boundary. | MEASURABLE |
+| SEC-003 | The project SHALL keep secrets outside source control, generated artifacts, and telemetry. | UBIQUITOUS | Secret scans pass and reviewed generated artifacts and logs contain zero secret values. | MEASURABLE |
+| SEC-004 | IF external input violates documented shape or size limits, THEN the application SHALL reject it without creating an unintended change. | UNWANTED_BEHAVIOR | GIVEN invalid, malformed, or oversized external input, WHEN the application receives it, THEN the request is rejected and no unintended state change is recorded. | GHERKIN |
+| SEC-005 | The deployment SHALL grant IAM and trust policies only the required actions on the required resources. | UBIQUITOUS | Policy checks and deployed access tests confirm required actions succeed and actions outside the approved resource boundary are denied. | MEASURABLE |
+| SEC-006 | WHERE sensitive data is handled, the service SHALL use approved encryption controls in transit and at rest. | OPTIONAL_FEATURE | Infrastructure definitions and deployed configuration checks match every approved encryption control. | MEASURABLE |
+| SEC-007 | WHEN an important access or change event occurs, the service SHALL record the actor, action, target, and time without recording secrets. | EVENT_DRIVEN | Audit-event tests and log review confirm all five required event conditions for every sampled event. | MEASURABLE |
+
+Invalid, malformed, and oversized inputs are rejected without creating an
+unintended change.
 
 Remove rows that genuinely do not apply and add any workload-specific
 safeguards needed for the approved users, data, and integrations. Record an
@@ -297,34 +305,34 @@ generic template prose.
 
 ## 10. Reliability requirements
 
-| ID | Requirement | Acceptance criteria |
-|---|---|---|
-| REL-001 | Timeouts and retries are bounded. | Generated failure sequences never exceed configured bounds. |
-| REL-002 | Duplicate work is safe where delivery may repeat. | Duplicate-input properties produce one effective outcome. |
-| REL-003 | Stale or concurrent work cannot corrupt newer state. | Stateful concurrency properties hold. |
-| REL-004 | Backup and recovery satisfy RTO and RPO. | Restore rehearsal evidence exists. |
-| REL-005 | Releases can be rolled back safely. | Rollback rehearsal and smoke tests pass. |
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| REL-001 | The service SHALL bound timeouts and retries to approved limits. | UBIQUITOUS | Generated failure-sequence tests never exceed the configured timeout and retry bounds. | MEASURABLE |
+| REL-002 | WHEN delivery repeats work, the service SHALL produce one effective outcome. | EVENT_DRIVEN | GIVEN work that may be delivered more than once, WHEN the same work is delivered repeatedly, THEN one effective outcome is recorded. | GHERKIN |
+| REL-003 | IF stale or concurrent work conflicts with newer state, THEN the service SHALL preserve the newer valid state without corruption. | UNWANTED_BEHAVIOR | Stateful concurrency property tests preserve the newer valid state across the approved generated-case bound. | MEASURABLE |
+| REL-004 | WHERE durable recovery applies, the service SHALL restore within the approved RTO and RPO. | OPTIONAL_FEATURE | A timed restore rehearsal meets the approved RTO and RPO. | MEASURABLE |
+| REL-005 | WHEN a release fails approved health checks, the deployment SHALL support rollback to the last known-good artifact. | EVENT_DRIVEN | A rollback rehearsal restores the bound last known-good artifact and all approved smoke tests pass. | MEASURABLE |
 
 ## 11. Performance, cost, and sustainability requirements
 
 ### Performance efficiency
 
-| ID | Requirement | Acceptance criteria |
-|---|---|---|
-| PERF-001 | Critical user paths have an explicit latency target and measurement condition. | The target names the path, percentile or bound, workload, and observable test result. |
-| PERF-002 | Expected throughput and concurrency are explicit for the approved environment. | A bounded test or calculation covers the approved normal and peak workload. |
-| PERF-003 | Scaling boundaries and resource limits are explicit. | Tests or configuration evidence show work stays within the approved limits and fails safely at the boundary. |
-| PERF-004 | The load-test profile is documented when performance evidence is required. | The profile records data shape, duration, concurrency, environment, and pass condition, or uses `NOT_APPLICABLE — <reason>`. |
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| PERF-001 | The project SHALL define an explicit latency target and measurement condition for each critical user path. | UBIQUITOUS | Each target names the path, percentile or bound, workload, and observable test result. | MEASURABLE |
+| PERF-002 | The project SHALL define expected throughput and concurrency for each approved environment. | UBIQUITOUS | A bounded test or calculation covers the approved normal and peak workload for every environment. | MEASURABLE |
+| PERF-003 | The design SHALL define scaling boundaries and resource limits. | UBIQUITOUS | Tests or configuration checks show work stays within approved limits and fails safely at each boundary. | MEASURABLE |
+| PERF-004 | WHERE performance evidence is required, the project SHALL document the load-test profile. | OPTIONAL_FEATURE | The profile records data shape, duration, concurrency, environment, and pass condition, or records why performance evidence does not apply. | MEASURABLE |
 
 ### Cost optimization
 
-| ID | Requirement | Acceptance criteria |
-|---|---|---|
-| COST-001 | Planning uses `{{COST_POSTURE}}` and minimizes total expected cost and idle spend while satisfying approved security, reliability, performance, and evidence requirements. | The Gate A card, project state, and selected design use the same cost posture without weakening another requirement. |
-| COST-002 | Any owner hard cap, budget-alert thresholds, and recipients are explicit; no hard cap is invented. | The record contains the owner's exact cap and alert plan, or the exact applicable `HARD_CAP_NOT_STATED` / `NOT_APPLICABLE — <reason>` value. |
-| COST-003 | Primary cost drivers, expected low-usage cost, and scaling breakpoints are identified. | The design records the material billing dimensions and an attributable estimate or current-source calculation. |
-| COST-004 | Expansion or migration occurs only after a measurable approved trigger. | Each proposed expansion names its threshold, evidence source, and owner decision path. |
-| COST-005 | Tagging, idle-resource handling, and teardown expectations are explicit for created resources. | IaC and runbook checks cover the approved tags, idle policy, and teardown or retained-resource behavior. |
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| COST-001 | The project SHALL use `{{COST_POSTURE}}` and minimize expected total cost and idle spend while satisfying approved security, reliability, performance, and evidence requirements. | UBIQUITOUS | The Gate A card, project state, and selected design use the same cost posture, and a traceability check finds no weakened approved requirement. | MEASURABLE |
+| COST-002 | The project SHALL record any owner hard cap, budget-alert thresholds, and recipients without inventing a hard cap. | UBIQUITOUS | The record contains the owner's exact cap and alert plan, or records `HARD_CAP_NOT_STATED` or why cost alerts do not apply. | MEASURABLE |
+| COST-003 | The design SHALL identify primary cost drivers, expected low-usage cost, and scaling breakpoints. | UBIQUITOUS | The design records material billing dimensions and an attributable estimate or current-source calculation. | MEASURABLE |
+| COST-004 | WHEN expansion or migration is proposed, the design SHALL require a measurable approved trigger before the change. | EVENT_DRIVEN | Each proposed expansion records a bounded threshold, evidence source, and owner decision path. | MEASURABLE |
+| COST-005 | The project SHALL define tagging, idle-resource handling, and teardown expectations for created resources. | UBIQUITOUS | IaC and runbook checks cover approved tags, idle policy, and teardown or retained-resource behavior. | MEASURABLE |
 
 A hard cap is optional during requirements approval unless it is an owner-stated
 business constraint. Do not manufacture one. Preserve a real cap in the Gate A
@@ -340,22 +348,33 @@ isolation, recovery, logging, or evidence controls.
 
 ### Sustainability
 
-| ID | Requirement | Acceptance criteria |
-|---|---|---|
-| SUS-001 | Idle resources are removed or scaled down when the approved workload does not need them. | Configuration or teardown evidence shows the approved idle behavior. |
-| SUS-002 | Unnecessary data movement and retention are avoided. | The design identifies material movement and retention and records why each retained path is needed. |
-| SUS-003 | Utilization is measured before capacity is expanded. | Expansion evidence cites the approved utilization trigger and observed measurement. |
-| SUS-004 | Learning-driven architecture tradeoffs are recorded when they change an approved decision. | The affected requirement/design IDs, evidence, and owner decision path are traceable. |
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| SUS-001 | WHERE the approved workload does not need an idle resource, the deployment SHALL remove or scale down that resource. | OPTIONAL_FEATURE | Configuration or teardown evidence confirms the approved idle behavior for every applicable resource. | MEASURABLE |
+| SUS-002 | The design SHALL avoid unnecessary data movement and retention. | UBIQUITOUS | A design review identifies material movement and retention and records a requirement basis for each retained path. | MEASURABLE |
+| SUS-003 | WHEN capacity expansion is proposed, the project SHALL measure utilization before approving the expansion. | EVENT_DRIVEN | Expansion evidence cites the approved utilization trigger and an observed measurement at or above that trigger. | MEASURABLE |
+| SUS-004 | WHEN learning changes an approved architecture decision, the project SHALL record the tradeoff and owner decision path. | EVENT_DRIVEN | A traceability check links the affected requirement and design IDs, evidence, and owner decision. | MEASURABLE |
 
 ## 12. Operational requirements
 
-| ID | Requirement | Acceptance criteria |
-|---|---|---|
-| OPS-001 | Infrastructure and environments are reproducibly defined through the approved IaC boundary. | IaC validation and environment-specific configuration checks pass for every approved environment. |
-| OPS-002 | Deployment strategy and stop conditions are explicit before deployment. | The runbook names the artifact, order, health checks, failure boundary, and authorized next action. |
-| OPS-003 | Logs, metrics, dashboards, and alarms provide the approved operational signals without exposing secrets. | Evidence shows the required signals, thresholds, destinations, and secret-safe content. |
-| OPS-004 | Incident ownership and escalation are explicit. | The runbook identifies the responsible owner and actionable escalation path. |
-| OPS-005 | Rollback and teardown behavior are explicit and testable. | Rehearsal or observed evidence covers rollback, retained resources, and the approved teardown result. |
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| OPS-001 | The deployment SHALL define infrastructure and environments reproducibly through the approved IaC boundary. | UBIQUITOUS | IaC validation and environment-specific configuration checks pass for every approved environment. | MEASURABLE |
+| OPS-002 | WHILE deployment is planned, the project SHALL define the deployment strategy and stop conditions. | STATE_DRIVEN | The runbook check confirms the artifact, order, health checks, failure boundary, and authorized next action are explicit. | MEASURABLE |
+| OPS-003 | The service SHALL provide approved logs, metrics, dashboards, and alarms without exposing secrets. | UBIQUITOUS | Evidence checks confirm required signals, thresholds, destinations, and zero secret values in sampled content. | MEASURABLE |
+| OPS-004 | The project SHALL identify incident ownership and an actionable escalation path. | UBIQUITOUS | The runbook check identifies one responsible owner and one actionable escalation path for each material incident class. | MEASURABLE |
+| OPS-005 | The project SHALL define testable rollback and teardown behavior. | UBIQUITOUS | Rehearsal or observed evidence covers rollback, retained resources, and the approved teardown result. | MEASURABLE |
+
+### Quality attribute scenarios
+
+Use `QAS-*` only when performance, availability, reliability, recovery,
+scalability, security-response, or operational-response materially affects Gate
+A or architecture. Otherwise replace the row with
+`NOT_APPLICABLE — <concrete reason>`.
+
+| QAS ID | Requirement IDs | Source | Stimulus | Environment | Artifact | Response | Response measure |
+|---|---|---|---|---|---|---|---|
+| QAS-001 | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
 
 # Part II — Requirements Analysis and Gate A
 

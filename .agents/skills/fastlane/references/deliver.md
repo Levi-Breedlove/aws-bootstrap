@@ -5,6 +5,31 @@ Use for TASK-10, BUILD-10, BUILD-20, and RELEASE-10.
 - Require a current approved Gate B and current REQ/DES/AUTH basis.
 - Generate dependency-aware tasks and use `scripts/task_waves.py`; only READY
   tasks with satisfied dependencies may run.
+- Tasks trace to approved EARS requirement IDs, but task cards never contain an
+  `EARS form` field. Apply the Fastlane INVEST profile without adding metadata:
+  Independent means only necessary dependencies and one writer; Negotiable
+  means implementation details may vary only within the approved DES/AUTH
+  boundary; Valuable means one user- or operator-observable approved outcome;
+  Estimable means bounded paths, dependencies, risks, commands, and attempt
+  budget; Small means one coherent implementation-and-validation cycle; and
+  Testable means objective acceptance criteria and exact validation commands.
+- Prefer a Thin Vertical Slice when the selected architecture permits it. Do
+  not force vertical slicing on a legitimate migration-only, security-only,
+  infrastructure-only, or evidence-only task; it still needs one coherent
+  outcome and independent evidence.
+- Use Red/Green TDD when it provides meaningful executable feedback: Chicago
+  School for state-based behavior and public APIs, or London School for
+  interaction-heavy orchestration. Preserve the initial failing observation,
+  implement the smallest passing change, then refactor while checks stay green.
+  TDD is not required for pure documentation, manifest regeneration, or work
+  whose only meaningful check is an existing IaC, policy, package, or
+  integration validator. Preserve the Property-Based Testing contract exactly.
+- The existing DONE transition is the Fastlane Definition of Done. A task is
+  DONE only when all acceptance criteria pass; exact validation ran and passed;
+  applicable property tests pass; observed evidence is recorded; work remained
+  inside REQ/DES/AUTH and write boundaries; execution log and checkpoint state
+  are current; no unresolved blocker or placeholder remains; and required
+  documentation and runbook changes are complete.
 - The coordinator alone writes code and ledgers. Preserve task IDs, write and
   command boundaries, attempt budgets, checkpoints, and protected paths.
 - Run applicable example, property, integration, security, recovery, and IaC

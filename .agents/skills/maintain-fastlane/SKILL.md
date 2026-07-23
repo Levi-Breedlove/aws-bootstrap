@@ -12,6 +12,11 @@ description: Maintain Fastlane prompts, scripts, skills, manifests, packaging, o
 4. Change the smallest coherent engine surface and direct regression tests.
    Do not start BOOT/INTAKE/DESIGN/BUILD, add a lifecycle stage, duplicate an
    authority, or hide setup behavior.
+   For bounded framework or brownfield refactoring, use the Mikado Method:
+   attempt the smallest target change; identify a blocking prerequisite;
+   preserve or revert unsafe exploratory edits; implement only the in-scope
+   prerequisite; return to the original goal; and report unrelated discoveries
+   without absorbing them. Mikado is not a lifecycle phase or task state.
 5. Refresh `bootstrap.manifest.json` only after source edits are final.
 6. Run focused tests, the full suite, manifest and deterministic package
    checks, and `git diff --check` before publication.

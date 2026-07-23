@@ -795,6 +795,19 @@ Core is unavailable, continue ordinary
 requirements work and mark only the unresolved material AWS fact as open. The coordinator evaluates any challenger
 findings and remains the only writer. A challenger cannot approve Gate A.
 
+Translate only normative requirement rows into the canonical EARS grammar in
+the current PRD table and select exactly one `GHERKIN` or `MEASURABLE`
+acceptance form. Keep product statements, stories, goals, non-goals, facts,
+findings, assumptions, open decisions, architecture, tasks, tests, receipts,
+evidence, and authorization metadata outside EARS. For material performance,
+availability, reliability, recovery, scalability, security-response, or
+operational-response concerns, complete a `QAS-*` row; otherwise record
+`NOT_APPLICABLE — <concrete reason>`. Apply STRIDE, LINDDUN, ATAM, or ADR only
+when the phase reference's material trigger is met. Record results in existing
+authorities and add no methodology-specific stage, gate, or document. Keep all
+methodology names out of routine owner responses unless the owner explicitly
+asks for an explanation.
+
 Create or increment a requirements revision such as REQ-0001. Give every
 requirement, non-goal, assumption, and material open question a stable ID.
 Record in docs/project/PRD.md:
@@ -1220,6 +1233,20 @@ select or substitute a technology, version policy, or property execution value.
 ~~~text
 [TASK-10]
 Translate the accepted PRD or BUGFIX contract into executable docs/project/TASKS.md entries.
+
+Tasks trace to approved EARS requirement IDs, but task cards are not EARS and
+must not add an `EARS form`, `INVEST`, `THIN_SLICE`, or `DEFINITION_OF_DONE`
+metadata field. Apply the Fastlane INVEST profile from the Deliver reference.
+Prefer a Thin Vertical Slice when the selected architecture permits it; do not
+force one onto a legitimate migration-only, security-only,
+infrastructure-only, or evidence-only task. Every exception still has one
+coherent outcome and independent evidence.
+
+Plan each task so the unchanged Fastlane Definition of Done can be satisfied:
+all acceptance criteria, exact validation, applicable property tests, observed
+evidence, approved boundaries, current execution log and checkpoint, no
+unresolved blocker or placeholder, and complete required documentation and
+runbook changes. Do not repeat these method labels as new task metadata.
 
 Run the read-only bootstrap doctor first. Task-plan state is exactly
 UNINITIALIZED, CURRENT, or STALE. Set the next monotonic Task-plan revision such

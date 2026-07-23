@@ -78,6 +78,30 @@ def set_receipt(text: str, gate: str, receipt: str) -> str:
 
 
 def approve_gate_a(text: str) -> str:
+    replacements = {
+        "| FR-001 | TODO | UBIQUITOUS | TODO | MEASURABLE |": (
+            "| FR-001 | The application SHALL display the current approved project outcome. "
+            "| UBIQUITOUS | A rendered-output test confirms the approved outcome is displayed. "
+            "| MEASURABLE |"
+        ),
+        "| FR-002 | TODO | UNWANTED_BEHAVIOR | TODO | GHERKIN |": (
+            "| FR-002 | IF input violates approved constraints, THEN the application SHALL "
+            "reject it without changing approved state. | UNWANTED_BEHAVIOR | GIVEN input "
+            "outside approved constraints, WHEN the application receives it, THEN the input "
+            "is rejected and approved state is unchanged. | GHERKIN |"
+        ),
+        "| QAS-001 | TODO | TODO | TODO | TODO | TODO | TODO | TODO |": (
+            "| QAS-001 | REL-004 | Operator | Primary data store becomes unavailable | "
+            "Development recovery rehearsal | Durable data store | Restore the latest "
+            "approved backup | A timed restore rehearsal meets RTO 60 minutes and RPO "
+            "15 minutes. |"
+        ),
+    }
+    for before, after in replacements.items():
+        if text.count(before) != 1:
+            raise AssertionError(f"Expected one method-contract fixture row: {before}")
+        text = text.replace(before, after, 1)
+
     for field, value in {
         "Project mode": "`greenfield`",
         "Delivery profile": "`quick-mvp`",
@@ -990,6 +1014,121 @@ class BootstrapDoctorTests(unittest.TestCase):
             report["design_contract"]["status"],
             {"UNINITIALIZED", "BLOCKED"},
         )
+
+    def test_each_ears_form_accepts_a_canonical_requirement(self) -> None:
+        examples = {
+            "UBIQUITOUS": "The system SHALL record the approved result.",
+            "EVENT_DRIVEN": (
+                "WHEN an approved request arrives, the application SHALL return the result."
+            ),
+            "STATE_DRIVEN": (
+                "WHILE recovery is active, the service SHALL reject conflicting writes."
+            ),
+            "UNWANTED_BEHAVIOR": (
+                "IF input exceeds the approved limit, THEN the service SHALL reject the input."
+            ),
+            "OPTIONAL_FEATURE": (
+                "WHERE durable recovery applies, the project SHALL retain an approved backup."
+            ),
+            "COMPLEX": (
+                "WHILE recovery is active, WHEN a status request arrives, the system SHALL "
+                "return the current recovery state."
+            ),
+        }
+        for ears_form, requirement in examples.items():
+            with self.subTest(ears_form=ears_form):
+                self.assertEqual(
+                    doctor.requirement_method_issues(
+                        "FR-900",
+                        requirement,
+                        ears_form,
+                        "A bounded test confirms the observable result for every approved case.",
+                        "MEASURABLE",
+                    ),
+                    [],
+                )
+
+    def test_requirement_method_contract_rejects_malformed_examples(self) -> None:
+        measurable = "A bounded test confirms the observable result."
+        cases = {
+            "missing SHALL": (
+                "The system records the approved result.", "UBIQUITOUS", measurable,
+            ),
+            "clause order": (
+                "The system SHALL record the approved result.", "EVENT_DRIVEN", measurable,
+            ),
+            "requirement subject": (
+                "The worker SHALL record the approved result.", "UBIQUITOUS", measurable,
+            ),
+            "requirement is unresolved": (
+                "TODO", "UBIQUITOUS", measurable,
+            ),
+        }
+        for expected, (requirement, ears_form, acceptance) in cases.items():
+            with self.subTest(expected=expected):
+                issues = doctor.requirement_method_issues(
+                    "FR-901", requirement, ears_form, acceptance, "MEASURABLE"
+                )
+                self.assertTrue(any(expected in issue for issue in issues), issues)
+
+    def test_gherkin_and_measurable_acceptance_forms_are_distinct(self) -> None:
+        requirement = "The system SHALL record the approved result."
+        gherkin = (
+            "GIVEN an approved request, WHEN the system receives it, "
+            "THEN the result is recorded."
+        )
+        measurable = "A bounded test confirms the result for every approved request."
+        self.assertEqual(
+            doctor.requirement_method_issues(
+                "FR-902", requirement, "UBIQUITOUS", gherkin, "GHERKIN"
+            ),
+            [],
+        )
+        self.assertTrue(
+            doctor.requirement_method_issues(
+                "FR-902", requirement, "UBIQUITOUS", gherkin, "MEASURABLE"
+            )
+        )
+        self.assertTrue(
+            doctor.requirement_method_issues(
+                "FR-902", requirement, "UBIQUITOUS", measurable, "GHERKIN"
+            )
+        )
+
+    def test_quality_attribute_scenario_requires_complete_bounded_fields(self) -> None:
+        text = approve_gate_a(
+            (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
+        )
+        requirement_ids = doctor.authoritative_requirement_ids(text)
+        self.assertEqual(
+            doctor.quality_attribute_scenario_issues(text, requirement_ids), []
+        )
+        broken = text.replace(
+            "A timed restore rehearsal meets RTO 60 minutes and RPO 15 minutes.",
+            "TODO",
+            1,
+        )
+        issues = doctor.quality_attribute_scenario_issues(broken, requirement_ids)
+        self.assertTrue(any("QAS-001: Response measure is unresolved" in issue for issue in issues))
+
+    def test_gate_a_rejects_unresolved_normative_requirement(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = self.copy_project(Path(temp_dir))
+            self.approve_project(project, gate_b=False)
+            prd_path = project / "docs/project/PRD.md"
+            text = prd_path.read_text(encoding="utf-8").replace(
+                "The application SHALL display the current approved project outcome.",
+                "TODO",
+                1,
+            )
+            prd_path.write_text(text, encoding="utf-8")
+            report = doctor.inspect_project(project)
+            self.assertIn("REQUIREMENT_METHOD_CONTRACT", codes(report))
+            messages = [item["message"] for item in report["diagnostics"]]
+            self.assertTrue(
+                any("FR-001: requirement is unresolved" in message for message in messages),
+                messages,
+            )
 
     def test_design_contract_parser_is_deterministic_and_fail_closed(self) -> None:
         template = (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")

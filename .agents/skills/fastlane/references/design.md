@@ -19,6 +19,13 @@ Use for DESIGN-10 and Gate B.
 - Map every approved requirement to the selected `ARCH-*`, concrete
   `COMP/API/DATA/CTRL` IDs, applicable property/test IDs, and `AWS-EV-*` IDs.
   Keep detailed live AWS Core invocation evidence in `docs/project/VERIFY.md`.
+- Use ATAM only for a high-risk design with materially competing quality
+  attributes. Use a Nygard-style ADR only for a consequential,
+  hard-to-reverse decision. Record their conclusions in the existing driver,
+  candidate, architecture, ADR, verification, and evidence authorities; do not
+  create methodology-specific documents, stages, or gates.
+- Keep method names internal. Explain them only when the owner explicitly asks;
+  routine owner questions remain short and plain-language.
 - Use the architecture challenger only after the proposal is complete and only
   for high-risk, hard-to-reverse, shared-infrastructure, isolation, recovery,
   or explicitly requested review.

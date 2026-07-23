@@ -41,6 +41,17 @@ fresh prerequisites and resumes its derived stage.
 | AWS-30 / AWS-40 | Deployed evidence and residual review | Governed by the authorization and runbook |
 
 Gate A — approve requirements → Gate B — approve the PRD and construction boundary → Codex builds autonomously inside that boundary.
+## Internal precision and delivery methods
+
+Owners continue answering short, plain-language questions. Internally, Codex
+translates normative requirements into EARS obligations with Gherkin or
+measurable acceptance and adds quality-attribute scenarios only when material.
+TASK-10 applies Fastlane's INVEST profile, prefers thin vertical slices when
+appropriate, and uses the existing DONE transition as the Definition of Done.
+TDD, Mikado, STRIDE, LINDDUN, ATAM, and ADR are conditional techniques, not
+lifecycle stages or approval gates. Their outputs stay in the existing PRD,
+task, decision, test, and evidence authorities.
+
 
 ## AWS Core throughout Fastlane
 

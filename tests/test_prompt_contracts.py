@@ -1310,5 +1310,130 @@ class PromptPackContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("never repeats a formal Gate A, Gate B, or AWS receipt", owner_reference)
 
+    def test_normative_requirements_use_one_ears_and_acceptance_schema(self) -> None:
+        header = (
+            "| ID | Requirement | EARS form | Acceptance criteria | "
+            "Acceptance form |"
+        )
+        self.assertEqual(self.prd.count(header), 8)
+        for acceptance_form in ("GHERKIN", "MEASURABLE"):
+            self.assertIn(acceptance_form, self.prd)
+        self.assertIn(
+            "| QAS ID | Requirement IDs | Source | Stimulus | Environment | "
+            "Artifact | Response | Response measure |",
+            self.prd,
+        )
+        self.assertIn("NOT_APPLICABLE", self.prd)
+
+        task_template = self.tasks.split("~~~text", 1)[1].split("~~~", 1)[0]
+        for forbidden_metadata in (
+            "EARS form",
+            "INVEST",
+            "THIN_SLICE",
+            "DEFINITION_OF_DONE",
+        ):
+            self.assertNotIn(f"- {forbidden_metadata}:", task_template)
+
+    def test_task_10_requires_invest_thin_slices_and_existing_done_contract(self) -> None:
+        task_prompt = self.prompt_section("TASK-10")
+        deliver_reference = (
+            PROJECT_ROOT / ".agents/skills/fastlane/references/deliver.md"
+        ).read_text(encoding="utf-8")
+        for surface in (self.tasks, task_prompt, deliver_reference):
+            self.assertIn("Fastlane INVEST profile", surface)
+            self.assertIn("Thin Vertical Slice", surface)
+            self.assertIn("Fastlane Definition of Done", surface)
+        for attribute in (
+            "Independent",
+            "Negotiable",
+            "Valuable",
+            "Estimable",
+            "Small",
+            "Testable",
+        ):
+            self.assertIn(attribute, self.tasks)
+        for done_condition in (
+            "all acceptance criteria pass",
+            "exact validation ran and passed",
+            "applicable property tests pass",
+            "observed evidence is recorded",
+            "inside REQ/DES/AUTH and write boundaries",
+            "execution log and checkpoint state are current",
+            "no unresolved blocker or placeholder remains",
+            "required documentation and runbook changes are complete",
+        ):
+            self.assertIn(done_condition, self.tasks)
+        self.assertIn("migration-only", self.tasks)
+        self.assertIn("security-only", self.tasks)
+        self.assertIn("infrastructure-only", self.tasks)
+        self.assertIn("evidence-only", self.tasks)
+
+    def test_tdd_mikado_and_risk_methods_are_conditional_not_new_gates(self) -> None:
+        deliver_reference = (
+            PROJECT_ROOT / ".agents/skills/fastlane/references/deliver.md"
+        ).read_text(encoding="utf-8")
+        define_reference = (
+            PROJECT_ROOT / ".agents/skills/fastlane/references/define.md"
+        ).read_text(encoding="utf-8")
+        design_reference = (
+            PROJECT_ROOT / ".agents/skills/fastlane/references/design.md"
+        ).read_text(encoding="utf-8")
+        maintain_skill = (
+            PROJECT_ROOT / ".agents/skills/maintain-fastlane/SKILL.md"
+        ).read_text(encoding="utf-8")
+        workflow = (PROJECT_ROOT / "docs/WORKFLOW.md").read_text(encoding="utf-8")
+
+        for phrase in (
+            "Use Red/Green TDD when it provides meaningful executable feedback",
+            "pure documentation",
+            "manifest regeneration",
+            "Preserve the Property-Based Testing contract exactly",
+        ):
+            self.assertIn(phrase, deliver_reference)
+        self.assertRegex(deliver_reference, r"Chicago\s+School")
+        self.assertRegex(deliver_reference, r"London\s+School")
+        self.assertIn("Mikado Method", maintain_skill)
+        self.assertIn("not a lifecycle phase or task state", maintain_skill)
+        self.assertIn("Use STRIDE only when", define_reference)
+        self.assertIn("Use LINDDUN only when", define_reference)
+        self.assertIn("Use ATAM only", design_reference)
+        self.assertIn("Nygard-style ADR only", design_reference)
+        self.assertIn(
+            "conditional techniques, not\nlifecycle stages or approval gates",
+            workflow,
+        )
+
+    def test_method_contracts_leave_all_exact_authorization_receipts_intact(self) -> None:
+        gate_a = """APPROVE REQUIREMENTS GATE A
+Requirements revision: REQ-0001
+Cost posture: MINIMIZE_TOTAL_COST; HARD_CAP_NOT_STATED
+Accepted assumptions: ASM-... or NONE
+Approver: <name/handle>"""
+        gate_b = """APPROVE PRD AND CONSTRUCTION GATE B
+Requirements revision: REQ-0001
+Design revision: DES-0001
+Construction authorization: AUTH-0001
+Construction envelope SHA-256: sha256:<64-lowercase-hex>
+Use the proposed construction envelope above.
+Approver: <name/handle>"""
+        deployment_lines = (
+            "AUTHORIZE AWS DEPLOYMENT",
+            "AWS authorization: AWS-AUTH-0001",
+            "Construction authorization: AUTH-0001",
+            "Cost ceiling: <finite positive ISO-currency amount, for example USD: 20.00>",
+            "Valid until: <ISO 8601 time or exact one-operation condition>",
+        )
+        teardown_lines = (
+            "AUTHORIZE AWS TEARDOWN",
+            "Teardown authorization: TEARDOWN-AUTH-0001",
+            "Construction authorization: AUTH-0001",
+            "Allowed deletion operations: <exact operations>",
+            "Post-teardown verification: <read-only checks>",
+        )
+        self.assertIn(gate_a, self.prompts)
+        self.assertIn(gate_b, self.prompts)
+        for line in (*deployment_lines, *teardown_lines):
+            self.assertIn(line, self.prompts)
+
 if __name__ == "__main__":
     unittest.main()

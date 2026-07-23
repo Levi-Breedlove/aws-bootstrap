@@ -81,6 +81,41 @@ its graph with tasks for the current IDs, and sets the new plan `CURRENT`.
   operation. Otherwise retain `PENDING_SYNC`.
 - AWS mutations occur only within a complete current AUTH or action-specific AWS
   authorization. Exactly one named AWS operator may mutate AWS at a time.
+## Fastlane task methodology
+
+Task cards trace to approved EARS requirement IDs; they are not written in EARS
+and contain no `EARS form`, `INVEST`, `THIN_SLICE`, or `DEFINITION_OF_DONE`
+metadata fields.
+
+Apply the Fastlane INVEST profile when TASK-10 creates the graph:
+
+- **Independent:** only necessary dependencies and one writer.
+- **Negotiable:** implementation details may vary only inside the approved
+  DES/AUTH boundary.
+- **Valuable:** one user- or operator-observable approved outcome.
+- **Estimable:** bounded paths, dependencies, risks, commands, and attempt
+  budget.
+- **Small:** one coherent implementation-and-validation cycle.
+- **Testable:** objective acceptance criteria and exact validation commands.
+
+Prefer a Thin Vertical Slice when the selected architecture permits it. A
+legitimate migration-only, security-only, infrastructure-only, or evidence-only
+task does not need artificial vertical behavior, but it still needs one
+coherent outcome and independent evidence.
+
+### Fastlane Definition of Done
+
+The existing DONE transition remains authoritative. A task is DONE only when:
+
+- all acceptance criteria pass;
+- exact validation ran and passed;
+- applicable property tests pass;
+- observed evidence is recorded;
+- the task remained inside REQ/DES/AUTH and write boundaries;
+- execution log and checkpoint state are current;
+- no unresolved blocker or placeholder remains; and
+- required documentation and runbook changes are complete.
+
 
 ## Status and transition contract
 
