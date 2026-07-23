@@ -14,10 +14,11 @@ adopter's local Codex profile and are never written to the repository.
 
 ## When AWS Core is required
 
-AWS Core is optional during BOOT-00, guided intake, and ordinary Gate A work.
-It is the preferred source whenever current AWS knowledge materially affects
-requirements or planning, and it is required for the evidence-bound AWS work at
-DESIGN-10 and AWS-10.
+Fresh templates require current official AWS Core before initialization.
+Initialized projects skip the prerequisite gate during ordinary resume. During
+Define, query AWS Core only when a current AWS fact materially affects
+feasibility; current attributable evidence is required for the evidence-bound
+AWS work at DESIGN-10 and AWS-10.
 
 Use it for current service behavior, Region support, IAM, networking,
 encryption, quotas, reliability, observability, pricing drivers, deployment,

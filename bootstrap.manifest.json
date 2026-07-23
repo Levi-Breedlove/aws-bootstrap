@@ -41,14 +41,15 @@
     "AGENTS.md": "884070d36875b96853e34f5853ea69823af10cbdb9d9dd14b4dd2d6bf16c036d",
     "LICENSE": "5293c851be403da449f4d6a2ba71702a8d81b29fa46bda45da2f627790b3cf68",
     "README.md": "b6d38e2ead64be86529fc701de5d5513262e5dfc66f97598ce439952b67f9a30",
-    "SECURITY.md": "b85e3c20df200aab7e5034e5b40ca5b2cec701ca42924d12b433526c0a7eafca",
+    "SECURITY.md": "418058afbdd267cfd0d549e21d51d4ffe2543644294cd5d03e9eb1a69e385952",
     "app/AGENTS.md": "80c37e745419881501b2f8ec03e31de64306aff9186901719bc45a9ef55417be",
     "bootstrap.py": "46e3bb58f4318cdde23e664b5d70ce9a6d6915d5946c45b4474c7cddc14c02b2",
     "bootstrap.yaml": "d5e4c6328ad7a16a5402c7d5fec643f2c8ea4a4ca1150583d7add554f35c2dff",
-    "docs/DEPENDENCY-POLICY.md": "06a21a880725d722e53a46afea72890af1c0385be5cc84a26888295ab9d1b43a",
+    "docs/DEPENDENCY-POLICY.md": "f403a41c5c583a0f050381604dc9d8a58bd1f11fd02adeb72b1e128764f82baf",
+    "docs/EVALUATION.md": "c401ca172eb79a6eca6a788c14c2778871aea8d6505a04104ec75cf30966e2f8",
     "docs/SETUP.md": "919f93e619ee111a12b67b7d7f9f2dca8c37c126488755b2765da5089c431b12",
     "docs/TROUBLESHOOTING.md": "4549428b5a1af8d326e2b8cae71624a6354ed4c6045940cb081402df42856205",
-    "docs/WORKFLOW.md": "d75f0e08c26d88fb3ce8bbc182768f50552dddd4c6a5e2056b4c4e4eb47a41f2",
+    "docs/WORKFLOW.md": "242dae6c4676eb8b6607ca7d8efbeaa60730b6f2b7ac70983baee8b5c693202c",
     "docs/adr/0000-template.md": "82c8e4f1333b6d16776897eb8abc7e6ee8656b9ce3c90fc9f2f68f59c82afe86",
     "docs/project/BUGFIX.md": "d6bf2c93f720b16ce138a73d6f86a51393ece915526c4d5c969dd72d2919a424",
     "docs/project/PRD.md": "b7ab59da6cbbfb4c5caf9daf07fe7681895baaded6a44d6e05fca5402b6b45f7",
@@ -61,6 +62,7 @@
     "scripts/bootstrap_dependencies.py": "3730bc9244af38488aa59fe05d5e6bdac800598158bd0a99c07464b4f44ce906",
     "scripts/bootstrap_doctor.py": "43815606052d80f4cedbbd36fb2195442106ac9ba98c12387acfc6030e48c86b",
     "scripts/fastlane_presenter.py": "42338d261e2a5651d4623eb148a5cc943d428a1cdd43d9f019f113dec24b818d",
+    "scripts/model_roleplay_eval.py": "d2a0344895ccaf058092421e7727fa50be4e9ce4e7f0f708cc94496086c35e6a",
     "scripts/package_release.py": "e29b80a5b3c2f90254b63fee81f6dcd7d00bf48ec9ce3c7e381aff3ef3c47527",
     "scripts/setup_assistant.py": "ea446b8e03c64d85b6e48a5a9f30006b6211fa6e11d3109e91a2921a1678a796",
     "scripts/task_waves.py": "24361c484c8f6eae6ba1589ade8877347b6dda624035fc2a537ab19d1dba3cb3",
@@ -76,7 +78,8 @@
     "tests/test_package_release.py": "e1a4043c746375a5f83ef5117787c165e737142fecadd8041cdc611a58d97ae5",
     "tests/test_prompt_contracts.py": "ec2afcafb33d412c0f378de9454020de6aa53db0e7b826f374af1fc10bc57a60",
     "tests/test_setup_assistant.py": "06a43f9fffe71c66be4010351ae6159198cc82e043c6efda2de6d86a7048824f",
-    "tests/test_task_waves.py": "aa286dfd9c916bfeead3ad8fe8d2d7e13fef677edc06d190e62420e8691eca6e"
+    "tests/test_task_waves.py": "aa286dfd9c916bfeead3ad8fe8d2d7e13fef677edc06d190e62420e8691eca6e",
+    "tests/test_template_compatibility.py": "4d3ab1bcf65dcb0de993fa29b984175a625c8b2ce1fe3c20b125673002d1457a"
   },
   "required_files": [
     ".agents/skills/build-fastlane/SKILL.md",
@@ -116,6 +119,7 @@
     "bootstrap.py",
     "bootstrap.yaml",
     "docs/DEPENDENCY-POLICY.md",
+    "docs/EVALUATION.md",
     "docs/SETUP.md",
     "docs/TROUBLESHOOTING.md",
     "docs/WORKFLOW.md",
@@ -131,6 +135,7 @@
     "scripts/bootstrap_dependencies.py",
     "scripts/bootstrap_doctor.py",
     "scripts/fastlane_presenter.py",
+    "scripts/model_roleplay_eval.py",
     "scripts/package_release.py",
     "scripts/setup_assistant.py",
     "scripts/task_waves.py",
@@ -146,7 +151,8 @@
     "tests/test_package_release.py",
     "tests/test_prompt_contracts.py",
     "tests/test_setup_assistant.py",
-    "tests/test_task_waves.py"
+    "tests/test_task_waves.py",
+    "tests/test_template_compatibility.py"
   ],
   "canonical_prompt_ids": [
     "BOOT-00",
