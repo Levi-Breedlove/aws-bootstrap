@@ -71,7 +71,9 @@ jobs:
         shell: pwsh
         run: |
           python .\scripts\setup_assistant.py prerequisites --root . --json
-          if ($LASTEXITCODE -notin 0, 1) { exit $LASTEXITCODE }
+          $prerequisiteExitCode = $LASTEXITCODE
+          if ($prerequisiteExitCode -notin 0, 1) { exit $prerequisiteExitCode }
+          exit 0
 
       - name: Verify manifest and release package
         shell: pwsh
