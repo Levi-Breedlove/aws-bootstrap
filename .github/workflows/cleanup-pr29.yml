@@ -1,0 +1,42 @@
+name: Cleanup merged PR 29 branch
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  cleanup:
+    if: github.actor == 'Levi-Breedlove' && github.event.pull_request.head.ref == 'cleanup/pr29-architecture-branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact refs and delete cleanup branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CLEANUP_PR: ${{ github.event.pull_request.number }}
+          EXPECTED_MAIN: bcb702537c1f61e27e15c8b990131529f7158ca5
+          EXPECTED_TARGET: 523d260c4b69eee72ad25ab49f0b13845d52b92e
+          TARGET_BRANCH: feat/architecture-selection-contract
+          SELF_BRANCH: cleanup/pr29-architecture-branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/${REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          target_sha="$(gh api "repos/${REPOSITORY}/git/ref/heads/${TARGET_BRANCH}" --jq '.object.sha')"
+          merged_sha="$(gh api "repos/${REPOSITORY}/pulls/29" --jq '.merge_commit_sha')"
+          merged_at="$(gh api "repos/${REPOSITORY}/pulls/29" --jq '.merged_at')"
+          test "${main_sha}" = "${EXPECTED_MAIN}"
+          test "${target_sha}" = "${EXPECTED_TARGET}"
+          test "${merged_sha}" = "${EXPECTED_MAIN}"
+          test "${merged_at}" != "null"
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${TARGET_BRANCH}"
+          if gh api "repos/${REPOSITORY}/git/ref/heads/${TARGET_BRANCH}" >/dev/null 2>&1; then
+            echo "Target branch still exists" >&2
+            exit 1
+          fi
+          gh api --method PATCH "repos/${REPOSITORY}/pulls/${CLEANUP_PR}" -f state=closed >/dev/null
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${SELF_BRANCH}"
