@@ -590,8 +590,67 @@ policy` must use the same non-applicable grammar.
 | TECH-0008 | SECURITY_VALIDATION | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
 | TECH-0009 | DEPLOYMENT_TOOLING | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
 
-A material change to a selection, version policy, compatibility constraint,
-property applicability, property definition, or property execution value
+### Architecture drivers
+
+Record only Gate A-approved requirement IDs. `Class` is exactly
+`HARD_CONSTRAINT`, `PREFERENCE`, or `REVISIT_TRIGGER`; a preference never
+overrides a hard constraint.
+
+| Driver ID | Requirement basis | Class | Decision implication | Validation |
+|---|---|---|---|---|
+| DRV-0001 | TODO | TODO | TODO | TODO |
+
+### Whole-system candidates
+
+Compare complete, credible designs with the same requirements. For greenfield
+work, one candidate summary begins `MANAGED_SERVERLESS_BASELINE:` unless a
+Gate A hard constraint makes that baseline impossible. Do not create a weak
+straw candidate or use arbitrary numeric scoring. `Eligibility` is exactly
+`ELIGIBLE` or `INELIGIBLE`; an eligible candidate has `Failed constraints`
+`NONE`, while an ineligible candidate names only failed `HARD_CONSTRAINT`
+driver IDs.
+
+| Candidate ID | Architecture summary | Requirement coverage | AWS evidence | Eligibility | Failed constraints | Tradeoffs |
+|---|---|---|---|---|---|---|
+| CAND-0001 | TODO | TODO | TODO | TODO | TODO | TODO |
+
+### Selected architecture
+
+Select exactly one eligible candidate. The selection is an
+`AGENT_RECOMMENDATION` until Gate B. If only one candidate is eligible,
+`Rejected alternatives` may be `NO_VIABLE_ALTERNATIVE`; otherwise enumerate
+every nonselected `CAND-*` in table order.
+
+| Architecture ID | Selected candidate | Requirement and driver basis | Rationale | Rejected alternatives | Risks | Mitigations | Cost effect | Breakpoints | Revisit triggers | Validation |
+|---|---|---|---|---|---|---|---|---|---|---|
+| ARCH-0001 | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO | TODO |
+
+### Architecture traceability
+
+Map each current requirement exactly once to the selected `ARCH-*` and at
+least one concrete component, API, data, or control ID. Use exact property or
+test IDs when applicable; otherwise use `NONE - <concrete reason>`.
+
+| Requirement ID | ARCH / COMP / API / DATA / CTRL IDs | Property/test IDs | Evidence IDs |
+|---|---|---|---|
+| TODO | TODO | TODO | TODO |
+
+### Material AWS evidence
+
+This table maps design decisions to current official AWS facts. The detailed,
+attributable `retrieve_skill` and `search_documentation` call evidence remains
+authoritative in `docs/project/VERIFY.md`; this PRD table does not duplicate
+tool transcripts or prove invocation by itself.
+
+| Evidence ID | Design IDs | Material claim | AWS Core capability | Official reference | Observed date |
+|---|---|---|---|---|---|
+| AWS-EV-0001 | TODO | TODO | `retrieve_skill` | TODO | TODO |
+| AWS-EV-0002 | TODO | TODO | `search_documentation` | TODO | TODO |
+
+A material change to an architecture driver, candidate eligibility, selected
+architecture, traceability row, material AWS evidence, technology selection,
+version policy, compatibility constraint, property applicability, property
+definition, or property execution value
 requires a new `DES-*` revision and makes the prior Gate B approval stale. An
 ordinary dependency addition does not invalidate Gate B unless it changes
 architecture, validation, security, cost, or deployment behavior.
@@ -615,6 +674,9 @@ not append another diagram by default. If a path is not applicable, remove it
 and record the reason beside the existing diagram. A diagram records intended
 design; implementation and deployment proof belongs in code, IaC, tests, and
 `docs/project/VERIFY.md`.
+
+Architecture basis for every Mermaid view: TODO (replace with the selected
+`ARCH-*` during `DESIGN-10`).
 
 ```mermaid
 flowchart LR
@@ -1084,7 +1146,7 @@ it, never undecided.
 | Delivery profile and effective risk | `<profile> / <risk>` |
 | Project AWS lane | `documentation-only` / `read-only` / `fast-dev` / `explicit-gate` |
 | Authorized outcome | TODO |
-| Authorized requirement and design IDs | `REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001, SEC-001, TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, TECH-0006, TECH-0007, TECH-0008, TECH-0009, PROP-001` |
+| Authorized requirement and design IDs | `REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001, SEC-001, ARCH-0001, TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, TECH-0006, TECH-0007, TECH-0008, TECH-0009, PROP-001` |
 | Design contract SHA-256 | TODO (exact current `design_contract.canonical_sha256`) |
 | Authorized baseline commit | TODO (full Git commit hash) |
 | Protected dirty paths | `NONE` / `PATHS: path; path` |
@@ -1128,12 +1190,20 @@ list in an approval-ready envelope. In `<profile> / <risk>`, profile is exactly
 `MERGE: PROHIBITED`. `Authorized requirement and design IDs`
 must name the current REQ and DES plus every scoped requirement, design
 decision, property, or defect ID. It must include every current `TECH-*` row and
-every applicable `PROP-*` execution row; omission makes Gate B non-runnable.
+every applicable `PROP-*` execution row plus the selected `ARCH-*`; omission
+makes Gate B non-runnable. `Architecture/components` on the readiness card is
+exactly that selected `ARCH-*`.
 `Design contract SHA-256` must exactly equal the doctor's current derived hash
-of the Technology decision, Property applicability, Property definition, and
-Property execution tables in that order. The baseline must resolve in the
+of the Architecture driver, Candidate, Selection, Traceability, Material AWS
+evidence, Technology decision, Property applicability, Property definition,
+and Property execution tables in that order. The baseline must resolve in the
 current local Git repository. Prefix lists are literal argv prefixes separated
-by semicolons, not shell fragments, command substitutions, or wildcards. Paths
+by semicolons, not shell fragments, command substitutions, or wildcards. Gate B
+therefore binds the full architecture+technology+property digest. An existing
+valid v1 Gate B whose design contract predates these architecture tables is
+grandfathered until the next design-controlled change; that change requires all
+architecture tables and a new Gate B approval.
+Paths
 and external targets must be repository-relative or exact named targets and
 remain inside the approved scope.
 
@@ -1162,10 +1232,14 @@ excluding the heading and surrounding prose. Strip trailing whitespace from
 each line, join lines with LF, append one final LF, then UTF-8 encode and SHA-256
 hash. Record the result as `sha256:` plus 64 lowercase hex characters. Any row,
 value, order, or byte change changes the digest, increments AUTH, and makes Gate
-B stale. Because the envelope stores the current Design contract SHA-256, a
-technology, property-applicability, property-definition, or property-execution
-change first makes the stored design hash invalid; updating it changes the
-envelope digest and requires new Gate B approval.
+B stale. Because the envelope stores the current Design contract SHA-256, an
+architecture driver, candidate, eligibility, selection, traceability, material
+AWS evidence, technology, property-applicability, property-definition, or
+property-execution change first makes the stored design hash invalid; updating
+it changes the envelope digest and requires new Gate B approval. A v1 project
+whose Gate B was already approved before these architecture tables existed may
+keep that exact approval until the next design-controlled change; it must use
+the current architecture contract before any replacement Gate B approval.
 
 The task boundary may authorize later task generation without another human
 gate only when every generated task traces exclusively to the approved IDs,

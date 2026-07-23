@@ -214,7 +214,7 @@ def approve_gate_b(text: str, *, baseline: str = "a" * 40) -> str:
         )
     gate_b_card = {
         "Design basis IDs": "`DES-0001, FR-001`",
-        "Architecture/components": "`Bounded app and focused tests`",
+        "Architecture/components": "`ARCH-0001`",
         "Technology/toolchains/version policy": (
             "`TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, "
             "TECH-0006, TECH-0007, TECH-0008, TECH-0009`"
@@ -243,7 +243,7 @@ def approve_gate_b(text: str, *, baseline: str = "a" * 40) -> str:
         "Authorized outcome": "`OUT-001 — Deliver the FR-001 outcome`",
         "Authorized requirement and design IDs": (
             "`REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001, "
-            "TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, "
+            "ARCH-0001, TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, "
             "TECH-0006, TECH-0007, TECH-0008, TECH-0009, PROP-001`"
         ),
         "Design contract SHA-256": f"`{design_contract.canonical_sha256}`",
@@ -580,6 +580,58 @@ def put_contract_table(
 
 
 def complete_design_contract(text: str) -> str:
+    requirement_ids = sorted(doctor.authoritative_requirement_ids(text))
+    requirement_list = ", ".join(requirement_ids)
+    driver_table = "\n".join(
+        [
+            "| Driver ID | Requirement basis | Class | Decision implication | Validation |",
+            "|---|---|---|---|---|",
+            f"| DRV-0001 | {requirement_list} | HARD_CONSTRAINT | Preserve complete approved requirement coverage with the lowest operational burden | Compare every candidate against all requirement IDs |",
+        ]
+    )
+    text = put_contract_table(text, doctor.ARCHITECTURE_DRIVER_HEADING, driver_table, doctor.ARCHITECTURE_CANDIDATE_HEADING)
+    candidate_table = "\n".join(
+        [
+            "| Candidate ID | Architecture summary | Requirement coverage | AWS evidence | Eligibility | Failed constraints | Tradeoffs |",
+            "|---|---|---|---|---|---|---|",
+            f"| CAND-0001 | MANAGED_SERVERLESS_BASELINE: bounded managed entry, compute, and data services | {requirement_list} | AWS-EV-0001, AWS-EV-0002 | ELIGIBLE | NONE | Lowest idle cost and operations; service limits remain revisit triggers |",
+            f"| CAND-0002 | Container service with continuously provisioned compute | {requirement_list} | AWS-EV-0001, AWS-EV-0002 | INELIGIBLE | DRV-0001 | More runtime control but unnecessary fixed operations for this bounded workload |",
+        ]
+    )
+    text = put_contract_table(text, doctor.ARCHITECTURE_CANDIDATE_HEADING, candidate_table, doctor.ARCHITECTURE_SELECTION_HEADING)
+    selection_table = "\n".join(
+        [
+            "| Architecture ID | Selected candidate | Requirement and driver basis | Rationale | Rejected alternatives | Risks | Mitigations | Cost effect | Breakpoints | Revisit triggers | Validation |",
+            "|---|---|---|---|---|---|---|---|---|---|---|",
+            f"| ARCH-0001 | CAND-0001 | {requirement_list}, DRV-0001 | Meets every hard constraint with the smallest managed surface | CAND-0002 | Managed-service limits | Validate quotas and alarms before deployment | Pay per request with no intentional idle compute | Reassess at sustained utilization where containers are cheaper | Reassess on quota, residency, or latency changes | Requirement trace and integration tests |",
+        ]
+    )
+    text = put_contract_table(text, doctor.ARCHITECTURE_SELECTION_HEADING, selection_table, doctor.ARCHITECTURE_TRACEABILITY_HEADING)
+    trace_rows = [
+        (
+            f"| {requirement_id} | ARCH-0001, COMP-0001 | "
+            f"{'PROP-001' if requirement_id == 'FR-001' else 'EX-001'} | "
+            "AWS-EV-0001, AWS-EV-0002 |"
+        )
+        for requirement_id in requirement_ids
+    ]
+    trace_table = "\n".join(
+        [
+            "| Requirement ID | ARCH / COMP / API / DATA / CTRL IDs | Property/test IDs | Evidence IDs |",
+            "|---|---|---|---|",
+            *trace_rows,
+        ]
+    )
+    text = put_contract_table(text, doctor.ARCHITECTURE_TRACEABILITY_HEADING, trace_table, doctor.MATERIAL_AWS_EVIDENCE_HEADING)
+    evidence_table = "\n".join(
+        [
+            "| Evidence ID | Design IDs | Material claim | AWS Core capability | Official reference | Observed date |",
+            "|---|---|---|---|---|---|",
+            "| AWS-EV-0001 | DRV-0001, CAND-0001, CAND-0002, ARCH-0001, TECH-0001 | AWS managed serverless services support bounded pay-per-use execution patterns | retrieve_skill | https://docs.aws.amazon.com/lambda/latest/dg/best-practices.html | 2026-07-17 |",
+            "| AWS-EV-0002 | DRV-0001, CAND-0001, CAND-0002, ARCH-0001, TECH-0004 | AWS documentation defines current serverless security and operational guidance | search_documentation | https://docs.aws.amazon.com/lambda/latest/dg/security.html | 2026-07-17 |",
+        ]
+    )
+    text = put_contract_table(text, doctor.MATERIAL_AWS_EVIDENCE_HEADING, evidence_table, "## 14. Architecture overview")
     technology_rows = (
         ("TECH-0001", "APPLICATION_RUNTIME", "Python", "CURRENT_LTS_AS_OF: 2026-07-01"),
         ("TECH-0002", "APPLICATION_FRAMEWORK", "FastAPI", "COMPATIBLE_MAJOR: 1"),
@@ -933,7 +985,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             report["authorizations"],
             {"construction": "NONE", "aws": "NONE"},
         )
-        self.assertEqual(report["design_contract"]["schema_version"], 1)
+        self.assertEqual(report["design_contract"]["schema_version"], 2)
         self.assertIn(
             report["design_contract"]["status"],
             {"UNINITIALIZED", "BLOCKED"},
@@ -1336,6 +1388,154 @@ class BootstrapDoctorTests(unittest.TestCase):
         )
         self.assertEqual(no_property_contract.property_execution, ())
 
+    def test_architecture_contract_is_traceable_fail_closed_and_digest_bound(self) -> None:
+        template = (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
+        complete = complete_design_contract(template)
+        ready, issues = doctor.derive_design_contract(
+            complete,
+            "DES-0001",
+            required=True,
+        )
+
+        self.assertEqual(issues, [])
+        self.assertEqual(ready.status, "READY")
+        self.assertEqual(ready.schema_version, 2)
+        self.assertEqual(ready.architecture.status, "READY")
+        self.assertFalse(ready.architecture.grandfathered_v1)
+        self.assertEqual(
+            ready.architecture.selection.architecture_id,
+            "ARCH-0001",
+        )
+        self.assertEqual(
+            {item.capability for item in ready.architecture.aws_evidence},
+            {"retrieve_skill", "search_documentation"},
+        )
+        self.assertRegex(
+            ready.architecture.canonical_sha256 or "",
+            r"^sha256:[0-9a-f]{64}$",
+        )
+
+        cases: dict[str, tuple[str, str]] = {
+            "hard-constraint failure selected": (
+                complete.replace(
+                    "| ARCH-0001 | CAND-0001 |",
+                    "| ARCH-0001 | CAND-0002 |",
+                    1,
+                ),
+                "hard-constraint-failing candidate cannot be selected",
+            ),
+            "missing requirement trace": (
+                re.sub(
+                    r"(?m)^\| FR-001 \| ARCH-0001, COMP-0001 \|.*\r?\n",
+                    "",
+                    complete,
+                    count=1,
+                ),
+                "Architecture traceability is missing requirement IDs: FR-001",
+            ),
+            "missing AWS Core capability": (
+                re.sub(
+                    r"(?m)^\| AWS-EV-0002 \|.*\r?\n",
+                    "",
+                    complete,
+                    count=1,
+                ),
+                "Material AWS evidence is missing AWS Core capabilities: search_documentation",
+            ),
+            "candidate evidence is not bidirectionally bound": (
+                complete.replace(
+                    "DRV-0001, CAND-0001, CAND-0002, ARCH-0001, TECH-0001",
+                    "DRV-0001, CAND-0002, ARCH-0001, TECH-0001",
+                    1,
+                ).replace(
+                    "DRV-0001, CAND-0001, CAND-0002, ARCH-0001, TECH-0004",
+                    "DRV-0001, CAND-0002, ARCH-0001, TECH-0004",
+                    1,
+                ),
+                "CAND-0001: AWS evidence rows are not bound to this candidate",
+            ),
+            "selected architecture has no bound evidence": (
+                complete.replace(
+                    "CAND-0002, ARCH-0001, TECH-0001",
+                    "CAND-0002, TECH-0001",
+                    1,
+                ).replace(
+                    "CAND-0002, ARCH-0001, TECH-0004",
+                    "CAND-0002, TECH-0004",
+                    1,
+                ),
+                "Selected architecture has no bound material AWS evidence",
+            ),
+        }
+        for name, (changed_text, expected_issue) in cases.items():
+            with self.subTest(case=name):
+                blocked, blocked_issues = doctor.derive_design_contract(
+                    changed_text,
+                    "DES-0001",
+                    required=True,
+                )
+                self.assertEqual(blocked.status, "BLOCKED")
+                self.assertTrue(
+                    any(expected_issue in issue for issue in blocked_issues),
+                    blocked_issues,
+                )
+
+        architecture_change = complete.replace(
+            "Managed-service limits",
+            "Service quota uncertainty",
+            1,
+        )
+        changed, changed_issues = doctor.derive_design_contract(
+            architecture_change,
+            "DES-0001",
+            required=True,
+        )
+        self.assertEqual(changed_issues, [])
+        self.assertNotEqual(changed.canonical_sha256, ready.canonical_sha256)
+        self.assertNotEqual(
+            changed.architecture.canonical_sha256,
+            ready.architecture.canonical_sha256,
+        )
+
+        legacy = complete.replace(
+            "| Gate B derived status | `BLOCKED` |",
+            "| Gate B derived status | `APPROVED_FOR_CONSTRUCTION` |",
+            1,
+        )
+        for heading in (
+            doctor.ARCHITECTURE_DRIVER_HEADING,
+            doctor.ARCHITECTURE_CANDIDATE_HEADING,
+            doctor.ARCHITECTURE_SELECTION_HEADING,
+            doctor.ARCHITECTURE_TRACEABILITY_HEADING,
+            doctor.MATERIAL_AWS_EVIDENCE_HEADING,
+        ):
+            legacy = legacy.replace(heading, heading + " (legacy v1)", 1)
+        grandfathered, grandfathered_issues = doctor.derive_design_contract(
+            legacy,
+            "DES-0001",
+            required=True,
+        )
+        self.assertEqual(grandfathered_issues, [])
+        self.assertEqual(grandfathered.status, "READY")
+        self.assertEqual(grandfathered.schema_version, 1)
+        self.assertTrue(grandfathered.architecture.grandfathered_v1)
+
+        design_changed = legacy.replace(
+            doctor.ARCHITECTURE_DRIVER_HEADING + " (legacy v1)",
+            doctor.ARCHITECTURE_DRIVER_HEADING,
+            1,
+        )
+        invalidated, invalidated_issues = doctor.derive_design_contract(
+            design_changed,
+            "DES-0001",
+            required=True,
+        )
+        self.assertEqual(invalidated.status, "BLOCKED")
+        self.assertTrue(
+            any("Missing ### Whole-system candidates" in issue for issue in invalidated_issues),
+            invalidated_issues,
+        )
+
     def test_all_part_one_requirement_families_have_stable_ids(self) -> None:
         prd = (PROJECT_ROOT / "docs/project/PRD.md").read_text(encoding="utf-8")
         identifiers = doctor.authoritative_requirement_ids(prd)
@@ -1365,7 +1565,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             self.assertTrue(ready_report["ok"], ready_report["diagnostics"])
             self.assertEqual(ready_report["status"], "RESUME")
             self.assertEqual(ready_report["next_prompt"], "TASK-10")
-            self.assertEqual(contract["schema_version"], 1)
+            self.assertEqual(contract["schema_version"], 2)
             self.assertEqual(contract["status"], "READY")
             self.assertEqual(contract["design_revision"], "DES-0001")
             self.assertEqual(len(contract["technology_decisions"]), 9)
@@ -1406,6 +1606,26 @@ class BootstrapDoctorTests(unittest.TestCase):
         self.assertFalse(stale_hash_report["ok"])
         self.assertIn("GATE_B_DESIGN_CONTRACT_HASH", codes(stale_hash_report))
         self.assertEqual(stale_hash_report["next_prompt"], "STOP")
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = self.copy_project(Path(directory))
+            refresh_control_hashes(project)
+            self.approve_project(project)
+            prd_path = project / "docs/project/PRD.md"
+            text = prd_path.read_text(encoding="utf-8").replace(
+                "Managed-service limits",
+                "Service quota uncertainty",
+                1,
+            )
+            prd_path.write_text(text, encoding="utf-8")
+            stale_architecture_report = doctor.inspect_project(project)
+
+        self.assertFalse(stale_architecture_report["ok"])
+        self.assertIn(
+            "GATE_B_DESIGN_CONTRACT_HASH",
+            codes(stale_architecture_report),
+        )
+        self.assertEqual(stale_architecture_report["next_prompt"], "STOP")
 
         with tempfile.TemporaryDirectory() as directory:
             project = self.copy_project(Path(directory))

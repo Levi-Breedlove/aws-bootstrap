@@ -933,7 +933,8 @@ authorized and necessary to validate an existing brownfield environment.
 mutation.
 
 **Stop conditions:** Missing/invalid Gate A; requirements/design conflict;
-unresolved TECH selection or property execution contract; unavailable or
+incomplete or stale architecture selection/traceability; unresolved TECH
+selection or property execution contract; unavailable or
 wrong-source AWS Core; missing, failed, cached, generic, or stale DESIGN-10
 `retrieve_skill` or `search_documentation` evidence; or an unverified material
 AWS claim.
@@ -966,32 +967,31 @@ accessed` both `NO`. Use `DES-0001; TECH: TECH-0001, TECH-0002` or
 binding. The observed AWS Core version is metadata, never a pin. Missing,
 failed, stale, or unattributed rows block Gate B.
 
-Before Gate B:
-- complete the authoritative Technology and toolchain decision register; select
-  all in-scope TECH rows, version policies, sources, basis IDs, alternatives,
-  compatibility/migration, and validation. Only `EXACT` accepts opaque
-  versions. Active `PROPERTY_TESTING` uses `EXACT`, `COMPATIBLE_MAJOR`, or
-  numeric `MINIMUM` so evidence is machine-checkable;
-- complete architecture, interfaces, data, identity, failure, operations,
-  deployment, rollback, recovery, cost, and the TECH-selected IaC validation;
-  keep Well-Architected review conversational, expanding it for effective risk
-  or a difficult-to-reverse one-way door;
-- classify every measurable Gate A requirement exactly once for PBT, preserve
-  PROP invariants, and fill one Property execution row per applicable property
-  with framework TECH ID, exact command, `MIN_CASES: <positive integer>`,
-  `MAX_SECONDS: <positive integer>`, or both in that order, seed/reproduction
-  format, and VERIFY destination. The replay format must explicitly declare a
-  seed or exact-command method so VERIFY can record a concrete seed or the exact
-  approved command. Use one runnable local command without shell-control
-  chaining, and never use `NONE`, `PENDING`, or placeholder prose in a property
-  definition or execution row; and
+Before Gate B, load `.agents/skills/fastlane/references/design.md` and:
+- complete every `DRV-*`, whole-system `CAND-*`, selected `ARCH-*`, traceability,
+  and `AWS-EV-*` row. Apply hard constraints before preferences;
+  select only an eligible candidate;
+- evaluate the managed-serverless baseline for greenfield work unless a hard
+  constraint makes it ineligible. Cover identity, authorization, isolation,
+  interfaces, data/uploads, IAM, encryption, secrets, networking, failures,
+  retries, concurrency, observability, recovery, cost, rollback, teardown, and
+  verification. Keep Well-Architected review conversational;
+- complete every in-scope `TECH-*` row. Only `EXACT` accepts opaque versions;
+  Active `PROPERTY_TESTING` uses `EXACT`, `COMPATIBLE_MAJOR`, or numeric
+  `MINIMUM`;
+- classify every measurable Gate A requirement exactly once for PBT and give each
+  applicable `PROP-*` an exact command, bounded cases/time, replay format, and
+  VERIFY destination. The replay format must explicitly declare a seed or
+  exact-command method. Use one local command without shell-control
+  chaining and no placeholder property definitions or execution rows; and
 - resolve brownfield compatibility, migration, and protected behavior.
 
-Edit existing PRD Mermaid blocks in place; do not append by default. Route
-material Part I flow changes through REQ-10. Prefer the simplest secure managed
-serverless design that fits. Include least-privilege IAM, approved encryption,
-protected secrets, input validation, safe failures, telemetry, low-usage cost,
-billing dimensions, scaling breakpoints, and measurable expansion or migration
+Update existing PRD Mermaid blocks in place, name the selected `ARCH-*` as their
+shared basis, and not append by default. Route material
+Part I flow changes through REQ-10. Preserve least-privilege IAM, encryption,
+protected secrets,
+input validation, safe failures, telemetry, low-usage cost, billing dimensions,
+scaling breakpoints, and measurable expansion or migration
 triggers. Never weaken one of those required controls to lower cost.
 
 Fill the Gate B readiness card with these exact fields: Design basis IDs;
@@ -1019,8 +1019,11 @@ authorized commit>; <deterministic rule>`, and
 
 Use every exact envelope row and grammar in docs/project/PRD.md. Require a local Git
 repository and resolvable baseline commit before readiness. Compute and record
-the derived Design contract SHA-256, copy it into the envelope, and include every
-current `TECH-*` and applicable `PROP-*` in authorized `SCOPE_IDS`. Then compute
+the derived Design contract SHA-256 over Architecture driver, Candidate,
+Selection, Traceability, Material AWS evidence, Technology decision, Property
+applicability, Property definition, and Property execution tables. Copy it into
+the envelope and include the selected `ARCH-*`, every current `TECH-*`, and every
+applicable `PROP-*` in authorized `SCOPE_IDS`. Then compute
 the canonical complete-envelope SHA-256 after the final table edit and copy the
 same digest into the Gate B agent review and proposed owner receipt.
 
