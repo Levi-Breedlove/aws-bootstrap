@@ -63,7 +63,7 @@
     "infrastructure/AGENTS.md": "33df050de56d86b606513d4bc38ba2939c2d3127d411c4c24e0ae48770d31656",
     "prompts/CODEX-PROMPTS.md": "74eb1cc793f75d77d36f240b550051e983c54e847861ea24ab8b54a7c6306ef3",
     "scripts/AGENTS.md": "82ae56a4f959f4a183873a71767c1043fe9a2fa1dc0d92718ec7ef34a42069a9",
-    "scripts/aws_canary_eval.py": "be61bbd89a9fafbf0d27911a1517358d5dc21854b0b5ae18954ced5f1bf6cd1e",
+    "scripts/aws_canary_eval.py": "c26204f4c60421d0d5b6f0f4650e65912ad1aef48636779ee9c12747444f1eca",
     "scripts/bootstrap_dependencies.py": "3730bc9244af38488aa59fe05d5e6bdac800598158bd0a99c07464b4f44ce906",
     "scripts/bootstrap_doctor.py": "9e8e3a8fdd7e5407e9ecb70ddad2cfc523e99dd984abe5a80a83bcdec6e6d7a0",
     "scripts/fastlane_presenter.py": "42338d261e2a5651d4623eb148a5cc943d428a1cdd43d9f019f113dec24b818d",
@@ -86,7 +86,7 @@
     "tests/test_package_release.py": "9179da9511431d64f7fc3d94ba840dd8015bea6e4f039ff6b4c3f11b96490b74",
     "tests/test_prompt_contracts.py": "953578f483d92c5e1705d8ad1f74ceb870893e277636f2d9813d2287572b683c",
     "tests/test_setup_assistant.py": "06a43f9fffe71c66be4010351ae6159198cc82e043c6efda2de6d86a7048824f",
-    "tests/test_task_waves.py": "86cb6f5652424aa3fa23ae015f17f9729ae611234f89a0698b6970a46ac82dc6",
+    "tests/test_task_waves.py": "dfbc169756ca5f983ad6abb6caf884e38e580b2eb84d2adce6c31ba57b375221",
     "tests/test_template_compatibility.py": "7b0ce91c30960dd312b3122472d13c962fa56540e26c2b61be0a9cbbe1771c79"
   },
   "required_files": [

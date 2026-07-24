@@ -212,7 +212,10 @@ def _safe_bundle_file(bundle_root: Path, relative: object, label: str, errors: l
     for part in Path(relative).parts:
         current = current / part
         if current.is_symlink():
-            errors.append(f"{label}.path must be a regular file with no symlinked path component")
+            errors.append(
+                f"{label}.path must be a regular non-symlink file "
+                "with no symlinked path component"
+            )
             return None
     try:
         resolved_root = bundle_root.resolve(strict=True)
