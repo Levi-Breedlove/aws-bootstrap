@@ -1012,6 +1012,7 @@ Before Gate B, load `.agents/skills/fastlane/references/design.md` and:
   VERIFY destination. The replay format must explicitly declare a seed or
   exact-command method. Use one local command without shell-control
   chaining and no placeholder property definitions or execution rows; and
+- complete the Gate B Harness Profile and cite its required `HARNESS-*` IDs; and
 - resolve brownfield compatibility, migration, and protected behavior.
 
 Update existing PRD Mermaid blocks in place, name the selected `ARCH-*` as their
@@ -1276,6 +1277,11 @@ applicable property execution value exactly from the approved PRD. Never choose
 or substitute a technology, framework, version policy, command, run target,
 seed/reproduction format, or evidence destination. Missing or incompatible
 values route to DESIGN-10.
+Copy every required or triggered conditional `HARNESS-*` row into the
+applicable task's existing `#### Validation` section: Harness ID, basis IDs,
+exact command or API, trigger, and VERIFY destination. Do not add Harness
+metadata fields or a separate task merely to repeat the profile. A missing,
+changed, or incompatible harness value routes to DESIGN-10.
 
 
 For every applicable `PROP-*`, include its ID in `Requirements`, keep it in the
@@ -1407,6 +1413,12 @@ The latest uniquely timed row for the task/property pair must PASS before DONE.
 Give every property row a matching Task completion evidence row: `FAILED` for a
 failed observation, and `LOCAL_PASS` or `VERIFIED` for a passing observation.
 Only the passing status may be cited to complete the task.
+Run every task-linked required or triggered conditional `HARNESS-*` check by
+its exact approved command or API and record a Harness execution evidence row
+with its current basis, artifact/environment, result, time, and durable source.
+Preserve failures and append passing reruns; never replace a failed observation
+or weaken the selected check. A requirement or design change routes to REQ-10
+or DESIGN-10.
 If the requirement,
 invariant, or design must change, stop and route to REQ-10 or DESIGN-10; never
 weaken the property or generator simply to pass.
@@ -1500,7 +1512,8 @@ python scripts/task_waves.py docs/project/TASKS.md --resume-run RUN-0001 --coord
 ```
 
 Before each claim, require the task's `Design` value and copied property
-execution values to match the approved PRD. BUILD-20 may resolve an installed
+execution values plus required or triggered conditional Harness Profile values
+to match the approved PRD. BUILD-20 may resolve an installed
 version only within the selected policy; it cannot substitute a technology,
 framework, toolchain, command, run target, or replay method. Block the task and
 route to DESIGN-10 on any mismatch or unavailable selection.
@@ -1519,7 +1532,8 @@ Use this loop:
    ```
 
 4. implement only that task's approved write boundary, run its validations, and
-   record observed completion evidence;
+   run every copied required or triggered conditional `HARNESS-*` command or
+   API, then record observed completion and Harness execution evidence;
 5. mark the task DONE only when acceptance evidence passes; otherwise checkpoint
    the blocker and remaining attempt budget;
 6. after every task is reconciled out of IN_PROGRESS, inspect the integrated
@@ -1622,6 +1636,8 @@ Assess the release against the accepted REQ/DES/AUTH revisions.
 Verify:
 - requirement and defect acceptance traceability;
 - example tests, required PROP evidence, failure paths, security, IaC, and packaging;
+- current observed evidence for every required or triggered conditional
+  `HARNESS-*` row, using the exact approved command or API;
 - each applicable IaC/delivery check selected by current TECH decisions, with
   exact artifact/plan evidence and no substituted universal scanner;
 - migration, rollback, recovery, observability, and cost readiness;

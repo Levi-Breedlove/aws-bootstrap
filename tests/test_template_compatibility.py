@@ -25,6 +25,7 @@ class TemplateCompatibilityTests(unittest.TestCase):
                         "iteration": iteration,
                         "model": "synthetic-test-model",
                         "evidence_reference": f"{scenario['id']}:{iteration}",
+                        "live_model_observed": True,
                         "scores": {
                             criterion: 5
                             for criterion in model_roleplay_eval.CRITERIA
@@ -53,9 +54,10 @@ class TemplateCompatibilityTests(unittest.TestCase):
 
     def test_model_roleplay_plan_is_complete_and_non_operational(self) -> None:
         plan = model_roleplay_eval.plan_payload()
-        self.assertEqual(len(plan["scenarios"]), 7)
+        self.assertEqual(len(plan["scenarios"]), 13)
         self.assertEqual(set(plan["criteria"]), set(model_roleplay_eval.CRITERIA))
         self.assertFalse(plan["constraints"]["ordinary_ci_invokes_live_model"])
+        self.assertTrue(plan["constraints"]["observed_live_runs_required"])
         source = SCRIPT_PATH.read_text(encoding="utf-8")
         for forbidden in (
             "subprocess",

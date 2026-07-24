@@ -52,6 +52,10 @@ TDD, Mikado, STRIDE, LINDDUN, ATAM, and ADR are conditional techniques, not
 lifecycle stages or approval gates. Their outputs stay in the existing PRD,
 task, decision, test, and evidence authorities.
 
+Gate B also records a risk-derived Harness Profile. It selects the smallest
+exact checks justified by the approved technology, risk, data, identity,
+exposure, recovery, and AWS lane; it never imposes a universal scanner.
+
 
 ## AWS Core throughout Fastlane
 

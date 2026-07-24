@@ -19,6 +19,14 @@ Use for DESIGN-10 and Gate B.
 - Map every approved requirement to the selected `ARCH-*`, concrete
   `COMP/API/DATA/CTRL` IDs, applicable property/test IDs, and `AWS-EV-*` IDs.
   Keep detailed live AWS Core invocation evidence in `docs/project/VERIFY.md`.
+- Complete the Gate B Harness Profile from the selected `TECH-*` register,
+  delivery profile, effective risk, data classification, identity boundary,
+  public exposure, recovery target, and AWS lane. Give each `HARNESS-*` row one
+  exact command or API and an existing VERIFY evidence destination. Use only
+  `REQUIRED`, `CONDITIONAL — <trigger>`, or
+  `NOT_APPLICABLE — <concrete reason>`; a triggered conditional row is
+  required. Select the smallest checks that address the approved risks and do
+  not impose a universal scanner.
 - Use ATAM only for a high-risk design with materially competing quality
   attributes. Use a Nygard-style ADR only for a consequential,
   hard-to-reverse decision. Record their conclusions in the existing driver,
@@ -38,4 +46,5 @@ Use for DESIGN-10 and Gate B.
   shared basis, and remains the sole writer.
 - Require a current Gate A, complete readiness card, canonical construction
   envelope digest, selected architecture, complete traceability, current
-  material AWS evidence, and exact owner Gate B receipt.
+  material AWS evidence, complete Harness Profile, and exact owner Gate B
+  receipt.

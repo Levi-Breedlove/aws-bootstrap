@@ -969,6 +969,45 @@ difficult, costly, or unsafe to reverse.
 | AWS environment | Deployed configuration and service behavior | TODO |
 | Operations | Deployment, alarms, rollback, restore, teardown | TODO |
 
+### Gate B Harness Profile
+
+Select the smallest closed-loop checks justified by the current design. Derive
+the profile from the selected `TECH-*` register, delivery profile, effective
+risk, data classification, identity boundary, public exposure, recovery
+target, and AWS lane. A tool is never required merely because it exists, and
+Fastlane does not impose a universal scanner.
+
+Use exactly one status per row:
+
+- `REQUIRED`;
+- `CONDITIONAL — <trigger>`; or
+- `NOT_APPLICABLE — <concrete reason>`.
+
+A conditional row becomes required when its recorded trigger is present. For
+an inapplicable row, use `NOT_APPLICABLE` for the selected check, command/API,
+and evidence destination while the status records the concrete reason. At Gate
+B, every applicable row has a stable `HARNESS-*` ID, current basis IDs, one
+exact command or API, and an existing `docs/project/VERIFY.md` destination.
+
+| Harness ID | Layer | Selected check or tool | Trigger | Basis IDs | Exact command or API | Evidence destination | Required or conditional status |
+|---|---|---|---|---|---|---|---|
+| HARNESS-001 | Static | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-002 | Unit | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-003 | Integration | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-004 | End-to-end | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-005 | Property | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-006 | Security and privacy | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-007 | Reliability and recovery | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-008 | Performance and scalability | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-009 | IaC and policy | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-010 | AWS environment and operations | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+
+TASK-10 copies every required or triggered conditional row into the existing
+task Validation sections without adding task metadata. BUILD records observed
+results in the named evidence destination. A failed check stays visible until
+a later run passes; a requirement or design change returns to its existing
+gate instead of weakening the check.
+
 ### IaC and delivery validation contract
 
 Select validation from the approved `INFRASTRUCTURE_AS_CODE`,
@@ -1138,6 +1177,10 @@ when genuinely inapplicable; blank values, `TODO`, `TBD`, and `UNKNOWN` are not
 ready. `Outstanding gaps` must be `NONE` or a comma-separated list of stable
 gap IDs; any listed gap keeps the recommendation `BLOCKED`.
 
+`Validation/evidence` cites every current required or triggered conditional
+`HARNESS-*` ID. A Harness Profile row that is incomplete, unjustified, or not
+bound to a current basis ID keeps Gate B blocked.
+
 | Field | Current design and construction decision basis |
 |---|---|
 | Design basis IDs | TODO |
@@ -1147,7 +1190,7 @@ gap IDs; any listed gap keeps the recommendation `BLOCKED`.
 | Identity/secrets | TODO |
 | Failure/retry/concurrency | TODO |
 | Deployment/operations | TODO |
-| Validation/evidence | TODO |
+| Validation/evidence | TODO (cite required and triggered conditional `HARNESS-*` IDs) |
 | Rollback/recovery/teardown | TODO |
 | Brownfield compatibility/migration | TODO |
 | Outstanding gaps | TODO / `NONE` |
@@ -1165,7 +1208,7 @@ it, never undecided.
 | Delivery profile and effective risk | `<profile> / <risk>` |
 | Project AWS lane | `documentation-only` / `read-only` / `fast-dev` / `explicit-gate` |
 | Authorized outcome | TODO |
-| Authorized requirement and design IDs | `REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001, SEC-001, ARCH-0001, TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, TECH-0006, TECH-0007, TECH-0008, TECH-0009, PROP-001` |
+| Authorized requirement and design IDs | `REQ: REQ-0001; DES: DES-0001; SCOPE_IDS: FR-001, SEC-001, ARCH-0001, TECH-0001, TECH-0002, TECH-0003, TECH-0004, TECH-0005, TECH-0006, TECH-0007, TECH-0008, TECH-0009, PROP-001, HARNESS-001` |
 | Design contract SHA-256 | TODO (exact current `design_contract.canonical_sha256`) |
 | Authorized baseline commit | TODO (full Git commit hash) |
 | Protected dirty paths | `NONE` / `PATHS: path; path` |
@@ -1328,12 +1371,17 @@ The design and construction authorization use monotonic IDs (`DES-0001` and
    `READY_FOR_CONSTRUCTION_APPROVAL`.
 4. Every Gate B readiness-card field is explicit, and Outstanding gaps is
    `NONE`.
-5. The envelope's design-contract hash equals the current derived hash, and its
-   authorized IDs include every current `TECH-*` and applicable `PROP-*`.
-6. Scope, write set, baseline, protected paths, external targets, command
+5. The Gate B Harness Profile is complete: every row has an allowed status,
+   every required or triggered conditional row has current basis IDs, an exact
+   command or API, and an existing VERIFY evidence destination, and every such
+   `HARNESS-*` ID is in the authorized scope.
+6. The envelope's design-contract hash equals the current derived hash, and its
+   authorized IDs include every current `TECH-*`, applicable `PROP-*`, and
+   required or triggered conditional `HARNESS-*`.
+7. Scope, write set, baseline, protected paths, external targets, command
    prefixes, task boundary, parallelism, attempt budget, checkpoints,
    GitHub authority, AWS authority, stop conditions, and expiry are explicit.
-7. The owner decision is `APPROVED` for those exact revisions and canonical
+8. The owner decision is `APPROVED` for those exact revisions and canonical
    complete-envelope digest, and its source and verbatim receipt agree with the
    structured fields.
 
@@ -1343,6 +1391,8 @@ exactly.
 
 Any requirements change makes Gate A and Gate B `STALE`. Any design-controlled
 change increments `DES`; any construction-envelope change increments `AUTH`.
+Changing a Harness Profile trigger, basis, selection, command/API, destination,
+or status is design-controlled and makes Gate B stale.
 Either change makes Gate B `STALE` while leaving Gate A unchanged. A revision
 mismatch is stale even if a status still says `APPROVED`. Checkpoint updates,
 evidence, and task status changes within the approved envelope do not invalidate

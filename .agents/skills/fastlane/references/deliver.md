@@ -35,6 +35,13 @@ Use for TASK-10, BUILD-10, BUILD-20, and RELEASE-10.
 - Run applicable example, property, integration, security, recovery, and IaC
   validation. Record only observed results in VERIFY and operational facts in
   RUNBOOK.
+- Copy every required or triggered conditional `HARNESS-*` check into the
+  existing task Validation section without adding task metadata. Run its exact
+  command or API only within the active REQ/DES/AUTH and external-authority
+  boundaries, then record the observation in VERIFY's Harness execution
+  evidence. Preserve failed observations, apply the smallest in-scope fix, and
+  rerun the same check; route a requirement or design change to its existing
+  gate instead of weakening the harness.
 - For release-readiness or task decisions that depend on a current AWS fact,
   consult official current AWS Core directly. If unavailable,
   pause only the affected AWS-specific task with one recovery action; never

@@ -178,6 +178,26 @@ preserve both states.
 
 Add rows for material workload risks, not every individual test.
 
+## Harness execution evidence
+
+| Evidence ID | Harness ID | Layer | Basis IDs | Exact command or API | Artifact / environment | Observed result | Observed at | Durable source | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| EV-0401 | HARNESS-001 | TODO | TODO | TODO | TODO | TODO | TODO | TODO | `NOT_STARTED` |
+
+Add one attributable observation for every required or triggered conditional
+Harness Profile row. Record the exact command or API from the current design,
+the current REQ/DES/AUTH and task basis, the tested artifact or environment,
+the observed result, ISO 8601 time, and durable source. Use `FAILED`,
+`LOCAL_PASS`, or `VERIFIED` only for an observed execution; `NOT_STARTED` is
+not evidence.
+
+Preserve a failed row and append the later rerun instead of replacing history.
+A `NOT_APPLICABLE — <reason>` design row needs no execution evidence and must
+not be represented as a false pass. AWS-environment checks run only under the
+existing read-only or mutation authority for their exact API and target.
+Never record credentials, secret values, private client state, or an inferred
+result.
+
 ## Property-based test evidence
 
 | Evidence ID | Task ID | REQ / DES / AUTH | Property ID | Framework TECH ID | Framework selection | Observed exact version | Exact command | Observed run | Replay seed or exact command | Minimized counterexample | Failure class / resolution | Result | Observed at | Commit / worktree / artifact | Durable source |

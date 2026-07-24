@@ -1403,6 +1403,61 @@ class PromptPackContractTests(unittest.TestCase):
             workflow,
         )
 
+    def test_gate_b_harness_profile_is_risk_derived_and_closed_loop(self) -> None:
+        design_reference = (
+            PROJECT_ROOT / ".agents/skills/fastlane/references/design.md"
+        ).read_text(encoding="utf-8")
+        deliver_reference = (
+            PROJECT_ROOT / ".agents/skills/fastlane/references/deliver.md"
+        ).read_text(encoding="utf-8")
+        workflow = (PROJECT_ROOT / "docs/WORKFLOW.md").read_text(encoding="utf-8")
+
+        header = (
+            "| Harness ID | Layer | Selected check or tool | Trigger | Basis IDs | "
+            "Exact command or API | Evidence destination | Required or conditional status |"
+        )
+        self.assertIn(header, self.prd)
+        prd_words = " ".join(self.prd.split())
+        for basis in (
+            "selected `TECH-*` register",
+            "delivery profile",
+            "effective risk",
+            "data classification",
+            "identity boundary",
+            "public exposure",
+            "recovery target",
+            "AWS lane",
+        ):
+            self.assertIn(basis, prd_words)
+        for status in (
+            "`REQUIRED`",
+            "`CONDITIONAL — <trigger>`",
+            "`NOT_APPLICABLE — <concrete reason>`",
+        ):
+            self.assertIn(status, self.prd)
+        self.assertIn("does not impose a universal scanner", self.prd)
+        self.assertIn("Gate B also records a risk-derived Harness Profile", workflow)
+
+        evidence_header = (
+            "| Evidence ID | Harness ID | Layer | Basis IDs | Exact command or API | "
+            "Artifact / environment | Observed result | Observed at | Durable source | Status |"
+        )
+        self.assertIn(evidence_header, self.verify)
+        self.assertIn("Preserve a failed row and append the later rerun", self.verify)
+
+        design_prompt = self.prompt_section("DESIGN-10")
+        task_prompt = self.prompt_section("TASK-10")
+        build_prompt = self.prompt_section("BUILD-10")
+        release_prompt = self.prompt_section("RELEASE-10")
+        self.assertIn("Gate B Harness Profile", design_prompt)
+        self.assertIn("Do not add Harness\nmetadata fields", task_prompt)
+        self.assertIn("Harness execution evidence", build_prompt)
+        self.assertIn("current observed evidence", release_prompt)
+        self.assertIn("without adding task metadata", deliver_reference)
+        design_words = " ".join(design_reference.split())
+        self.assertIn("do not impose a universal scanner", design_words)
+        self.assertNotIn("## HARNESS-10", self.prompts)
+
     def test_method_contracts_leave_all_exact_authorization_receipts_intact(self) -> None:
         gate_a = """APPROVE REQUIREMENTS GATE A
 Requirements revision: REQ-0001
