@@ -58,3 +58,19 @@ inspection, and no AWS account access. Ordinary CI validates only the plan and
 scorer; it never invokes a model or claims these live outcomes.
 Keep transcripts and results outside the repository; record only the final
 non-sensitive review conclusion in normal release evidence.
+
+## Optional disposable AWS canary review
+
+After credential-free framework validation succeeds, maintainers may separately
+request an owner-authorized field review of the three representative canaries
+defined in [AWS-CANARY.md](AWS-CANARY.md). Planning and scoring are local:
+
+```text
+python scripts/aws_canary_eval.py plan --json
+python scripts/aws_canary_eval.py score --input <results.json> --json
+```
+
+The scorer never accesses AWS. A live canary is outside ordinary CI and needs
+the existing exact deployment authorization, followed later by a separate
+teardown authorization. Never claim a canary pass from a planned, partial,
+fabricated, or unobserved run.

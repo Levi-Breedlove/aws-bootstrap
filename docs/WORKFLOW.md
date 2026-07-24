@@ -122,6 +122,14 @@ Hooks never approve a gate or external action. The Fastlane receipts,
 construction envelope, AWS authorization, sandbox, and owner approvals remain
 authoritative.
 
+## Optional AWS field canaries
+
+The [disposable AWS canary contract](AWS-CANARY.md) defines three representative
+field reviews and a standard-library scorer. It is optional, never runs in
+ordinary CI, and does not add a lifecycle phase or gate. A real run follows the
+same Gate A, Gate B, AWS-10, AWS-20, AWS-30, AWS-40, and AWS-50 controls as any
+other AWS delivery. Framework maintenance and the scorer do not access AWS.
+
 ## Resume behavior
 
 The doctor selects the next prompt. Correct only the reported blocker, then
