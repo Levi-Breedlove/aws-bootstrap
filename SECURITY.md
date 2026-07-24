@@ -30,6 +30,20 @@ owner trust gate.
 AWS Core may expose authenticated operations. Their presence grants no
 authority to invoke them.
 
+## Optional hook guardrails
+
+Fastlane does not install or enable repository hooks by default. The reviewed
+example in `.codex/hooks.fastlane.example.json` is opt-in and becomes active
+only when an owner manually copies it to `.codex/hooks.json` and accepts the
+native Codex trust prompt after review.
+
+The handler does not read transcripts, log prompts or tool inputs, persist
+trust or secrets, inspect credentials, or access AWS. It never auto-allows an
+approval request. Its denials and continuation checks are defense in depth;
+they do not grant Gate A, Gate B, GitHub, AWS, or teardown authority. Review all
+active hook sources in `/hooks` because Codex can load matching hooks from more
+than one configuration layer.
+
 ## Setup controls
 
 - After fresh-template prerequisites pass, BOOT-00 asks only for project name,

@@ -109,6 +109,19 @@ mutation requires a separate current record naming:
 Tools, credentials, sandbox permission, prior access, or AWS Core availability
 never replace this authorization.
 
+## Optional hook guardrails
+
+Fastlane requires no project hooks. Owners who want an additional native Codex
+guardrail may manually review and enable the opt-in pack described in
+[HOOKS.md](HOOKS.md). It adds read-only doctor context, denies only clearly
+unauthorized external or out-of-repository actions, preserves normal approval
+prompts, runs bounded validation, and follows the doctor's automatic-
+continuation result.
+
+Hooks never approve a gate or external action. The Fastlane receipts,
+construction envelope, AWS authorization, sandbox, and owner approvals remain
+authoritative.
+
 ## Resume behavior
 
 The doctor selects the next prompt. Correct only the reported blocker, then

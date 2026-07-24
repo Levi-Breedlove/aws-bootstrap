@@ -1,0 +1,74 @@
+{
+  "description": "Optional Fastlane defense-in-depth guardrails. Copy manually to .codex/hooks.json after review.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/fastlane_hook.py\" session-start",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 (Join-Path $root '.codex/hooks/fastlane_hook.py') session-start\"",
+            "timeout": 30,
+            "statusMessage": "Loading Fastlane state"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(Bash|apply_patch|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/fastlane_hook.py\" pre-tool-use",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 (Join-Path $root '.codex/hooks/fastlane_hook.py') pre-tool-use\"",
+            "timeout": 30,
+            "statusMessage": "Checking Fastlane boundary"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "^(Bash|apply_patch|mcp__.*)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/fastlane_hook.py\" permission-request",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 (Join-Path $root '.codex/hooks/fastlane_hook.py') permission-request\"",
+            "timeout": 30,
+            "statusMessage": "Checking Fastlane approval boundary"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Bash|apply_patch)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/fastlane_hook.py\" post-tool-use",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 (Join-Path $root '.codex/hooks/fastlane_hook.py') post-tool-use\"",
+            "timeout": 60,
+            "statusMessage": "Running bounded Fastlane validation"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/fastlane_hook.py\" stop",
+            "commandWindows": "powershell -NoProfile -Command \"$root = git rev-parse --show-toplevel; py -3 (Join-Path $root '.codex/hooks/fastlane_hook.py') stop\"",
+            "timeout": 30,
+            "statusMessage": "Checking Fastlane continuation"
+          }
+        ]
+      }
+    ]
+  }
+}
