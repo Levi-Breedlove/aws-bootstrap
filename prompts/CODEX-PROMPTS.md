@@ -1,6 +1,6 @@
 # AWS Codex Fastlane Prompt Pack
 
-**Pack version:** 1.1.0
+**Pack version:** 1.2.0
 
 This pack turns a rough idea or an existing repository into a reviewed,
 executable AWS delivery plan, then lets Codex run the approved work for long
@@ -314,10 +314,11 @@ operations, or teardown. The plugin is a research and tool layer; it does not
 replace `docs/project/PRD.md`, the human gates, IAM, or an AWS authorization
 record. Its advisory evidence may use the PRD's exact `Design` syntax to bind a
 current DES and influenced TECH IDs, but it never selects technology or grants
-approval. Its observed version is metadata, not a pin. Its absence never blocks
-BOOT-00, intake, or ordinary Gate A discovery.
-When current AWS facts are required at DESIGN-10 or an AWS operating prompt,
-pause only that affected step and provide one concise official setup action.
+approval. Its observed version is metadata, not a pin. Fresh templates require
+current official `aws-core@agent-toolkit-for-aws` before initialization.
+Initialized projects skip the prerequisite gate during normal resume. Missing
+or stale AWS Core evidence later pauses only the affected material AWS step and
+produces one concise official setup action.
 AWS operations remain blocked without the required evidence and authorization.
 
 Before any AWS mutation, the active authorization must state all of:
@@ -795,11 +796,11 @@ Core is unavailable, continue ordinary
 requirements work and mark only the unresolved material AWS fact as open. The coordinator evaluates any challenger
 findings and remains the only writer. A challenger cannot approve Gate A.
 
-Translate only normative requirement rows into the canonical EARS grammar in
+Translate only normative requirement rows into the Fastlane EARS Contract in
 the current PRD table and select exactly one `GHERKIN` or `MEASURABLE`
 acceptance form. Keep product statements, stories, goals, non-goals, facts,
 findings, assumptions, open decisions, architecture, tasks, tests, receipts,
-evidence, and authorization metadata outside EARS. For material performance,
+evidence, and authorization metadata outside that contract. For material performance,
 availability, reliability, recovery, scalability, security-response, or
 operational-response concerns, complete a `QAS-*` row; otherwise record
 `NOT_APPLICABLE — <concrete reason>`. Apply STRIDE, LINDDUN, ATAM, or ADR only

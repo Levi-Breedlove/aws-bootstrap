@@ -14,9 +14,9 @@ Use for BOOT-00, INTAKE-10, REQ-10, and Gate A.
   assumptions, and unresolved decisions.
 - Give requirements and assumptions stable IDs and observable acceptance
   criteria. Preserve brownfield behavior and protected user work.
-- Translate only normative requirement rows into one canonical EARS form and
+- Translate only normative requirement rows into the Fastlane EARS Contract with one canonical form and
   one `GHERKIN` or `MEASURABLE` acceptance form. Keep goals, stories, facts,
-  assumptions, decisions, tasks, tests, receipts, and evidence outside EARS.
+  assumptions, decisions, tasks, tests, receipts, and evidence outside the contract.
   Do not expose methodology labels unless the owner asks for an explanation.
 - Add `QAS-*` rows only for material performance, availability, reliability,
   recovery, scalability, security-response, or operational-response concerns;

@@ -93,6 +93,7 @@ def task_block(
     requirements: str = "REQ-0001, FR-001",
     validation_command: str = "python -m unittest",
     property_execution_rows: tuple[str, ...] = (),
+    harness_projection_rows: tuple[str, ...] = (),
 ) -> str:
     owner = owner or ("worker-1" if status == "IN_PROGRESS" else "UNASSIGNED")
     run_id = run_id or ("RUN-0001" if status == "IN_PROGRESS" else "NONE")
@@ -115,6 +116,14 @@ def task_block(
             "Seed or reproduction format | Evidence destination |\n"
             "|---|---|---|---|---|---|\n"
             + "\n".join(property_execution_rows)
+            + "\n\n"
+        )
+    if harness_projection_rows:
+        property_projection += (
+            "| Harness ID | Layer | Selected check or tool | Trigger | Basis IDs | "
+            "Exact command or API | Evidence destination | Required or conditional status |\n"
+            "|---|---|---|---|---|---|---|---|\n"
+            + "\n".join(harness_projection_rows)
             + "\n\n"
         )
     return f"""### {task_id} — Test task
@@ -353,6 +362,52 @@ def write_gate_b_bound_project(
     (tasks_path.parent / "PRD.md").write_text(prd, encoding="utf-8")
     (root / "bootstrap.manifest.json").write_text("{}\n", encoding="utf-8")
     return tasks_path, write_matching_state(root, tasks_text)
+
+
+def harness_execution_values(
+    harness_id: str = "HARNESS-001",
+    *,
+    command: str = "python -m unittest tests.test_unit",
+) -> tuple[str, task_waves.HarnessExecutionRow]:
+    values = (
+        harness_id,
+        "UNIT",
+        "Python unittest",
+        "Before task completion",
+        "REQ-0001, DES-0001, TECH-0001",
+        command,
+        "docs/project/VERIFY.md#harness-execution-evidence",
+        "REQUIRED",
+    )
+    return "| " + " | ".join(values) + " |", task_waves.HarnessExecutionRow(*values)
+
+
+def harness_evidence_row(
+    *,
+    evidence_id: str,
+    status: str,
+    observed_at: str,
+    observed_result: str,
+    harness_id: str = "HARNESS-001",
+    command: str = "python -m unittest tests.test_unit",
+) -> str:
+    return (
+        f"| {evidence_id} | {harness_id} | UNIT | "
+        "TASK-001, REQ-0001, DES-0001, AUTH-0001, TECH-0001 | "
+        f"{command} | Worktree abc1234 | {observed_result} | {observed_at} | "
+        f"docs/project/VERIFY.md#{evidence_id.lower()} | {status} |"
+    )
+
+
+def harness_evidence_document(*rows: str) -> str:
+    return (
+        "## Harness execution evidence\n\n"
+        "| Evidence ID | Harness ID | Layer | Basis IDs | Exact command or API | "
+        "Artifact / environment | Observed result | Observed at | Durable source | Status |\n"
+        "|---|---|---|---|---|---|---|---|---|---|\n"
+        + "\n".join(rows)
+        + "\n"
+    )
 
 
 def property_evidence_row(
@@ -677,6 +732,121 @@ Not started.
                     approved_property_execution=approved,
                 )
 
+    def test_required_harness_projects_to_exactly_one_task(self) -> None:
+        row, approved_row = harness_execution_values()
+        task = task_waves.parse_tasks(
+            task_block(
+                "TASK-001",
+                "READY",
+                validation_command=approved_row.exact_command,
+                harness_projection_rows=(row,),
+            )
+        )
+        self.assertEqual(
+            task_waves.validate_harness_projections(
+                task,
+                {approved_row.harness_id: approved_row},
+                current_plan=True,
+            ),
+            [],
+        )
+
+        duplicate_tasks = task_waves.parse_tasks(
+            document(
+                [
+                    task_block(
+                        "TASK-001",
+                        "READY",
+                        validation_command=approved_row.exact_command,
+                        harness_projection_rows=(row,),
+                    ),
+                    task_block(
+                        "TASK-002",
+                        "READY",
+                        validation_command=approved_row.exact_command,
+                        harness_projection_rows=(row,),
+                    ),
+                ]
+            )
+        )
+        errors = task_waves.validate_harness_projections(
+            duplicate_tasks,
+            {approved_row.harness_id: approved_row},
+            current_plan=True,
+        )
+        self.assertTrue(
+            any("exactly one owning task; found 2" in error for error in errors),
+            errors,
+        )
+
+    def test_harness_projection_rejects_changed_command(self) -> None:
+        row, approved_row = harness_execution_values()
+        changed = "python -m unittest tests.test_other"
+        altered = row.replace(approved_row.exact_command, changed, 1)
+        task = task_waves.parse_tasks(
+            task_block(
+                "TASK-001",
+                "READY",
+                validation_command=changed,
+                harness_projection_rows=(altered,),
+            )
+        )
+        errors = task_waves.validate_harness_projections(
+            task,
+            {approved_row.harness_id: approved_row},
+            current_plan=True,
+        )
+        self.assertTrue(
+            any(
+                "does not match the approved PRD Harness row" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_harness_done_requires_latest_pass_and_preserves_failure(self) -> None:
+        row, approved_row = harness_execution_values()
+        failed = harness_evidence_row(
+            evidence_id="EV-2001",
+            status="FAILED",
+            observed_at="2026-07-17T00:00:00+00:00",
+            observed_result="exit=1; assertion failed",
+        )
+        passed = harness_evidence_row(
+            evidence_id="EV-2002",
+            status="LOCAL_PASS",
+            observed_at="2026-07-17T00:01:00+00:00",
+            observed_result="exit=0; 12 tests passed",
+        )
+        task = task_waves.parse_tasks(
+            task_block(
+                "TASK-001",
+                "DONE",
+                evidence="EV-2002",
+                validation_command=approved_row.exact_command,
+                harness_projection_rows=(row,),
+            )
+        )[0]
+        snap = task_waves.parse_snapshot(document([task.block]))
+
+        with self.assertRaisesRegex(ValueError, "latest observation must be a current PASS"):
+            task_waves.validate_done_harness_evidence(
+                harness_evidence_document(failed),
+                task,
+                snap,
+                {approved_row.harness_id: approved_row},
+            )
+
+        task_waves.validate_done_harness_evidence(
+            harness_evidence_document(failed, passed),
+            task,
+            snap,
+            {approved_row.harness_id: approved_row},
+        )
+        parsed = task_waves.parse_harness_evidence(
+            harness_evidence_document(failed, passed)
+        )
+        self.assertEqual([item.status for item in parsed], ["FAILED", "LOCAL_PASS"])
     def test_property_execution_rejects_sentinels_and_prose_commands(self) -> None:
         headers = (
             "| Property ID | Framework TECH ID | Exact command | Run target/time bound | "

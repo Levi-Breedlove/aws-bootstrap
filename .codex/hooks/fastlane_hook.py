@@ -199,8 +199,12 @@ def _event_tool(payload: Mapping[str, Any]) -> tuple[str, Mapping[str, Any]]:
 
 
 def _tool_command(tool_input: Mapping[str, Any]) -> str:
-    command = tool_input.get("command")
-    return command if isinstance(command, str) else ""
+    values = [
+        value
+        for key in ("command", "script", "code", "shell_command")
+        if isinstance((value := tool_input.get(key)), str) and value.strip()
+    ]
+    return "\n".join(values)
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -221,58 +225,284 @@ def _candidate_paths(tool_input: Mapping[str, Any]) -> list[str]:
     return values
 
 
-def _outside_write_boundary(
+def _relative_candidate(raw: str, root: Path, cwd: Path) -> str | None:
+    candidate = Path(raw.strip().strip("'\""))
+    if not candidate.is_absolute():
+        candidate = cwd / candidate
+    try:
+        resolved = candidate.resolve(strict=False)
+    except OSError:
+        return None
+    if not _is_within(resolved, root):
+        return None
+    return resolved.relative_to(root).as_posix()
+
+
+def _path_contains(boundary: str, requested: str) -> bool:
+    boundary = boundary.replace("\\", "/").strip("/")
+    requested = requested.replace("\\", "/").strip("/")
+    base = boundary[:-3] if boundary.endswith("/**") else boundary
+    return requested == base or requested.startswith(base + "/")
+
+
+def _paths_overlap(first: str, second: str) -> bool:
+    return _path_contains(first, second) or _path_contains(second, first)
+
+
+def _is_file_write_tool(tool_name: str) -> bool:
+    lowered = tool_name.casefold()
+    return any(
+        marker in lowered
+        for marker in (
+            "apply_patch",
+            "create_file",
+            "delete_file",
+            "edit_file",
+            "move_file",
+            "rename_file",
+            "replace_file",
+            "update_file",
+            "write_file",
+        )
+    ) or lowered in {"edit", "write"}
+
+
+def _shell_write_candidates(command: str) -> tuple[bool, list[str]]:
+    write_marker = re.search(
+        r"(?:^|[;&|]\s*)(?:rm|mv|cp|touch|mkdir|rmdir|sed\s+-i|tee|"
+        r"set-content|add-content|out-file|remove-item|move-item|copy-item|"
+        r"new-item)(?:\s|$)|(?:^|[^>])>{1,2}(?!=)",
+        command,
+        re.IGNORECASE,
+    )
+    values = [match.strip() for match in PATCH_PATH.findall(command)]
+    values.extend(
+        match.strip("'\"")
+        for match in re.findall(
+            r"(?:>|>>|--file|-LiteralPath|-Path)\s*['\"]?([^'\"\s;&|]+)",
+            command,
+            re.IGNORECASE,
+        )
+    )
+    return write_marker is not None or bool(values), values
+
+
+def _write_denial(
     tool_name: str,
     tool_input: Mapping[str, Any],
+    report: Mapping[str, Any],
     root: Path,
     cwd: Path,
-) -> bool:
-    if tool_name.casefold() not in {"apply_patch", "edit", "write"}:
-        return False
-    for raw in _candidate_paths(tool_input):
-        candidate = Path(raw)
-        if not candidate.is_absolute():
-            candidate = cwd / candidate
-        try:
-            resolved = candidate.resolve(strict=False)
-        except OSError:
-            return True
-        if not _is_within(resolved, root):
-            return True
-    return False
-
-
+) -> str | None:
+    command = _tool_command(tool_input)
+    shell_write, shell_paths = _shell_write_candidates(command)
+    is_write = _is_file_write_tool(tool_name) or shell_write
+    if not is_write:
+        return None
+    raw_paths = _candidate_paths(tool_input) + shell_paths
+    if not raw_paths:
+        return "Fastlane blocked an ambiguous file mutation because its exact target path is not observable."
+    relative_paths: list[str] = []
+    for raw in raw_paths:
+        relative = _relative_candidate(raw, root, cwd)
+        if relative is None:
+            return "Fastlane blocked a write outside the current repository boundary."
+        relative_paths.append(relative)
+    authority = report.get("write_authority")
+    if not isinstance(authority, Mapping) or authority.get("valid") is not True:
+        return "Fastlane blocked a file mutation because current Gate B write authority is absent."
+    roots = authority.get("approved_write_roots")
+    exclusions = authority.get("exclusions")
+    protected = authority.get("protected_paths")
+    active_set = authority.get("active_task_write_set")
+    if not all(isinstance(value, list) for value in (roots, exclusions, protected, active_set)):
+        return "Fastlane blocked a file mutation because write authority is malformed."
+    active_task = str(authority.get("active_task", "NONE"))
+    for relative in relative_paths:
+        if not any(_path_contains(str(boundary), relative) for boundary in roots):
+            return f"Fastlane blocked {relative} because it is outside the current Gate B write roots."
+        if any(_paths_overlap(str(boundary), relative) for boundary in exclusions):
+            return f"Fastlane blocked {relative} because it overlaps an excluded write path."
+        if any(_paths_overlap(str(boundary), relative) for boundary in protected):
+            return f"Fastlane blocked {relative} because it overlaps a protected dirty path."
+        if active_task != "NONE" and not any(
+            _path_contains(str(boundary), relative) for boundary in active_set
+        ):
+            return f"Fastlane blocked {relative} because it is outside {active_task}'s active write set."
+    return None
 def _is_aws_documentation_tool(tool_name: str) -> bool:
     lowered = tool_name.casefold()
     return any(marker in lowered for marker in AWS_DOCUMENTATION_MARKERS)
 
 
-def _aws_request_kind(tool_name: str, tool_input: Mapping[str, Any]) -> str | None:
-    """Return READ, MUTATE, or None for attributable AWS operations."""
+def _normalized_operation(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.casefold())
+
+
+def _aws_request_details(
+    tool_name: str, tool_input: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """Classify one attributable AWS request without treating docs as account use."""
 
     if _is_aws_documentation_tool(tool_name):
         return None
     lowered_name = tool_name.casefold()
-    command = _tool_command(tool_input).casefold()
-    if any(marker in command for marker in AWS_MUTATION_COMMANDS):
-        return "MUTATE"
-    if any(marker in lowered_name for marker in AWS_EXTERNAL_TOOL_MARKERS):
-        operation = ""
-        for key in ("operation", "operation_name", "api", "action"):
+    command = _tool_command(tool_input)
+    lowered_command = command.casefold()
+    is_external_tool = any(marker in lowered_name for marker in AWS_EXTERNAL_TOOL_MARKERS)
+    is_shell_aws = bool(
+        re.search(r"(?:^|[;&|]\s*)(?:aws(?:\.exe)?|cdk|sam|terraform|serverless)\s+", lowered_command)
+    ) or any(marker in lowered_command for marker in AWS_MUTATION_COMMANDS)
+    if not is_external_tool and not is_shell_aws:
+        return None
+    operation = ""
+    for key in ("operation", "operation_name", "api", "action"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value.strip():
+            operation = value.strip()
+            break
+    if not operation:
+        matches = re.findall(
+            r"(?:aws(?:\.exe)?\s+([a-z0-9_-]+)\s+([a-z0-9_-]+)|"
+            r"(cdk|sam|terraform|serverless)\s+([a-z0-9_-]+))",
+            lowered_command,
+        )
+        operations = [
+            " ".join(item for item in match if item)
+            for match in matches
+        ]
+        operations = [item for item in operations if item]
+        if len(set(operations)) == 1:
+            operation = operations[0]
+        elif len(set(operations)) > 1:
+            return {"kind": "AMBIGUOUS", "operation": "MIXED_COMMAND_CHAIN", "resources": []}
+    normalized = _normalized_operation(operation)
+    teardown = any(marker in normalized for marker in ("delete", "destroy", "remove", "terminate"))
+    if normalized and normalized.startswith(tuple(_normalized_operation(item) for item in AWS_READ_PREFIXES)):
+        kind = "READ"
+    elif teardown:
+        kind = "TEARDOWN"
+    elif normalized:
+        kind = "MUTATE"
+    else:
+        kind = "AMBIGUOUS"
+    resources: list[str] = []
+    for key in (
+        "resource",
+        "resource_arn",
+        "resource_id",
+        "stack",
+        "stack_name",
+        "application",
+        "identifier",
+        "target",
+    ):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value.strip():
+            resources.append(value.strip())
+    resources.extend(
+        match.strip("'\"")
+        for match in re.findall(
+            r"--(?:stack-name|function-name|table-name|resource-arn|cluster|service|name)\s+['\"]?([^'\"\s;&|]+)",
+            command,
+            re.IGNORECASE,
+        )
+    )
+    details: dict[str, Any] = {
+        "kind": kind,
+        "operation": operation,
+        "resources": sorted(set(resources)),
+    }
+    key_map = {
+        "account": ("account", "account_id"),
+        "region": ("region",),
+        "environment": ("environment",),
+        "role_or_profile": ("profile", "role", "role_arn"),
+        "artifact": ("artifact", "artifact_digest", "digest"),
+        "plan": ("plan", "plan_binding", "change_set", "change_set_name"),
+    }
+    for destination, keys in key_map.items():
+        for key in keys:
             value = tool_input.get(key)
-            if isinstance(value, str):
-                operation = value.casefold().replace("-", "_")
+            if isinstance(value, str) and value.strip():
+                details[destination] = value.strip()
                 break
-        if operation and operation.startswith(AWS_READ_PREFIXES):
-            return "READ"
-        return "MUTATE"
-    if re.search(r"(?:^|[;&|]\s*)aws(?:\.exe)?\s+", command):
-        tokens = re.findall(r"[a-z0-9_-]+", command)
-        operation = tokens[2] if len(tokens) > 2 else ""
-        return "READ" if operation.startswith(AWS_READ_PREFIXES) else "MUTATE"
+    region_match = re.search(r"--region\s+['\"]?([^'\"\s;&|]+)", command, re.IGNORECASE)
+    profile_match = re.search(r"--profile\s+['\"]?([^'\"\s;&|]+)", command, re.IGNORECASE)
+    if region_match:
+        details["region"] = region_match.group(1)
+    if profile_match:
+        details["role_or_profile"] = profile_match.group(1)
+    return details
+
+
+def _value_allowed(value: str, allowed: Sequence[object]) -> bool:
+    normalized = _normalized_operation(value)
+    return bool(normalized) and any(
+        normalized == _normalized_operation(str(item))
+        for item in allowed
+    )
+
+
+def _aws_authority_denial(
+    request: Mapping[str, Any], report: Mapping[str, Any]
+) -> str | None:
+    kind = str(request.get("kind", "AMBIGUOUS"))
+    if kind == "AMBIGUOUS":
+        return "Fastlane blocked an ambiguous mutation-capable AWS request because its operation is not exact."
+    authority = report.get("external_authority")
+    if not isinstance(authority, Mapping) or authority.get("validity") != "CURRENT":
+        if kind == "READ":
+            return "Fastlane blocked AWS account access because exact current read authority is absent."
+        return "Fastlane blocked AWS mutation or teardown because exact current external authority is absent."
+    authority_kind = str(authority.get("kind", "NONE"))
+    if kind == "READ":
+        if authority_kind not in {"AWS_READ_ONLY", "FAST_DEV_GATE_B", "AWS_DEPLOYMENT", "AWS_TEARDOWN"}:
+            return "Fastlane blocked AWS read access because the current read-authority contract does not cover it."
+    elif kind == "TEARDOWN":
+        if authority_kind != "AWS_TEARDOWN":
+            return "Fastlane blocked teardown because a distinct current teardown receipt is absent."
+    elif authority_kind not in {"FAST_DEV_GATE_B", "AWS_DEPLOYMENT"}:
+        return "Fastlane blocked AWS mutation because exact current mutation authority is absent."
+    operations = authority.get("operations")
+    resources = authority.get("resources")
+    if not isinstance(operations, list) or not _value_allowed(str(request.get("operation", "")), operations):
+        return "Fastlane blocked the AWS request because its exact operation is outside the authorized operation list."
+    requested_resources = request.get("resources")
+    if kind in {"MUTATE", "TEARDOWN"} and (
+        not isinstance(requested_resources, list) or not requested_resources
+    ):
+        return "Fastlane blocked the AWS request because its exact resource target is not observable."
+    if isinstance(requested_resources, list) and isinstance(resources, list):
+        for requested in requested_resources:
+            if not _value_allowed(str(requested), resources):
+                return "Fastlane blocked the AWS request because a resource target is outside the authorized boundary."
+    exact_context_required = kind in {"MUTATE", "TEARDOWN"}
+    for key in ("account", "region", "environment", "role_or_profile"):
+        observed = request.get(key)
+        expected = authority.get(key)
+        expected_text = str(expected or "").strip()
+        if exact_context_required and expected_text in {"", "NONE"}:
+            return f"Fastlane blocked the AWS request because current authority lacks an exact {key.replace('_', ' ')}."
+        if exact_context_required and observed is None:
+            return f"Fastlane blocked the AWS request because its {key.replace('_', ' ')} is not observable."
+        if observed is not None and str(observed).casefold() != expected_text.casefold():
+            return f"Fastlane blocked the AWS request because {key.replace('_', ' ')} does not match current authority."
+    binding = authority.get("artifact_plan_binding")
+    if exact_context_required and not isinstance(binding, Mapping):
+        return "Fastlane blocked the AWS request because current authority lacks exact artifact and plan bindings."
+    if isinstance(binding, Mapping):
+        for key in ("artifact", "plan"):
+            observed = request.get(key)
+            expected = binding.get(key)
+            expected_text = str(expected or "").strip()
+            if exact_context_required and expected_text in {"", "NONE"}:
+                return f"Fastlane blocked the AWS request because current authority lacks an exact {key} binding."
+            if exact_context_required and observed is None:
+                return f"Fastlane blocked the AWS request because its {key} binding is not observable."
+            if observed is not None and _normalized_operation(str(observed)) != _normalized_operation(expected_text):
+                return f"Fastlane blocked the AWS request because its {key} binding does not match current authority."
     return None
-
-
 def _github_request_kind(tool_name: str, tool_input: Mapping[str, Any]) -> str | None:
     lowered_name = tool_name.casefold()
     command = _tool_command(tool_input).casefold()
@@ -311,31 +541,23 @@ def _authority_denial(
     root: Path,
     cwd: Path,
 ) -> str | None:
-    if _outside_write_boundary(tool_name, tool_input, root, cwd):
-        return "Fastlane blocked a write outside the current repository boundary."
+    write_reason = _write_denial(tool_name, tool_input, report, root, cwd)
+    if write_reason is not None:
+        return write_reason
+
+    aws_request = _aws_request_details(tool_name, tool_input)
+    if aws_request is not None:
+        aws_reason = _aws_authority_denial(aws_request, report)
+        if aws_reason is not None:
+            return aws_reason
 
     authorizations = report.get("authorizations")
     if not isinstance(authorizations, Mapping):
         authorizations = {}
-    aws_authorization = str(authorizations.get("aws", "NONE"))
     construction_authorization = str(authorizations.get("construction", "NONE"))
-    aws_boundary = str(envelope.get("AWS boundary", "NONE"))
     github_boundary = str(envelope.get("GitHub boundary", "NONE"))
-    if aws_boundary not in AWS_BOUNDARIES:
-        aws_boundary = "NONE"
     if github_boundary not in GITHUB_BOUNDARIES:
         github_boundary = "NONE"
-
-    aws_kind = _aws_request_kind(tool_name, tool_input)
-    if aws_kind == "READ" and (
-        aws_authorization == "NONE"
-        or aws_boundary not in {"READ_ONLY", "MUTATE_LISTED_RESOURCES"}
-    ):
-        return "Fastlane blocked AWS account access because current AWS authority is absent."
-    if aws_kind == "MUTATE" and (
-        aws_authorization == "NONE" or aws_boundary != "MUTATE_LISTED_RESOURCES"
-    ):
-        return "Fastlane blocked AWS mutation or teardown because exact current AWS authority is absent."
 
     github_kind = _github_request_kind(tool_name, tool_input)
     if github_kind is not None and construction_authorization == "NONE":
@@ -348,8 +570,6 @@ def _authority_denial(
     if github_kind is not None and github_boundary not in allowed_github[github_kind]:
         return "Fastlane blocked GitHub publication because it exceeds the current GitHub boundary."
     return None
-
-
 def _broad_escalation(payload: Mapping[str, Any], tool_input: Mapping[str, Any]) -> bool:
     if str(payload.get("permission_mode", "")).casefold() == "bypasspermissions":
         return True

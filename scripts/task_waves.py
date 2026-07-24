@@ -130,6 +130,31 @@ PROPERTY_EXECUTION_HEADERS = (
     "Seed or reproduction format",
     "Evidence destination",
 )
+HARNESS_HEADERS = (
+    "Harness ID",
+    "Layer",
+    "Selected check or tool",
+    "Trigger",
+    "Basis IDs",
+    "Exact command or API",
+    "Evidence destination",
+    "Required or conditional status",
+)
+HARNESS_EVIDENCE_HEADERS = (
+    "Evidence ID",
+    "Harness ID",
+    "Layer",
+    "Basis IDs",
+    "Exact command or API",
+    "Artifact / environment",
+    "Observed result",
+    "Observed at",
+    "Durable source",
+    "Status",
+)
+HARNESS_ID_PATTERN = re.compile(r"HARNESS-\d{3,}")
+HARNESS_PASS_STATUSES = {"LOCAL_PASS", "VERIFIED"}
+HARNESS_FAILURE_STATUS = "FAILED"
 PROPERTY_EXECUTION_PLACEHOLDER_PATTERN = re.compile(
     r"(?:<[^>]+>|(?<![A-Za-z0-9_])(?:TODO|TBD|TBC|UNKNOWN|UNASSIGNED|"
     r"NONE|PENDING|PLACEHOLDER|NOT[ _-]*STARTED|N/?A)(?![A-Za-z0-9_]))",
@@ -283,9 +308,36 @@ class PropertyExecutionRow:
 
 
 @dataclass(frozen=True)
+class HarnessExecutionRow:
+    harness_id: str
+    layer: str
+    selected_check: str
+    trigger: str
+    basis_ids: str
+    exact_command: str
+    evidence_destination: str
+    requirement_status: str
+
+
+@dataclass(frozen=True)
+class HarnessEvidenceRow:
+    evidence_id: str
+    harness_id: str
+    layer: str
+    basis_ids: str
+    exact_command: str
+    artifact_environment: str
+    observed_result: str
+    observed_at: str
+    durable_source: str
+    status: str
+
+
+@dataclass(frozen=True)
 class ApprovedTaskContract:
     technology_ids: frozenset[str]
     property_execution: dict[str, PropertyExecutionRow]
+    harness: dict[str, HarnessExecutionRow]
 
 
 def clean(value: str) -> str:
@@ -709,6 +761,83 @@ def parse_property_execution_rows(
     return rows, True
 
 
+def parse_harness_projection_rows(
+    text: str,
+    label: str,
+) -> tuple[dict[str, HarnessExecutionRow], bool]:
+    """Parse one exact, non-fenced Harness projection table."""
+
+    structural = without_fenced_code(text)
+    raw_lines = text.splitlines()
+    structural_lines = structural.splitlines()
+    header_indexes = [
+        index
+        for index, line in enumerate(structural_lines)
+        if split_markdown_table_row(line) == list(HARNESS_HEADERS)
+    ]
+    if len(header_indexes) > 1:
+        raise ValueError(f"{label}: duplicate Harness projection tables")
+    if not header_indexes:
+        return {}, False
+    header_index = header_indexes[0]
+    if header_index + 1 >= len(raw_lines):
+        raise ValueError(f"{label}: Harness projection has no separator")
+    separators = split_markdown_table_row(raw_lines[header_index + 1])
+    if (
+        separators is None
+        or len(separators) != len(HARNESS_HEADERS)
+        or any(re.fullmatch(r":?-{3,}:?", cell) is None for cell in separators)
+    ):
+        raise ValueError(f"{label}: Harness projection separator is malformed")
+
+    rows: dict[str, HarnessExecutionRow] = {}
+    for raw_line, structural_line in zip(
+        raw_lines[header_index + 2 :],
+        structural_lines[header_index + 2 :],
+    ):
+        if not structural_line.strip().startswith("|"):
+            break
+        cells = split_markdown_table_row(raw_line)
+        if cells is None or len(cells) != len(HARNESS_HEADERS):
+            raise ValueError(
+                f"{label}: Harness projection row must have exactly eight cells"
+            )
+        row = HarnessExecutionRow(*(clean(cell) for cell in cells))
+        if HARNESS_ID_PATTERN.fullmatch(row.harness_id) is None:
+            raise ValueError(f"{label}: invalid Harness ID {row.harness_id!r}")
+        if row.harness_id in rows:
+            raise ValueError(f"{label}: duplicate Harness ID {row.harness_id}")
+        if any(
+            not value
+            or PROPERTY_EXECUTION_PLACEHOLDER_PATTERN.search(value) is not None
+            for value in (
+                row.layer,
+                row.selected_check,
+                row.trigger,
+                row.basis_ids,
+                row.exact_command,
+                row.evidence_destination,
+                row.requirement_status,
+            )
+        ):
+            raise ValueError(f"{label}: {row.harness_id} projection is unresolved")
+        if row.requirement_status != "REQUIRED":
+            raise ValueError(
+                f"{label}: {row.harness_id} projected status must be REQUIRED"
+            )
+        if (
+            "\n" in row.exact_command
+            or "\r" in row.exact_command
+            or PROPERTY_COMMAND_PROSE_PATTERN.match(row.exact_command) is not None
+            or PROPERTY_COMMAND_EXECUTABLE_PATTERN.match(row.exact_command) is None
+        ):
+            raise ValueError(
+                f"{label}: {row.harness_id} Exact command or API must be concrete"
+            )
+        rows[row.harness_id] = row
+    return rows, True
+
+
 def fenced_command_lines(text: str) -> list[str]:
     """Return exact non-empty lines inside Markdown code fences."""
 
@@ -824,6 +953,236 @@ def validate_property_execution_projection(
                 f"{task.task_id}: {property_id} Exact command must appear unchanged exactly once in Validation code fences; found {command_count}"
             )
     return errors
+
+
+def validate_harness_projections(
+    tasks: list[Task],
+    approved_harness: dict[str, HarnessExecutionRow] | None,
+    *,
+    current_plan: bool,
+) -> list[str]:
+    """Require each approved Harness row in exactly one owning task."""
+
+    errors: list[str] = []
+    owners: dict[str, list[str]] = {}
+    if approved_harness is None:
+        return errors
+    for task in tasks:
+        contract_bound = task.status in {"READY", "IN_PROGRESS", "BLOCKED", "DONE"} or (
+            task.status == "BACKLOG" and current_plan
+        )
+        if not contract_bound:
+            continue
+        validation = task_subsection(task, "#### Validation")
+        if validation is None:
+            continue
+        try:
+            projected, _present = parse_harness_projection_rows(
+                validation, task.task_id
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        commands = fenced_command_lines(validation)
+        for harness_id, observed in projected.items():
+            owners.setdefault(harness_id, []).append(task.task_id)
+            expected = approved_harness.get(harness_id)
+            if expected is None:
+                errors.append(
+                    f"{task.task_id}: {harness_id} is not a REQUIRED current PRD Harness row"
+                )
+                continue
+            if not harness_rows_equivalent(observed, expected):
+                errors.append(
+                    f"{task.task_id}: {harness_id} projection does not match "
+                    "the approved PRD Harness row after command normalization"
+                )
+            count = sum(
+                normalize_harness_command(command)
+                == normalize_harness_command(observed.exact_command)
+                for command in commands
+            )
+            if count != 1:
+                errors.append(
+                    f"{task.task_id}: {harness_id} Exact command must appear "
+                    f"unchanged exactly once in Validation code fences; found {count}"
+                )
+    for harness_id in sorted(approved_harness):
+        task_ids = owners.get(harness_id, [])
+        if len(task_ids) != 1:
+            errors.append(
+                f"{harness_id}: REQUIRED Harness row must have exactly one owning "
+                f"task; found {len(task_ids)}"
+            )
+    return errors
+
+
+def normalize_harness_command(value: str) -> str:
+    """Normalize insignificant whitespace without changing command tokens."""
+
+    return " ".join(clean(value).split())
+
+
+def harness_rows_equivalent(
+    observed: HarnessExecutionRow,
+    expected: HarnessExecutionRow,
+) -> bool:
+    return (
+        observed.harness_id == expected.harness_id
+        and observed.layer == expected.layer
+        and observed.selected_check == expected.selected_check
+        and observed.trigger == expected.trigger
+        and observed.basis_ids == expected.basis_ids
+        and normalize_harness_command(observed.exact_command)
+        == normalize_harness_command(expected.exact_command)
+        and observed.evidence_destination == expected.evidence_destination
+        and observed.requirement_status == expected.requirement_status
+    )
+
+
+def parse_harness_evidence(text: str) -> list[HarnessEvidenceRow]:
+    """Parse the append-only Harness execution evidence ledger."""
+
+    masked = without_fenced_code(text)
+    headings = list(
+        re.finditer(r"^## Harness execution evidence[ \t]*$", masked, re.MULTILINE)
+    )
+    if len(headings) != 1:
+        raise ValueError(
+            "VERIFY.md requires exactly one `## Harness execution evidence` section"
+        )
+    heading = headings[0]
+    next_heading = re.search(r"^##\s+", masked[heading.end() :], re.MULTILINE)
+    end = heading.end() + next_heading.start() if next_heading else len(masked)
+    lines = masked[heading.end() : end].splitlines()
+    header_indexes = [
+        index
+        for index, line in enumerate(lines)
+        if split_markdown_table_row(line) == list(HARNESS_EVIDENCE_HEADERS)
+    ]
+    if len(header_indexes) != 1:
+        raise ValueError(
+            "VERIFY.md Harness execution evidence requires exactly one exact table header"
+        )
+    header_index = header_indexes[0]
+    if header_index + 1 >= len(lines):
+        raise ValueError("VERIFY.md Harness execution evidence has no separator")
+    separators = split_markdown_table_row(lines[header_index + 1])
+    if (
+        separators is None
+        or len(separators) != len(HARNESS_EVIDENCE_HEADERS)
+        or any(re.fullmatch(r":?-{3,}:?", cell) is None for cell in separators)
+    ):
+        raise ValueError("VERIFY.md Harness execution evidence separator is malformed")
+    rows: list[HarnessEvidenceRow] = []
+    seen_evidence_ids: set[str] = set()
+    for line in lines[header_index + 2 :]:
+        if not line.strip().startswith("|"):
+            break
+        cells = split_markdown_table_row(line)
+        if cells is None or len(cells) != len(HARNESS_EVIDENCE_HEADERS):
+            raise ValueError(
+                "VERIFY.md Harness execution evidence row must have exactly ten cells"
+            )
+        row = HarnessEvidenceRow(*(clean(cell) for cell in cells))
+        if TASK_EVIDENCE_ID_PATTERN.fullmatch(row.evidence_id) is None:
+            raise ValueError(
+                f"VERIFY.md Harness evidence has invalid Evidence ID {row.evidence_id!r}"
+            )
+        if row.evidence_id in seen_evidence_ids:
+            raise ValueError(
+                f"VERIFY.md Harness evidence has duplicate Evidence ID {row.evidence_id}"
+            )
+        seen_evidence_ids.add(row.evidence_id)
+        if HARNESS_ID_PATTERN.fullmatch(row.harness_id) is None:
+            raise ValueError(
+                f"VERIFY.md Harness evidence has invalid Harness ID {row.harness_id!r}"
+            )
+        rows.append(row)
+    return rows
+
+
+def validate_done_harness_evidence(
+    verify_text: str,
+    task: Task,
+    snapshot: Snapshot,
+    approved_harness: dict[str, HarnessExecutionRow] | None,
+) -> None:
+    validation = task_subsection(task, "#### Validation")
+    if validation is None:
+        return
+    projected, present = parse_harness_projection_rows(validation, task.task_id)
+    if not present or not projected:
+        return
+    if approved_harness is None:
+        raise ValueError(
+            f"{task.task_id}: approved PRD Harness contract is unavailable"
+        )
+    ledger = parse_harness_evidence(verify_text)
+    task_evidence_ids = set(evidence_references(task.metadata.get("Evidence", "")))
+    expected_basis = {
+        task.task_id,
+        snapshot.get("Requirements revision"),
+        snapshot.get("Design revision"),
+        snapshot.get("Construction authorization"),
+    }
+    for harness_id, projected_row in projected.items():
+        expected = approved_harness.get(harness_id)
+        if expected is None or not harness_rows_equivalent(projected_row, expected):
+            raise ValueError(
+                f"{task.task_id}: {harness_id} does not match the current PRD Harness contract"
+            )
+        observations = [row for row in ledger if row.harness_id == harness_id]
+        if not observations:
+            raise ValueError(
+                f"{task.task_id}: {harness_id} requires current PASS evidence"
+            )
+        prior_time: datetime | None = None
+        for row in observations:
+            label = f"{task.task_id} Harness evidence {row.evidence_id}"
+            if row.layer != expected.layer:
+                raise ValueError(f"{label} Layer does not match the approved Harness row")
+            if normalize_harness_command(row.exact_command) != normalize_harness_command(
+                expected.exact_command
+            ):
+                raise ValueError(f"{label} command/API does not match the approved Harness row")
+            observed_basis = set(
+                re.findall(
+                    r"(?:TASK|REQ|DES|AUTH)-\d{3,}|HARNESS-\d{3,}|TECH-\d{4}|PROP-\d{3,}",
+                    row.basis_ids,
+                )
+            )
+            if not expected_basis.issubset(observed_basis):
+                raise ValueError(
+                    f"{label} Basis IDs must include the current task and REQ/DES/AUTH"
+                )
+            require_explicit_evidence_value(
+                row.artifact_environment, f"{label} Artifact / environment"
+            )
+            require_explicit_evidence_value(
+                row.observed_result, f"{label} Observed result"
+            )
+            validate_iso_timestamp(row.observed_at, f"{label} Observed at")
+            observed_time = datetime.fromisoformat(row.observed_at.replace("Z", "+00:00"))
+            if prior_time is not None and observed_time <= prior_time:
+                raise ValueError(
+                    f"{task.task_id}: {harness_id} evidence must be append-only in chronological order"
+                )
+            prior_time = observed_time
+            validate_durable_evidence_source(row.durable_source, f"{label} Durable source")
+            if row.status not in {HARNESS_FAILURE_STATUS, *HARNESS_PASS_STATUSES}:
+                raise ValueError(
+                    f"{label} Status must be FAILED, LOCAL_PASS, or VERIFIED"
+                )
+        latest = observations[-1]
+        if latest.status not in HARNESS_PASS_STATUSES:
+            raise ValueError(
+                f"{task.task_id}: {harness_id} latest observation must be a current PASS"
+            )
+        if latest.evidence_id not in task_evidence_ids:
+            raise ValueError(
+                f"{task.task_id}: Evidence must cite latest {harness_id} result {latest.evidence_id}"
+            )
 
 
 def parse_task_completion_evidence(text: str) -> list[TaskCompletionEvidenceRow]:
@@ -1006,6 +1365,7 @@ def validate_done_evidence_file(
     tasks_path: Path,
     task: Task,
     approved_property_execution: dict[str, PropertyExecutionRow] | None = None,
+    approved_harness: dict[str, HarnessExecutionRow] | None = None,
     tasks_text: str | None = None,
 ) -> None:
     references = evidence_references(task.metadata.get("Evidence", ""))
@@ -1056,11 +1416,18 @@ def validate_done_evidence_file(
             raise ValueError(f"{label} Status must be LOCAL_PASS or VERIFIED")
     if tasks_text is None:
         tasks_text = tasks_path.read_text(encoding="utf-8")
+    snapshot = parse_snapshot(tasks_text)
     validate_property_done_evidence(
         verify_text,
         task,
-        parse_snapshot(tasks_text),
+        snapshot,
         approved_property_execution,
+    )
+    validate_done_harness_evidence(
+        verify_text,
+        task,
+        snapshot,
+        approved_harness,
     )
 
 
@@ -1125,6 +1492,7 @@ def validate(
     *,
     approved_tech_ids: set[str] | None = None,
     approved_property_execution: dict[str, PropertyExecutionRow] | None = None,
+    approved_harness: dict[str, HarnessExecutionRow] | None = None,
 ) -> dict[str, Task]:
     by_id: dict[str, Task] = {}
     errors: list[str] = []
@@ -1311,6 +1679,15 @@ def validate(
             validate_iso_timestamp(waiver.recorded_at, waiver.waiver_id)
         except ValueError as exc:
             errors.append(str(exc))
+
+    if snapshot is not None:
+        errors.extend(
+            validate_harness_projections(
+                tasks,
+                approved_harness,
+                current_plan=snapshot.get("Task-plan state") == "CURRENT",
+            )
+        )
 
     if (
         snapshot is not None
@@ -2133,8 +2510,35 @@ def approved_contract_for_tasks(
             framework.selection,
             framework.version_policy,
         )
+    approved_harness: dict[str, HarnessExecutionRow] = {}
+    if (root / "bootstrap.manifest.json").exists():
+        design_revision = parse_snapshot(tasks_text).get("Design revision")
+        design_contract, design_issues = doctor.derive_design_contract(
+            prd_text,
+            design_revision,
+            required=True,
+        )
+        if design_issues:
+            raise ValueError(
+                "docs/project/PRD.md design contract is not current: "
+                + "; ".join(design_issues)
+            )
+        approved_harness = {
+            row.harness_id: HarnessExecutionRow(
+                row.harness_id,
+                row.layer,
+                row.selected_check,
+                row.trigger,
+                row.basis_ids,
+                row.exact_command,
+                row.evidence_destination,
+                row.requirement_status,
+            )
+            for row in design_contract.harness.rows
+            if row.harness_id in design_contract.harness.required_ids
+        }
     return ApprovedTaskContract(
-        frozenset(approved), enriched_property_execution
+        frozenset(approved), enriched_property_execution, approved_harness
     )
 
 
@@ -2152,10 +2556,30 @@ def approved_contract_values(
     tasks_path: Path,
     tasks_text: str | None = None,
 ) -> tuple[set[str] | None, dict[str, PropertyExecutionRow] | None]:
+    """Compatibility view retained for callers that do not consume Harness rows."""
+
     contract = approved_contract_for_tasks(tasks_path, tasks_text)
     if contract is None:
         return None, None
     return set(contract.technology_ids), contract.property_execution
+
+
+def approved_contract_components(
+    tasks_path: Path,
+    tasks_text: str | None = None,
+) -> tuple[
+    set[str] | None,
+    dict[str, PropertyExecutionRow] | None,
+    dict[str, HarnessExecutionRow] | None,
+]:
+    contract = approved_contract_for_tasks(tasks_path, tasks_text)
+    if contract is None:
+        return None, None, None
+    return (
+        set(contract.technology_ids),
+        contract.property_execution,
+        contract.harness,
+    )
 
 
 def coordinator_ledger_paths(tasks_path: Path) -> set[str]:
@@ -2232,7 +2656,11 @@ def expected_execution_fields(tasks_text: str) -> dict[str, object]:
 def preflight_state_matches_tasks(
     tasks_path: Path,
     tasks_text: str,
-) -> tuple[set[str] | None, dict[str, PropertyExecutionRow] | None]:
+) -> tuple[
+    set[str] | None,
+    dict[str, PropertyExecutionRow] | None,
+    dict[str, HarnessExecutionRow] | None,
+]:
     """Refuse mutations when a prior partial write or manual edit caused drift."""
 
     loaded = read_bootstrap_state(tasks_path)
@@ -2243,8 +2671,8 @@ def preflight_state_matches_tasks(
     assert isinstance(lifecycle, dict)
     snapshot = parse_snapshot(tasks_text)
     tasks = parse_tasks(tasks_text)
-    approved_tech_ids, approved_property_execution = approved_contract_values(
-        tasks_path, tasks_text
+    approved_tech_ids, approved_property_execution, approved_harness = (
+        approved_contract_components(tasks_path, tasks_text)
     )
     validate(
         tasks,
@@ -2252,6 +2680,7 @@ def preflight_state_matches_tasks(
         parse_waivers(tasks_text),
         approved_tech_ids=approved_tech_ids,
         approved_property_execution=approved_property_execution,
+        approved_harness=approved_harness,
     )
     for task in tasks:
         if task.status == "DONE":
@@ -2259,6 +2688,7 @@ def preflight_state_matches_tasks(
                 tasks_path,
                 task,
                 approved_property_execution,
+                approved_harness,
                 tasks_text,
             )
 
@@ -2307,7 +2737,7 @@ def preflight_state_matches_tasks(
             "TASKS.md does not match bootstrap.yaml; reconcile before mutation: "
             + ", ".join(sorted(set(drift)))
         )
-    return approved_tech_ids, approved_property_execution
+    return approved_tech_ids, approved_property_execution, approved_harness
 
 
 def mirror_state_text(
@@ -2429,6 +2859,7 @@ def load_contract(
     *,
     approved_tech_ids: set[str] | None = None,
     approved_property_execution: dict[str, PropertyExecutionRow] | None = None,
+    approved_harness: dict[str, HarnessExecutionRow] | None = None,
 ) -> tuple[list[Task], Snapshot, dict[str, Waiver], dict[str, Task]]:
     tasks = parse_tasks(text)
     snapshot = parse_snapshot(text)
@@ -2439,6 +2870,7 @@ def load_contract(
         waivers,
         approved_tech_ids=approved_tech_ids,
         approved_property_execution=approved_property_execution,
+        approved_harness=approved_harness,
     )
     compute_waves(tasks, by_id)
     return tasks, snapshot, waivers, by_id
@@ -2449,6 +2881,7 @@ def synchronize_current_wave(
     *,
     approved_tech_ids: set[str] | None = None,
     approved_property_execution: dict[str, PropertyExecutionRow] | None = None,
+    approved_harness: dict[str, HarnessExecutionRow] | None = None,
 ) -> str:
     """Advance the coordinator snapshot to the lowest runnable/active wave."""
 
@@ -2456,6 +2889,7 @@ def synchronize_current_wave(
         text,
         approved_tech_ids=approved_tech_ids,
         approved_property_execution=approved_property_execution,
+        approved_harness=approved_harness,
     )
     if snapshot.get("Run state") != "RUNNING":
         return text
@@ -2558,13 +2992,14 @@ def mutate_task_file(
 ) -> bool:
     with task_file_lock(path):
         text = path.read_text(encoding="utf-8")
-        approved_tech_ids, approved_property_execution = preflight_state_matches_tasks(
-            path, text
+        approved_tech_ids, approved_property_execution, approved_harness = (
+            preflight_state_matches_tasks(path, text)
         )
         tasks, snapshot, waivers, by_id = load_contract(
             text,
             approved_tech_ids=approved_tech_ids,
             approved_property_execution=approved_property_execution,
+            approved_harness=approved_harness,
         )
         require_current_plan(snapshot, "Task mutation")
         require_active_coordinator(snapshot, coordinator, "Task mutation")
@@ -2641,11 +3076,13 @@ def mutate_task_file(
             text,
             approved_tech_ids=approved_tech_ids,
             approved_property_execution=approved_property_execution,
+            approved_harness=approved_harness,
         )
         load_contract(
             text,
             approved_tech_ids=approved_tech_ids,
             approved_property_execution=approved_property_execution,
+            approved_harness=approved_harness,
         )
         # State is replaced first. If the subsequent TASKS replacement fails,
         # doctor detects the mismatch and requires reconciliation rather than
@@ -2739,13 +3176,14 @@ def claim_task_file(
         raise ValueError(f"Invalid checkpoint: {checkpoint!r}")
     with task_file_lock(path):
         text = path.read_text(encoding="utf-8")
-        approved_tech_ids, approved_property_execution = preflight_state_matches_tasks(
-            path, text
+        approved_tech_ids, approved_property_execution, approved_harness = (
+            preflight_state_matches_tasks(path, text)
         )
         tasks, snapshot, waivers, by_id = load_contract(
             text,
             approved_tech_ids=approved_tech_ids,
             approved_property_execution=approved_property_execution,
+            approved_harness=approved_harness,
         )
         require_current_plan(snapshot, "Claim")
         if task_id not in by_id:
@@ -2792,6 +3230,7 @@ def claim_task_file(
             text,
             approved_tech_ids=approved_tech_ids,
             approved_property_execution=approved_property_execution,
+            approved_harness=approved_harness,
         )
         write_state_mirror(path, text)
         atomic_write_text(path, text)
@@ -2818,13 +3257,14 @@ def mutate_run_snapshot(
         raise ValueError("Run mode may be selected only when starting a run")
     with task_file_lock(path):
         text = path.read_text(encoding="utf-8")
-        approved_tech_ids, approved_property_execution = preflight_state_matches_tasks(
-            path, text
+        approved_tech_ids, approved_property_execution, approved_harness = (
+            preflight_state_matches_tasks(path, text)
         )
         tasks, snapshot, waivers, by_id = load_contract(
             text,
             approved_tech_ids=approved_tech_ids,
             approved_property_execution=approved_property_execution,
+            approved_harness=approved_harness,
         )
         require_current_plan(snapshot, operation.capitalize())
         active = snapshot.get("Active run ID")
@@ -2913,6 +3353,7 @@ def mutate_run_snapshot(
             text,
             approved_tech_ids=approved_tech_ids,
             approved_property_execution=approved_property_execution,
+            approved_harness=approved_harness,
         )
         write_state_mirror(path, text, run_mode=run_mode)
         atomic_write_text(path, text)
@@ -3176,8 +3617,8 @@ def main() -> int:
             return 0
         if not tasks:
             raise ValueError("No task blocks found for an initialized task plan")
-        approved_tech_ids, approved_property_execution = approved_contract_values(
-            path, text
+        approved_tech_ids, approved_property_execution, approved_harness = (
+            approved_contract_components(path, text)
         )
         by_id = validate(
             tasks,
@@ -3185,6 +3626,7 @@ def main() -> int:
             waivers,
             approved_tech_ids=approved_tech_ids,
             approved_property_execution=approved_property_execution,
+            approved_harness=approved_harness,
         )
         for task in tasks:
             if task.status == "DONE":

@@ -1048,7 +1048,7 @@ class PromptPackContractTests(unittest.TestCase):
         )
         self.assertIn(projection_header, self.tasks)
         self.assertIn(projection_header.strip("| "), task_prompt)
-        self.assertIn("```bash\n<exact validation command>\n```", self.tasks)
+        self.assertIn("```bash\n<each exact property and Harness command owned by this task, once>\n```", self.tasks)
         self.assertIn("exact Property execution projection table", task_prompt)
 
     def test_readiness_cards_are_complete_and_prompt_filled(self) -> None:
@@ -1268,9 +1268,9 @@ class PromptPackContractTests(unittest.TestCase):
     def test_manifest_matches_pack_and_required_files_exist(self) -> None:
         manifest_path = PROJECT_ROOT / "bootstrap.manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        self.assertEqual(manifest["bootstrap_version"], "1.1.0")
+        self.assertEqual(manifest["bootstrap_version"], "1.2.0")
         self.assertEqual(manifest["canonical_prompt_ids"], PROMPT_IDS)
-        self.assertIn("**Pack version:** 1.1.0", self.prompts)
+        self.assertIn("**Pack version:** 1.2.0", self.prompts)
         missing = [
             path
             for path in manifest["required_files"]

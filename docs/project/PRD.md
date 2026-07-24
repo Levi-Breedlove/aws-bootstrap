@@ -220,12 +220,23 @@ Describe:
 | FR-001 | TODO | UBIQUITOUS | TODO | MEASURABLE |
 | FR-002 | TODO | UNWANTED_BEHAVIOR | TODO | GHERKIN |
 
-Normative requirement rows use one EARS form and one acceptance form. EARS
-states the observable obligation; acceptance criteria state how it is verified.
-Do not apply these fields to goals, stories, facts, assumptions, decisions,
-architecture, tasks, tests, receipts, or evidence. Acceptance criteria must be
-objective and observable. Replace undefined terms such as "fast," "secure,"
-"large," or "user friendly" with measurable conditions.
+The five columns above are the **Fastlane EARS Contract** for normative
+requirements; they do not redefine EARS outside this template. The EARS form
+states one observable obligation and the acceptance form states how that
+obligation is verified. A `MEASURABLE` row needs both an observable expected
+result and a bound, policy/configuration check, exact command/API, or stable
+`TEST-*`, `PROP-*`, or `EV-*` binding. Do not apply these fields to goals,
+stories, facts, assumptions, decisions, architecture, tasks, tests, receipts,
+or evidence. Replace undefined terms such as "fast," "secure," "large," or
+"user friendly" with measurable conditions.
+
+Compatibility is revision-bound. An unchanged, already approved 1.1 Gate A may
+remain current until its requirements revision changes. An unapproved 1.1
+requirements set must migrate every normative table before Gate A can become
+ready. Any requirements-controlled change requires the complete 1.2 contract
+and invalidates Gate A and Gate B; a design-only change does not force Gate A
+migration. Fastlane identifies the exact rows to migrate and never invents or
+silently rewrites owner requirements.
 
 ## 7. Primary, alternate, and failure flows
 
@@ -986,21 +997,24 @@ Use exactly one status per row:
 A conditional row becomes required when its recorded trigger is present. For
 an inapplicable row, use `NOT_APPLICABLE` for the selected check, command/API,
 and evidence destination while the status records the concrete reason. At Gate
-B, every applicable row has a stable `HARNESS-*` ID, current basis IDs, one
-exact command or API, and an existing `docs/project/VERIFY.md` destination.
+B, every `CONDITIONAL` row is resolved to `REQUIRED` or
+`NOT_APPLICABLE — <reason>`. Every required row has a stable `HARNESS-*` ID,
+current basis IDs, one exact command or API, the exact
+`docs/project/VERIFY.md#harness-execution-evidence` destination, and its ID in
+the Gate B scope.
 
 | Harness ID | Layer | Selected check or tool | Trigger | Basis IDs | Exact command or API | Evidence destination | Required or conditional status |
 |---|---|---|---|---|---|---|---|
-| HARNESS-001 | Static | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-002 | Unit | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-003 | Integration | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-004 | End-to-end | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-005 | Property | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-006 | Security and privacy | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-007 | Reliability and recovery | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-008 | Performance and scalability | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-009 | IaC and policy | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
-| HARNESS-010 | AWS environment and operations | TODO | TODO | TODO | TODO | `docs/project/VERIFY.md` Harness execution evidence | TODO |
+| HARNESS-001 | Static | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-002 | Unit | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-003 | Integration | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-004 | End-to-end | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-005 | Property | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-006 | Security and privacy | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-007 | Reliability and recovery | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-008 | Performance and scalability | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-009 | IaC and policy | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
+| HARNESS-010 | AWS environment and operations | TODO | TODO | TODO | TODO | docs/project/VERIFY.md#harness-execution-evidence | TODO |
 
 TASK-10 copies every required or triggered conditional row into the existing
 task Validation sections without adding task metadata. BUILD records observed

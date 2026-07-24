@@ -85,7 +85,7 @@ class PackageReleaseTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        self.assertEqual(manifest["bootstrap_version"], "1.1.0")
+        self.assertEqual(manifest["bootstrap_version"], "1.2.0")
         self.assertIn("README.md", manifest["required_files"])
         for removed in ("VERSION", "CONTRIBUTING.md", "CHANGELOG.md"):
             self.assertFalse((REPOSITORY_ROOT / removed).exists())

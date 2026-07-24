@@ -44,7 +44,7 @@ Gate A — approve requirements → Gate B — approve the PRD and construction 
 ## Internal precision and delivery methods
 
 Owners continue answering short, plain-language questions. Internally, Codex
-translates normative requirements into EARS obligations with Gherkin or
+translates normative requirements through the Fastlane EARS Contract with Gherkin or
 measurable acceptance and adds quality-attribute scenarios only when material.
 TASK-10 applies Fastlane's INVEST profile, prefers thin vertical slices when
 appropriate, and uses the existing DONE transition as the Definition of Done.
@@ -113,8 +113,7 @@ never replace this authorization.
 
 Fastlane requires no project hooks. Owners who want an additional native Codex
 guardrail may manually review and enable the opt-in pack described in
-[HOOKS.md](HOOKS.md). It adds read-only doctor context, denies only clearly
-unauthorized external or out-of-repository actions, preserves normal approval
+[HOOKS.md](HOOKS.md). It adds read-only doctor context, uses doctor-derived write and external boundaries to deny only clearly unauthorized external or out-of-scope file actions, preserves normal approval
 prompts, runs bounded validation, and follows the doctor's automatic-
 continuation result.
 
@@ -132,9 +131,7 @@ other AWS delivery. Framework maintenance and the scorer do not access AWS.
 
 ## Resume behavior
 
-The doctor selects the next prompt. Correct only the reported blocker, then
-resume that prompt. BOOT-00 is rerun only for a real local initialization
-problem, not for missing AWS research tooling or a repeated `init template`.
+The doctor selects the next prompt. Fresh templates require current official AWS Core before initialization. Initialized projects skip that prerequisite during normal resume; missing or stale AWS Core evidence later pauses only the affected material AWS step. Correct only the reported blocker, then resume the derived prompt.
 
 Maintainers can run the optional, credential-free-to-validate
 [model role-play review](EVALUATION.md) before a release. Live model access is

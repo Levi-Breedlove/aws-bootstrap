@@ -71,7 +71,7 @@ its graph with tasks for the current IDs, and sets the new plan `CURRENT`.
   every write to application, infrastructure, project ledgers, manifests,
   lockfiles, schemas, generated output, and GitHub metadata.
 - `Maximum workers` remains `1`. No subagent or worker edits files or mutable
-  external state in v1.1.0.
+  external state in v1.2.0.
 - Each path and mutable target has exactly one writer. Treat ambiguous globs,
   generated output, the same branch, stack, state backend, or database as
   overlapping.
@@ -253,8 +253,13 @@ Keep the exact metadata key set above: technology traceability stays inside
 |---|---|---|---|---|---|
 | <copy one exact approved PRD row per referenced PROP-ID> |
 
+<!-- Omit this table only when this task owns no REQUIRED Harness row. -->
+| Harness ID | Layer | Selected check or tool | Trigger | Basis IDs | Exact command or API | Evidence destination | Required or conditional status |
+|---|---|---|---|---|---|---|---|
+| <copy each owned REQUIRED PRD Harness row; every required ID appears in exactly one task> |
+
 ```bash
-<exact validation command>
+<each exact property and Harness command owned by this task, once>
 ```
 
 #### Execution log

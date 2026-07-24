@@ -1,76 +1,51 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
-import math
 import re
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+PASS_STATUS = "CANARY_EVIDENCE_CONTRACT_PASS"
 OFFICIAL_PLUGIN = "aws-core@agent-toolkit-for-aws"
 OFFICIAL_MARKETPLACE = "aws/agent-toolkit-for-aws"
 CANARIES = (
-    {
-        "id": "synchronous-managed-serverless",
-        "summary": (
-            "A synchronous managed-serverless request path with an API, "
-            "stateless compute, managed data, and observable failures."
-        ),
-    },
-    {
-        "id": "asynchronous-event-driven",
-        "summary": (
-            "An asynchronous event-driven workflow with durable messaging, "
-            "idempotent consumers, retries, and a controlled failure."
-        ),
-    },
-    {
-        "id": "container-based",
-        "summary": (
-            "A container-based application with an immutable image, managed "
-            "orchestration, health checks, rollback, and bounded networking."
-        ),
-    },
+    {"id": "synchronous-managed-serverless", "summary": "Synchronous managed-serverless application."},
+    {"id": "asynchronous-event-driven", "summary": "Asynchronous event-driven workflow."},
+    {"id": "container-based", "summary": "Container-based application."},
 )
-REQUIRED_STEPS = (
-    "synthetic_owner_intake",
+EVIDENCE_KEYS = (
     "gate_a",
-    "aws_core_grounded_design",
-    "candidate_comparison",
     "gate_b",
-    "local_build",
-    "iac_validation",
-    "aws_10_read_only_preflight",
-    "aws_20_deployment_authority",
-    "deployment",
-    "smoke_tests",
-    "controlled_failure",
-    "rollback",
-    "aws_30_deployment_evidence",
-    "teardown_review",
+    "aws_20",
     "teardown_authority",
+    "cloudtrail_export",
+    "iac_plan_or_change_set",
+    "smoke_tests",
+    "rollback",
     "teardown",
-    "residual_resource_check",
-    "billing_check",
+    "billing_reports",
 )
-PLAN_TYPES = {
-    "CLOUDFORMATION_CHANGE_SET",
-    "TERRAFORM_PLAN",
-    "CONTAINER_IMAGE",
-    "OTHER",
-}
+CHRONOLOGY_KEYS = (
+    "deployment_authorized_at",
+    "deployment_started_at",
+    "controlled_failure_at",
+    "rollback_completed_at",
+    "teardown_authorized_at",
+    "teardown_completed_at",
+    "billing_observed_at",
+    "follow_up_at",
+)
 RUN_KEYS = {
     "canary_id",
     "run_reference",
-    "observed_live_run",
-    "aws_account_accessed",
-    "credentials_inspected",
-    "secret_values_recorded",
     "account",
     "region",
     "environment",
@@ -78,60 +53,85 @@ RUN_KEYS = {
     "artifact_digest",
     "plan_binding",
     "deployed_resource_boundary",
-    "action_receipts",
+    "operations",
     "cost",
+    "deployment_authority",
+    "teardown_authority",
     "aws_core_evidence",
-    "cloudtrail_evidence_reference",
+    "chronology",
     "controlled_failure",
     "rollback_result",
     "teardown_result",
     "residual_resources",
-    "billing_check",
-    "steps",
+    "evidence_manifest",
+    "credentials_inspected",
+    "secret_values_recorded",
+}
+DEPLOYMENT_AUTHORITY_KEYS = {
+    "authorization_id",
+    "account",
+    "region",
+    "environment",
+    "profile_or_role",
+    "resources",
+    "operations",
+    "artifact_digest",
+    "plan_binding",
+    "currency",
+    "cost_ceiling",
+    "rollback_boundary",
+    "authorized_at",
+    "expires_at",
+}
+TEARDOWN_AUTHORITY_KEYS = {
+    "authorization_id",
+    "account",
+    "region",
+    "environment",
+    "profile_or_role",
+    "resources_to_remove",
+    "resources_to_retain",
+    "operations",
+    "post_teardown_verification",
+    "authorized_at",
+    "expires_at",
 }
 DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 ACCOUNT_ID = re.compile(r"^[0-9]{12}$")
 ACCOUNT_ALIAS = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$")
 REGION = re.compile(r"^[a-z]{2}(?:-[a-z0-9]+)+-[0-9]+$")
-IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+=,-]{0,511}$")
-ENVIRONMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
-OFFICIAL_REFERENCE = re.compile(
-    r"^https://(?:docs\.aws\.amazon\.com/|aws\.amazon\.com/)[^\s]+$"
+REFERENCE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+=,-]{0,511}$")
+OFFICIAL_REFERENCE = re.compile(r"^https://(?:docs\.aws\.amazon\.com/|aws\.amazon\.com/)[^\s]+$")
+SECRET_PATTERN = re.compile(
+    r"AKIA[0-9A-Z]{16}|aws_secret_access_key|BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY|"
+    r"OPENAI_API_KEY|CODEX_API_KEY|GH_TOKEN|GITHUB_TOKEN",
+    re.IGNORECASE,
 )
 
 
 def plan_payload() -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
-        "mode": "DISPOSABLE_AWS_CANARY_FIELD_VALIDATION",
-        "canaries": [
-            {**canary, "required_steps": list(REQUIRED_STEPS)}
-            for canary in CANARIES
-        ],
-        "required_run_fields": sorted(RUN_KEYS),
+        "mode": "OFFLINE_DISPOSABLE_AWS_CANARY_EVIDENCE_VERIFICATION",
+        "canaries": list(CANARIES),
+        "required_evidence_manifest_entries": list(EVIDENCE_KEYS),
         "constraints": {
+            "bundle_root_required": True,
             "framework_maintenance_accesses_aws": False,
-            "live_execution_requires_exact_deployment_authority": True,
-            "teardown_requires_separate_exact_authority": True,
+            "deployment_and_teardown_authority_are_distinct": True,
             "credentials_may_be_inspected_or_recorded": False,
             "secret_values_may_be_recorded": False,
-            "all_three_canaries_required_for_program_pass": True,
+            "proof_scope": "exported evidence integrity and internal consistency, not AWS truth",
         },
     }
 
 
-def _expect_keys(
-    value: object,
-    expected: set[str],
-    label: str,
-    errors: list[str],
-) -> dict[str, Any] | None:
+def _expect_keys(value: object, expected: set[str], label: str, errors: list[str]) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         errors.append(f"{label} must be an object")
         return None
-    actual = set(value)
-    missing = sorted(expected - actual)
-    unknown = sorted(actual - expected)
+    missing = sorted(expected - set(value))
+    unknown = sorted(set(value) - expected)
     if missing:
         errors.append(f"{label} is missing fields: {', '.join(missing)}")
     if unknown:
@@ -139,296 +139,321 @@ def _expect_keys(
     return value
 
 
-def _is_reference(value: object) -> bool:
+def _reference(value: object) -> bool:
+    return isinstance(value, str) and bool(REFERENCE.fullmatch(value))
+
+
+def _bounded_text(value: object) -> bool:
     return (
         isinstance(value, str)
         and 0 < len(value) <= 512
-        and value.strip() == value
+        and value == value.strip()
         and not any(ord(character) < 32 for character in value)
     )
 
 
-def _is_timestamp(value: object) -> bool:
+def _timestamp(value: object) -> datetime | None:
     if not isinstance(value, str) or not value:
-        return False
+        return None
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(normalized)
     except ValueError:
-        return False
-    return parsed.tzinfo is not None
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
 
 
-def _is_number(value: object) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(float(value))
-    )
+def _decimal(value: object, label: str, errors: list[str], *, positive: bool) -> Decimal | None:
+    if not isinstance(value, str) or re.fullmatch(r"(?:0|[1-9]\d*)(?:\.\d{1,4})?", value) is None:
+        errors.append(f"{label} must be a canonical decimal string")
+        return None
+    try:
+        amount = Decimal(value)
+    except InvalidOperation:
+        errors.append(f"{label} is invalid")
+        return None
+    if not amount.is_finite() or amount < 0 or (positive and amount <= 0):
+        errors.append(f"{label} must be {'positive' if positive else 'non-negative'}")
+        return None
+    return amount
 
 
-def _validate_result(
-    value: object,
+def _list(value: object, label: str, errors: list[str], *, allow_empty: bool = False) -> list[str]:
+    if not isinstance(value, list) or (not value and not allow_empty):
+        errors.append(f"{label} must be a {'list' if allow_empty else 'non-empty list'}")
+        return []
+    if any(not _reference(item) for item in value):
+        errors.append(f"{label} contains an invalid value")
+        return []
+    if len(value) != len(set(value)):
+        errors.append(f"{label} contains duplicates")
+    return list(value)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return "sha256:" + digest.hexdigest()
+
+
+def _safe_bundle_file(bundle_root: Path, relative: object, label: str, errors: list[str]) -> Path | None:
+    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+        errors.append(f"{label}.path must be a relative bundle path")
+        return None
+    candidate = bundle_root / relative
+    current = bundle_root
+    if current.is_symlink():
+        errors.append(f"{label}.path must not traverse a symlinked bundle root")
+        return None
+    for part in Path(relative).parts:
+        current = current / part
+        if current.is_symlink():
+            errors.append(f"{label}.path must be a regular file with no symlinked path component")
+            return None
+    try:
+        resolved_root = bundle_root.resolve(strict=True)
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(resolved_root)
+    except (OSError, ValueError):
+        errors.append(f"{label}.path escapes or is missing from the evidence bundle")
+        return None
+    if candidate.is_symlink() or not resolved.is_file():
+        errors.append(f"{label}.path must be a regular non-symlink file")
+        return None
+    return resolved
+
+
+def _validate_manifest(value: object, bundle_root: Path, label: str, errors: list[str]) -> None:
+    manifest = _expect_keys(value, set(EVIDENCE_KEYS), label, errors)
+    if manifest is None:
+        return
+    for key in EVIDENCE_KEYS:
+        entry = _expect_keys(manifest.get(key), {"path", "sha256"}, f"{label}.{key}", errors)
+        if entry is None:
+            continue
+        declared = entry.get("sha256")
+        if not isinstance(declared, str) or DIGEST.fullmatch(declared) is None:
+            errors.append(f"{label}.{key}.sha256 must be a SHA-256 digest")
+            continue
+        path = _safe_bundle_file(bundle_root, entry.get("path"), f"{label}.{key}", errors)
+        if path is None:
+            continue
+        if _sha256(path) != declared:
+            errors.append(f"{label}.{key} digest does not match the exported file")
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError as exc:
+            errors.append(f"{label}.{key} cannot be read: {exc}")
+            continue
+        if SECRET_PATTERN.search(content):
+            errors.append(f"{label}.{key} contains a secret-like value")
+
+
+def _validate_plan(value: object, label: str, errors: list[str]) -> dict[str, str] | None:
+    plan = _expect_keys(value, {"type", "identifier", "digest"}, label, errors)
+    if plan is None:
+        return None
+    if plan.get("type") not in {"CLOUDFORMATION_CHANGE_SET", "TERRAFORM_PLAN", "CONTAINER_IMAGE", "OTHER"}:
+        errors.append(f"{label}.type is invalid")
+    if not _reference(plan.get("identifier")):
+        errors.append(f"{label}.identifier is invalid")
+    if not isinstance(plan.get("digest"), str) or DIGEST.fullmatch(plan["digest"]) is None:
+        errors.append(f"{label}.digest must be a SHA-256")
+    return {key: str(plan.get(key, "")) for key in ("type", "identifier", "digest")}
+
+
+def _match_authority_common(
+    authority: Mapping[str, Any],
+    run: Mapping[str, Any],
     label: str,
     errors: list[str],
 ) -> None:
-    result = _expect_keys(value, {"status", "evidence_reference"}, label, errors)
-    if result is None:
+    for key in ("account", "region", "environment", "profile_or_role"):
+        if authority.get(key) != run.get(key):
+            errors.append(f"{label}.{key} does not match the canary run")
+
+
+def _validate_deployment_authority(value: object, run: Mapping[str, Any], label: str, errors: list[str]) -> tuple[datetime | None, datetime | None]:
+    item = _expect_keys(value, DEPLOYMENT_AUTHORITY_KEYS, label, errors)
+    if item is None:
+        return None, None
+    if not isinstance(item.get("authorization_id"), str) or re.fullmatch(r"AWS-AUTH-\d{4,}", item["authorization_id"]) is None:
+        errors.append(f"{label}.authorization_id is invalid")
+    _match_authority_common(item, run, label, errors)
+    if item.get("resources") != run.get("deployed_resource_boundary"):
+        errors.append(f"{label}.resources do not match the deployed boundary")
+    if item.get("operations") != run.get("operations"):
+        errors.append(f"{label}.operations do not match the canary run")
+    if item.get("artifact_digest") != run.get("artifact_digest"):
+        errors.append(f"{label}.artifact_digest does not match the canary run")
+    if item.get("plan_binding") != run.get("plan_binding"):
+        errors.append(f"{label}.plan_binding does not match the canary run")
+    cost = run.get("cost") if isinstance(run.get("cost"), Mapping) else {}
+    if item.get("currency") != cost.get("currency") or item.get("cost_ceiling") != cost.get("ceiling"):
+        errors.append(f"{label} cost ceiling does not match the canary run")
+    if not _reference(item.get("rollback_boundary")):
+        errors.append(f"{label}.rollback_boundary is required")
+    authorized = _timestamp(item.get("authorized_at"))
+    expires = _timestamp(item.get("expires_at"))
+    if authorized is None or expires is None or authorized >= expires:
+        errors.append(f"{label} authorization timestamps are invalid")
+    return authorized, expires
+
+
+def _validate_teardown_authority(value: object, run: Mapping[str, Any], label: str, errors: list[str]) -> tuple[datetime | None, datetime | None]:
+    item = _expect_keys(value, TEARDOWN_AUTHORITY_KEYS, label, errors)
+    if item is None:
+        return None, None
+    if not isinstance(item.get("authorization_id"), str) or re.fullmatch(r"TEARDOWN-AUTH-\d{4,}", item["authorization_id"]) is None:
+        errors.append(f"{label}.authorization_id is invalid")
+    _match_authority_common(item, run, label, errors)
+    if item.get("resources_to_remove") != run.get("deployed_resource_boundary"):
+        errors.append(f"{label}.resources_to_remove do not match the deployed boundary")
+    _list(item.get("resources_to_retain"), f"{label}.resources_to_retain", errors, allow_empty=True)
+    _list(item.get("operations"), f"{label}.operations", errors)
+    if not _reference(item.get("post_teardown_verification")):
+        errors.append(f"{label}.post_teardown_verification is required")
+    authorized = _timestamp(item.get("authorized_at"))
+    expires = _timestamp(item.get("expires_at"))
+    if authorized is None or expires is None or authorized >= expires:
+        errors.append(f"{label} authorization timestamps are invalid")
+    return authorized, expires
+
+
+def _validate_aws_core(value: object, label: str, errors: list[str]) -> None:
+    keys = {
+        "marketplace_repository", "plugin_identity", "retrieve_skill_result",
+        "retrieved_skill_identifier", "search_documentation_result",
+        "documentation_query", "official_references", "observed_at",
+        "credentials_inspected", "aws_account_accessed",
+    }
+    item = _expect_keys(value, keys, label, errors)
+    if item is None:
         return
-    if result.get("status") != "PASS":
-        errors.append(f"{label}.status must be PASS")
-    if not _is_reference(result.get("evidence_reference")):
-        errors.append(f"{label}.evidence_reference is required")
+    if item.get("marketplace_repository") != OFFICIAL_MARKETPLACE or item.get("plugin_identity") != OFFICIAL_PLUGIN:
+        errors.append(f"{label} must identify official AWS Core")
+    if item.get("retrieve_skill_result") != "PASS" or not _reference(item.get("retrieved_skill_identifier")):
+        errors.append(f"{label}.retrieve_skill must pass with an identifier")
+    references = item.get("official_references")
+    if item.get("search_documentation_result") != "PASS" or not _bounded_text(item.get("documentation_query")):
+        errors.append(f"{label}.search_documentation must pass with an exact query")
+    if not isinstance(references, list) or not references or any(not isinstance(reference, str) or OFFICIAL_REFERENCE.fullmatch(reference) is None for reference in references):
+        errors.append(f"{label}.official_references must contain official AWS URLs")
+    if _timestamp(item.get("observed_at")) is None:
+        errors.append(f"{label}.observed_at is invalid")
+    if item.get("credentials_inspected") is not False or item.get("aws_account_accessed") is not False:
+        errors.append(f"{label} must be unauthenticated documentation evidence")
 
 
-def _validate_run(run: object, index: int, errors: list[str]) -> str | None:
+def _validate_result(value: object, label: str, errors: list[str]) -> None:
+    item = _expect_keys(value, {"status", "evidence_key"}, label, errors)
+    if item is None:
+        return
+    if item.get("status") != "PASS" or item.get("evidence_key") not in EVIDENCE_KEYS:
+        errors.append(f"{label} must be PASS and reference one manifest evidence key")
+
+
+def _validate_run(run: object, index: int, bundle_root: Path, errors: list[str]) -> str | None:
     label = f"runs[{index}]"
     item = _expect_keys(run, RUN_KEYS, label, errors)
     if item is None:
         return None
-
     canary_id = item.get("canary_id")
     if canary_id not in {canary["id"] for canary in CANARIES}:
         errors.append(f"{label}.canary_id is unknown")
-        canary_id = None
-    if not _is_reference(item.get("run_reference")):
-        errors.append(f"{label}.run_reference is required")
-    if item.get("observed_live_run") is not True:
-        errors.append(f"{label}.observed_live_run must be true")
-    if item.get("aws_account_accessed") is not True:
-        errors.append(f"{label}.aws_account_accessed must be true for a live canary")
-    if item.get("credentials_inspected") is not False:
-        errors.append(f"{label}.credentials_inspected must be false")
-    if item.get("secret_values_recorded") is not False:
-        errors.append(f"{label}.secret_values_recorded must be false")
-
+        return None
+    if not _reference(item.get("run_reference")):
+        errors.append(f"{label}.run_reference is invalid")
+    if item.get("credentials_inspected") is not False or item.get("secret_values_recorded") is not False:
+        errors.append(f"{label} must not inspect credentials or record secrets")
     account = item.get("account")
-    if not isinstance(account, str) or not (
-        ACCOUNT_ID.fullmatch(account) or ACCOUNT_ALIAS.fullmatch(account)
-    ):
+    if not isinstance(account, str) or not (ACCOUNT_ID.fullmatch(account) or ACCOUNT_ALIAS.fullmatch(account)):
         errors.append(f"{label}.account must be a 12-digit ID or exact alias")
-    if not isinstance(item.get("region"), str) or not REGION.fullmatch(
-        item["region"]
-    ):
+    if not isinstance(item.get("region"), str) or REGION.fullmatch(item["region"]) is None:
         errors.append(f"{label}.region must be an exact AWS Region")
-    if not isinstance(item.get("environment"), str) or not ENVIRONMENT.fullmatch(
-        item["environment"]
-    ):
-        errors.append(f"{label}.environment is invalid")
-    if not _is_reference(item.get("profile_or_role")):
-        errors.append(f"{label}.profile_or_role is required")
-    if not isinstance(item.get("artifact_digest"), str) or not DIGEST.fullmatch(
-        item["artifact_digest"]
-    ):
-        errors.append(f"{label}.artifact_digest must be an immutable SHA-256")
+    for key in ("environment", "profile_or_role"):
+        if not _reference(item.get(key)):
+            errors.append(f"{label}.{key} is invalid")
+    if not isinstance(item.get("artifact_digest"), str) or DIGEST.fullmatch(item["artifact_digest"]) is None:
+        errors.append(f"{label}.artifact_digest must be a SHA-256")
+    _validate_plan(item.get("plan_binding"), f"{label}.plan_binding", errors)
+    _list(item.get("deployed_resource_boundary"), f"{label}.deployed_resource_boundary", errors)
+    _list(item.get("operations"), f"{label}.operations", errors)
 
-    plan = _expect_keys(
-        item.get("plan_binding"),
-        {"type", "identifier", "digest"},
-        f"{label}.plan_binding",
-        errors,
-    )
-    if plan is not None:
-        if plan.get("type") not in PLAN_TYPES:
-            errors.append(f"{label}.plan_binding.type is invalid")
-        if not isinstance(plan.get("identifier"), str) or not IDENTIFIER.fullmatch(
-            plan["identifier"]
-        ):
-            errors.append(f"{label}.plan_binding.identifier is invalid")
-        if not isinstance(plan.get("digest"), str) or not DIGEST.fullmatch(
-            plan["digest"]
-        ):
-            errors.append(f"{label}.plan_binding.digest must be a SHA-256")
-
-    boundary = item.get("deployed_resource_boundary")
-    if not isinstance(boundary, list) or not boundary:
-        errors.append(f"{label}.deployed_resource_boundary must be a non-empty list")
-    elif any(not _is_reference(resource) for resource in boundary):
-        errors.append(f"{label}.deployed_resource_boundary contains an invalid value")
-
-    receipts = _expect_keys(
-        item.get("action_receipts"),
-        {"gate_a", "gate_b", "deployment", "teardown"},
-        f"{label}.action_receipts",
-        errors,
-    )
-    if receipts is not None:
-        for receipt in ("gate_a", "gate_b", "deployment", "teardown"):
-            if not _is_reference(receipts.get(receipt)):
-                errors.append(f"{label}.action_receipts.{receipt} is required")
-
-    cost = _expect_keys(
-        item.get("cost"),
-        {"currency", "ceiling", "observed", "period_start", "period_end"},
-        f"{label}.cost",
-        errors,
-    )
-    currency: str | None = None
-    ceiling: float | None = None
-    observed: float | None = None
+    cost = _expect_keys(item.get("cost"), {"currency", "ceiling", "observed"}, f"{label}.cost", errors)
     if cost is not None:
-        currency_value = cost.get("currency")
-        if not isinstance(currency_value, str) or not re.fullmatch(
-            r"[A-Z]{3}", currency_value
-        ):
+        if not isinstance(cost.get("currency"), str) or re.fullmatch(r"[A-Z]{3}", cost["currency"]) is None:
             errors.append(f"{label}.cost.currency must be an ISO currency")
-        else:
-            currency = currency_value
-        if not _is_number(cost.get("ceiling")) or float(cost["ceiling"]) <= 0:
-            errors.append(f"{label}.cost.ceiling must be finite and positive")
-        else:
-            ceiling = float(cost["ceiling"])
-        if not _is_number(cost.get("observed")) or float(cost["observed"]) < 0:
-            errors.append(f"{label}.cost.observed must be finite and non-negative")
-        else:
-            observed = float(cost["observed"])
+        ceiling = _decimal(cost.get("ceiling"), f"{label}.cost.ceiling", errors, positive=True)
+        observed = _decimal(cost.get("observed"), f"{label}.cost.observed", errors, positive=False)
         if ceiling is not None and observed is not None and observed > ceiling:
             errors.append(f"{label}.cost.observed exceeds the authorized ceiling")
-        if not _is_timestamp(cost.get("period_start")):
-            errors.append(f"{label}.cost.period_start must include a timezone")
-        if not _is_timestamp(cost.get("period_end")):
-            errors.append(f"{label}.cost.period_end must include a timezone")
 
-    aws_core = _expect_keys(
-        item.get("aws_core_evidence"),
-        {
-            "marketplace_repository",
-            "plugin_identity",
-            "retrieve_skill_result",
-            "retrieved_skill_identifier",
-            "search_documentation_result",
-            "documentation_query",
-            "official_references",
-            "observed_at",
-            "credentials_inspected",
-            "aws_account_accessed",
-        },
-        f"{label}.aws_core_evidence",
-        errors,
+    deployment_authorized, deployment_expires = _validate_deployment_authority(
+        item.get("deployment_authority"), item, f"{label}.deployment_authority", errors
     )
-    if aws_core is not None:
-        if aws_core.get("marketplace_repository") != OFFICIAL_MARKETPLACE:
-            errors.append(f"{label}.aws_core_evidence marketplace is not official")
-        if aws_core.get("plugin_identity") != OFFICIAL_PLUGIN:
-            errors.append(f"{label}.aws_core_evidence plugin is not official")
-        if aws_core.get("retrieve_skill_result") != "PASS":
-            errors.append(f"{label}.aws_core_evidence.retrieve_skill_result must be PASS")
-        if not _is_reference(aws_core.get("retrieved_skill_identifier")):
-            errors.append(
-                f"{label}.aws_core_evidence.retrieved_skill_identifier is required"
-            )
-        if aws_core.get("search_documentation_result") != "PASS":
-            errors.append(
-                f"{label}.aws_core_evidence.search_documentation_result must be PASS"
-            )
-        if not _is_reference(aws_core.get("documentation_query")):
-            errors.append(f"{label}.aws_core_evidence.documentation_query is required")
-        references = aws_core.get("official_references")
-        if not isinstance(references, list) or not references:
-            errors.append(f"{label}.aws_core_evidence.official_references is required")
-        elif any(
-            not isinstance(reference, str)
-            or not OFFICIAL_REFERENCE.fullmatch(reference)
-            for reference in references
-        ):
-            errors.append(
-                f"{label}.aws_core_evidence.official_references must be official AWS URLs"
-            )
-        if not _is_timestamp(aws_core.get("observed_at")):
-            errors.append(f"{label}.aws_core_evidence.observed_at is invalid")
-        if aws_core.get("credentials_inspected") is not False:
-            errors.append(
-                f"{label}.aws_core_evidence.credentials_inspected must be false"
-            )
-        if aws_core.get("aws_account_accessed") is not False:
-            errors.append(
-                f"{label}.aws_core_evidence.aws_account_accessed must be false"
-            )
-
-    if not _is_reference(item.get("cloudtrail_evidence_reference")):
-        errors.append(f"{label}.cloudtrail_evidence_reference is required")
-
-    failure = _expect_keys(
-        item.get("controlled_failure"),
-        {"scenario", "expected_behavior", "observed_behavior", "evidence_reference"},
-        f"{label}.controlled_failure",
-        errors,
+    teardown_authorized, teardown_expires = _validate_teardown_authority(
+        item.get("teardown_authority"), item, f"{label}.teardown_authority", errors
     )
-    if failure is not None:
-        for field in (
-            "scenario",
-            "expected_behavior",
-            "observed_behavior",
-            "evidence_reference",
-        ):
-            if not _is_reference(failure.get(field)):
-                errors.append(f"{label}.controlled_failure.{field} is required")
+    deployment = item.get("deployment_authority") if isinstance(item.get("deployment_authority"), Mapping) else {}
+    teardown = item.get("teardown_authority") if isinstance(item.get("teardown_authority"), Mapping) else {}
+    if deployment.get("authorization_id") == teardown.get("authorization_id"):
+        errors.append(f"{label} deployment and teardown authority must be distinct")
 
+    _validate_aws_core(item.get("aws_core_evidence"), f"{label}.aws_core_evidence", errors)
     _validate_result(item.get("rollback_result"), f"{label}.rollback_result", errors)
     _validate_result(item.get("teardown_result"), f"{label}.teardown_result", errors)
-
+    failure = _expect_keys(item.get("controlled_failure"), {"scenario", "expected", "observed", "evidence_key"}, f"{label}.controlled_failure", errors)
+    if failure is not None:
+        for key in ("scenario", "expected", "observed"):
+            if not _reference(failure.get(key)):
+                errors.append(f"{label}.controlled_failure.{key} is invalid")
+        if failure.get("evidence_key") not in EVIDENCE_KEYS:
+            errors.append(f"{label}.controlled_failure.evidence_key is invalid")
     residual = item.get("residual_resources")
     if not isinstance(residual, list):
         errors.append(f"{label}.residual_resources must be a list")
-    else:
-        for residual_index, resource in enumerate(residual):
-            resource_label = f"{label}.residual_resources[{residual_index}]"
-            record = _expect_keys(
-                resource,
-                {"identifier", "status", "reason", "billing_dimension"},
-                resource_label,
-                errors,
-            )
-            if record is None:
-                continue
-            if not _is_reference(record.get("identifier")):
-                errors.append(f"{resource_label}.identifier is required")
-            if record.get("status") != "AUTHORIZED_RETAINED":
-                errors.append(f"{resource_label}.status must be AUTHORIZED_RETAINED")
-            if not _is_reference(record.get("reason")):
-                errors.append(f"{resource_label}.reason is required")
-            if not _is_reference(record.get("billing_dimension")):
-                errors.append(f"{resource_label}.billing_dimension is required")
+    elif any(not _reference(value) for value in residual):
+        errors.append(f"{label}.residual_resources contains an invalid value")
 
-    billing = _expect_keys(
-        item.get("billing_check"),
-        {"currency", "observed_amount", "observed_at", "follow_up_at", "reference"},
-        f"{label}.billing_check",
-        errors,
-    )
-    if billing is not None:
-        if currency is not None and billing.get("currency") != currency:
-            errors.append(f"{label}.billing_check.currency must match cost.currency")
-        if not _is_number(billing.get("observed_amount")) or float(
-            billing["observed_amount"]
-        ) < 0:
-            errors.append(
-                f"{label}.billing_check.observed_amount must be finite and non-negative"
-            )
-        elif observed is not None and float(billing["observed_amount"]) != observed:
-            errors.append(
-                f"{label}.billing_check.observed_amount must match cost.observed"
-            )
-        if not _is_timestamp(billing.get("observed_at")):
-            errors.append(f"{label}.billing_check.observed_at is invalid")
-        if not _is_timestamp(billing.get("follow_up_at")):
-            errors.append(f"{label}.billing_check.follow_up_at is invalid")
-        if not _is_reference(billing.get("reference")):
-            errors.append(f"{label}.billing_check.reference is required")
-
-    steps = _expect_keys(
-        item.get("steps"), set(REQUIRED_STEPS), f"{label}.steps", errors
-    )
-    if steps is not None:
-        for step in REQUIRED_STEPS:
-            _validate_result(steps.get(step), f"{label}.steps.{step}", errors)
-
-    return canary_id if isinstance(canary_id, str) else None
+    chronology = _expect_keys(item.get("chronology"), set(CHRONOLOGY_KEYS), f"{label}.chronology", errors)
+    times: dict[str, datetime] = {}
+    if chronology is not None:
+        for key in CHRONOLOGY_KEYS:
+            parsed = _timestamp(chronology.get(key))
+            if parsed is None:
+                errors.append(f"{label}.chronology.{key} is invalid")
+            else:
+                times[key] = parsed
+        if len(times) == len(CHRONOLOGY_KEYS):
+            ordered = [times[key] for key in CHRONOLOGY_KEYS]
+            if any(left > right for left, right in zip(ordered, ordered[1:])):
+                errors.append(f"{label}.chronology is out of order")
+            if deployment_authorized != times["deployment_authorized_at"] or teardown_authorized != times["teardown_authorized_at"]:
+                errors.append(f"{label}.chronology does not match authority timestamps")
+            if deployment_expires is not None and times["deployment_started_at"] > deployment_expires:
+                errors.append(f"{label} deployment authority was expired before deployment")
+            if teardown_expires is not None and times["teardown_completed_at"] > teardown_expires:
+                errors.append(f"{label} teardown authority expired before teardown completed")
+    _validate_manifest(item.get("evidence_manifest"), bundle_root, f"{label}.evidence_manifest", errors)
+    return str(canary_id)
 
 
-def score_payload(payload: object) -> tuple[dict[str, Any], bool]:
+def score_payload(payload: object, bundle_root: Path) -> tuple[dict[str, Any], bool]:
     errors: list[str] = []
+    try:
+        resolved_root = bundle_root.resolve(strict=True)
+    except OSError:
+        resolved_root = bundle_root
+        errors.append("bundle_root must be an existing directory")
+    if not resolved_root.is_dir():
+        errors.append("bundle_root must be an existing directory")
     root = _expect_keys(payload, {"schema_version", "runs"}, "payload", errors)
-    runs: object = None
+    runs: object = []
     if root is not None:
         if root.get("schema_version") != SCHEMA_VERSION:
             errors.append(f"payload.schema_version must be {SCHEMA_VERSION}")
@@ -436,21 +461,24 @@ def score_payload(payload: object) -> tuple[dict[str, Any], bool]:
     if not isinstance(runs, list):
         errors.append("payload.runs must be a list")
         runs = []
-
-    observed_ids = [
-        canary_id
-        for index, run in enumerate(runs)
-        if (canary_id := _validate_run(run, index, errors)) is not None
-    ]
-    counts = Counter(observed_ids)
-    expected_ids = {canary["id"] for canary in CANARIES}
-    for canary_id in sorted(expected_ids):
-        if counts[canary_id] != 1:
-            errors.append(f"{canary_id} requires exactly one observed run")
-
+    identities: list[tuple[str, str]] = []
+    observed: list[str] = []
+    for index, run in enumerate(runs):
+        canary_id = _validate_run(run, index, resolved_root, errors)
+        if canary_id is not None and isinstance(run, dict):
+            observed.append(canary_id)
+            identities.append((canary_id, str(run.get("run_reference", ""))))
+    for identity, count in Counter(identities).items():
+        if count != 1:
+            errors.append(f"duplicate canary run: {identity[0]} / {identity[1]}")
+    counts = Counter(observed)
+    for canary in CANARIES:
+        if counts[canary["id"]] != 1:
+            errors.append(f"{canary['id']} requires exactly one observed run")
     result = {
         "schema_version": SCHEMA_VERSION,
-        "status": "PASS" if not errors else "FAIL",
+        "status": PASS_STATUS if not errors else "CANARY_EVIDENCE_CONTRACT_FAIL",
+        "proof_scope": "exported evidence integrity and internal consistency, not AWS truth",
         "canary_runs": dict(sorted(counts.items())),
         "errors": errors,
     }
@@ -458,14 +486,13 @@ def score_payload(payload: object) -> tuple[dict[str, Any], bool]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Plan or score disposable Fastlane AWS canary evidence."
-    )
+    parser = argparse.ArgumentParser(description="Plan or verify offline Fastlane AWS canary evidence.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    plan = subparsers.add_parser("plan", help="Print the canary contract.")
+    plan = subparsers.add_parser("plan")
     plan.add_argument("--json", action="store_true", required=True)
-    score = subparsers.add_parser("score", help="Score an observed result set.")
+    score = subparsers.add_parser("score")
     score.add_argument("--input", required=True, type=Path)
+    score.add_argument("--bundle-root", required=True, type=Path)
     score.add_argument("--json", action="store_true", required=True)
     return parser
 
@@ -477,15 +504,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         payload = json.loads(args.input.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        result = {
-            "schema_version": SCHEMA_VERSION,
-            "status": "FAIL",
-            "errors": [str(error)],
-        }
-        print(json.dumps(result, indent=2, sort_keys=True))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(json.dumps({"schema_version": SCHEMA_VERSION, "status": "CANARY_EVIDENCE_CONTRACT_FAIL", "errors": [str(exc)]}, indent=2, sort_keys=True))
         return 2
-    result, passed = score_payload(payload)
+    result, passed = score_payload(payload, args.bundle_root)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if passed else 1
 

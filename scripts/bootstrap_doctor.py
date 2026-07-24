@@ -163,40 +163,64 @@ EARS_FORMS = {
     "OPTIONAL_FEATURE",
     "COMPLEX",
 }
+# The Fastlane EARS Contract is a project-local normative schema. It does not
+# redefine EARS outside this template.
 EARS_PATTERNS = {
     "UBIQUITOUS": re.compile(
         r"The (?P<subject>.+?) SHALL (?P<response>.+)\."
     ),
     "EVENT_DRIVEN": re.compile(
-        r"WHEN (?P<trigger>.+?), the (?P<subject>.+?) SHALL (?P<response>.+)\."
+        r"WHEN (?P<trigger>.+), the (?P<subject>.+?) SHALL (?P<response>.+)\."
     ),
     "STATE_DRIVEN": re.compile(
-        r"WHILE (?P<state>.+?), the (?P<subject>.+?) SHALL (?P<response>.+)\."
+        r"WHILE (?P<state>.+), the (?P<subject>.+?) SHALL (?P<response>.+)\."
     ),
     "UNWANTED_BEHAVIOR": re.compile(
-        r"IF (?P<condition>.+?), THEN the (?P<subject>.+?) SHALL (?P<response>.+)\."
+        r"IF (?P<condition>.+), THEN the (?P<subject>.+?) SHALL (?P<response>.+)\."
     ),
     "OPTIONAL_FEATURE": re.compile(
-        r"WHERE (?P<feature>.+?), the (?P<subject>.+?) SHALL (?P<response>.+)\."
+        r"WHERE (?P<feature>.+), the (?P<subject>.+?) SHALL (?P<response>.+)\."
     ),
     "COMPLEX": re.compile(
-        r"WHILE (?P<state>.+?), WHEN (?P<trigger>.+?), the "
+        r"WHILE (?P<state>.+), WHEN (?P<trigger>.+), the "
         r"(?P<subject>.+?) SHALL (?P<response>.+)\."
     ),
 }
-REQUIREMENT_SUBJECT = re.compile(
-    r"\b(?:system|application|service|project|design|deployment|operational(?:\s+\w+)*)\b",
-    re.IGNORECASE,
-)
+CONCRETE_SUBJECT = re.compile(r"[A-Za-z][A-Za-z0-9 _./'()-]*")
+NON_CONCRETE_SUBJECTS = {
+    "it",
+    "something",
+    "thing",
+    "system subject",
+    "placeholder",
+    "unknown",
+}
 ACCEPTANCE_FORMS = {"GHERKIN", "MEASURABLE"}
 GHERKIN_ACCEPTANCE = re.compile(
-    r"GIVEN (?P<precondition>.+?), WHEN (?P<trigger>.+?), THEN (?P<result>.+)\."
+    r"GIVEN (?P<precondition>.+), WHEN (?P<trigger>.+), THEN (?P<result>.+)\."
 )
-MEASURABLE_ACCEPTANCE = re.compile(
-    r"\b(?:test|tests|check|checks|evidence|calculation|bounded|measurement|"
-    r"measure|rehearsal|scan|scans|review|reviews|pass|passes|fail|fails|"
-    r"confirm|confirms|record|records|map|maps|trace|traces|threshold|"
-    r"percentile|zero|exactly|every|all|denied|succeeds)\b",
+MEASURABLE_EXPECTED_RESULT = re.compile(
+    r"\b(?:allow|allows|cite|cites|contain|contains|confirm|confirms|cover|covers|"
+    r"demonstrate|demonstrates|deny|denied|equal|equals|exceed|exceeds|fail|fails|find|finds|"
+    r"identify|identifies|link|links|map|maps|match|matches|meet|meets|name|names|"
+    r"pass|passes|preserve|preserves|prove|proves|record|records|reject|rejects|"
+    r"restore|restores|show|shows|stay|stays|succeed|succeeds)\b|"
+    r"(?:<=|>=|==|<|>)",
+    re.IGNORECASE,
+)
+MEASURABLE_BINDING = re.compile(
+    r"\b(?:at least|at most|bounded|calculation|configured|configuration|"
+    r"every|each|exact|exactly|maximum|minimum|normal and peak|policy|"
+    r"percentile|RPO|RTO|threshold|time-bounded|zero|one|all five|bound|"
+    r"generated-case bound|pass condition|traceability check|runbook check|"
+    r"owner decision|observed measurement|recorded [A-Za-z0-9 -]+ boundary|"
+    r"approved (?:[A-Za-z0-9-]+ )?(?:boundary|case|control|environment|limit|"
+    r"outcome|requirement|result|target|trigger|workload))\b|"
+    r"\b(?:TEST|PROP|EV)-\d{3,}\b|"
+    r"`[^`\r\n]+`|"
+    r"\b(?:GET|POST|PUT|PATCH|DELETE)\s+/\S+|"
+    r"\b(?:python|pytest|npm|pnpm|yarn|cargo|go test|dotnet test)\b|"
+    r"\d+(?:\.\d+)?\s*(?:%|ms|s|seconds?|minutes?|hours?|requests?/s)?",
     re.IGNORECASE,
 )
 UNDEFINED_QUALITY_TERM = re.compile(
@@ -208,6 +232,33 @@ QAS_HEADERS = (
     "Artifact", "Response", "Response measure",
 )
 QAS_ID = re.compile(r"QAS-\d{3,}")
+HARNESS_HEADING = "### Gate B Harness Profile"
+HARNESS_HEADERS = (
+    "Harness ID",
+    "Layer",
+    "Selected check or tool",
+    "Trigger",
+    "Basis IDs",
+    "Exact command or API",
+    "Evidence destination",
+    "Required or conditional status",
+)
+HARNESS_ID = re.compile(r"HARNESS-\d{3,}")
+HARNESS_LAYERS = {
+    "Static",
+    "Unit",
+    "Integration",
+    "End-to-end",
+    "Property",
+    "Security and privacy",
+    "Reliability and recovery",
+    "Performance and scalability",
+    "IaC and policy",
+    "AWS environment and operations",
+}
+HARNESS_EVIDENCE_DESTINATION = (
+    "docs/project/VERIFY.md#harness-execution-evidence"
+)
 MANAGED_SERVERLESS_MARKER = "MANAGED_SERVERLESS_BASELINE:"
 PROPERTY_EXECUTION_HEADING = "### Property execution contract"
 PROPERTY_EXECUTION_HEADERS = (
@@ -379,6 +430,7 @@ class TaskSummary:
     statuses: dict[str, str] = field(default_factory=dict)
     ready: list[str] = field(default_factory=list)
     active: list[str] = field(default_factory=list)
+    write_sets: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def total(self) -> int:
@@ -569,6 +621,51 @@ class MaterialAwsEvidence:
 
 
 @dataclass(frozen=True)
+class HarnessRow:
+    harness_id: str
+    layer: str
+    selected_check: str
+    trigger: str
+    basis_ids: str
+    exact_command: str
+    evidence_destination: str
+    requirement_status: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "harness_id": self.harness_id,
+            "layer": self.layer,
+            "selected_check": self.selected_check,
+            "trigger": self.trigger,
+            "basis_ids": self.basis_ids,
+            "exact_command": self.exact_command,
+            "evidence_destination": self.evidence_destination,
+            "requirement_status": self.requirement_status,
+        }
+
+
+@dataclass(frozen=True)
+class HarnessContract:
+    schema_version: int = 1
+    status: str = "UNINITIALIZED"
+    rows: tuple[HarnessRow, ...] = ()
+    required_ids: tuple[str, ...] = ()
+    canonical_sha256: str | None = None
+    grandfathered_v1: bool = False
+    canonical_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "status": self.status,
+            "rows": [row.to_dict() for row in self.rows],
+            "required_ids": list(self.required_ids),
+            "canonical_sha256": self.canonical_sha256,
+            "grandfathered_v1": self.grandfathered_v1,
+        }
+
+
+@dataclass(frozen=True)
 class ArchitectureContract:
     schema_version: int = 1
     status: str = "UNINITIALIZED"
@@ -603,6 +700,7 @@ class DesignContract:
     technology_decisions: tuple[TechnologyDecision, ...] = ()
     property_execution: tuple[PropertyExecution, ...] = ()
     architecture: ArchitectureContract = field(default_factory=ArchitectureContract)
+    harness: HarnessContract = field(default_factory=HarnessContract)
     canonical_sha256: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -613,6 +711,7 @@ class DesignContract:
             "technology_decisions": [item.to_dict() for item in self.technology_decisions],
             "property_execution": [item.to_dict() for item in self.property_execution],
             "architecture": self.architecture.to_dict(),
+            "harness": self.harness.to_dict(),
             "canonical_sha256": self.canonical_sha256,
         }
 
@@ -2783,6 +2882,41 @@ def authoritative_requirement_ids(text: str) -> set[str]:
     return identifiers
 
 
+def concrete_requirement_subject(value: str) -> bool:
+    """Return whether a Fastlane EARS subject names a concrete project actor."""
+
+    subject = clean_cell(value)
+    return bool(
+        CONCRETE_SUBJECT.fullmatch(subject)
+        and subject.casefold() not in NON_CONCRETE_SUBJECTS
+        and not unresolved(subject)
+        and not any(character in subject for character in "<>{}")
+    )
+
+
+def observable_requirement_response(value: str) -> bool:
+    response = clean_cell(value)
+    return bool(
+        not unresolved(response)
+        and re.search(r"[A-Za-z]", response)
+        and not any(character in response for character in "<>{}")
+        and response.casefold()
+        not in {"be appropriate", "be fast", "be scalable", "be secure", "work"}
+    )
+
+
+def measurable_acceptance_is_bound(value: str) -> bool:
+    """Reject keyword-only claims while accepting an observable bound or check."""
+
+    words = re.findall(r"[A-Za-z0-9]+", value)
+    return bool(
+        len(words) >= 6
+        and MEASURABLE_EXPECTED_RESULT.search(value)
+        and MEASURABLE_BINDING.search(value)
+        and UNDEFINED_QUALITY_TERM.search(value) is None
+    )
+
+
 def requirement_method_issues(
     requirement_id: str,
     requirement: str,
@@ -2790,7 +2924,7 @@ def requirement_method_issues(
     acceptance_criteria: str,
     acceptance_form: str,
 ) -> list[str]:
-    """Return deterministic EARS and acceptance-contract issues for one row."""
+    """Return deterministic Fastlane EARS and acceptance issues for one row."""
 
     issues: list[str] = []
     values = {
@@ -2823,10 +2957,13 @@ def requirement_method_issues(
         issues.append(
             f"{requirement_id}: requirement does not match {ears_form} clause order"
         )
-    elif REQUIREMENT_SUBJECT.search(grammar.group("subject")) is None:
+    elif not concrete_requirement_subject(grammar.group("subject")):
         issues.append(
-            f"{requirement_id}: requirement subject must identify a system, "
-            "application, service, project, design, deployment, or operational subject"
+            f"{requirement_id}: requirement subject must be concrete and non-placeholder"
+        )
+    elif not observable_requirement_response(grammar.group("response")):
+        issues.append(
+            f"{requirement_id}: requirement response must be concrete and observable"
         )
     vague_requirement = UNDEFINED_QUALITY_TERM.search(requirement)
     if vague_requirement is not None:
@@ -2851,13 +2988,11 @@ def requirement_method_issues(
                 f"{requirement_id}: GHERKIN acceptance must use GIVEN, one WHEN, "
                 "and THEN in canonical order"
             )
-    elif (
-        MEASURABLE_ACCEPTANCE.search(acceptance_criteria) is None
-        or UNDEFINED_QUALITY_TERM.search(acceptance_criteria) is not None
-    ):
+    elif not measurable_acceptance_is_bound(acceptance_criteria):
         issues.append(
-            f"{requirement_id}: MEASURABLE acceptance requires an explicit observable "
-            "test, calculation, policy check, or bounded result"
+            f"{requirement_id}: MEASURABLE acceptance requires an observable expected "
+            "result plus a bound, policy/configuration check, exact command/API, or "
+            "stable TEST/PROP/EV binding"
         )
     return issues
 
@@ -2926,40 +3061,39 @@ def quality_attribute_scenario_issues(
                     f"{row_id}: Requirement IDs reference unknown requirements: "
                     + ", ".join(unknown)
                 )
-        if (
-            not unresolved(row[7])
-            and (
-                MEASURABLE_ACCEPTANCE.search(row[7]) is None
-                or UNDEFINED_QUALITY_TERM.search(row[7]) is not None
-            )
-        ):
+        if not unresolved(row[7]) and not measurable_acceptance_is_bound(row[7]):
             issues.append(
                 f"{row_id}: Response measure requires an explicit observable bound"
             )
     return issues
 
 
-def validate_gate_a_method_contract(ctx: Context, text: str) -> None:
-    """Fail closed on normative method contracts once Gate A is agent-ready."""
+def validate_gate_a_method_contract(
+    ctx: Context,
+    text: str,
+    *,
+    grandfather_approved_v1: bool = False,
+) -> None:
+    """Fail closed on the Fastlane EARS Contract at Gate A boundaries."""
 
     found = False
+    legacy_rows: list[str] = []
+    modern_tables = 0
     for table in markdown_tables(text):
         if not table:
             continue
         headers = tuple(table[0])
         if headers == LEGACY_REQUIREMENT_HEADERS:
             found = True
-            for row in table[2:]:
-                row_id = clean_cell(row[0]) if row else "REQ-UNKNOWN"
-                ctx.error(
-                    "REQUIREMENT_METHOD_CONTRACT",
-                    f"{row_id}: normative table is missing EARS form and Acceptance form",
-                    PRD_FILE,
-                )
+            legacy_rows.extend(
+                clean_cell(row[0]) if row else "REQ-UNKNOWN"
+                for row in table[2:]
+            )
             continue
         if headers != NORMATIVE_REQUIREMENT_HEADERS:
             continue
         found = True
+        modern_tables += 1
         for row in table[2:]:
             row_id = clean_cell(row[0]) if row else "REQ-UNKNOWN"
             if len(row) != len(NORMATIVE_REQUIREMENT_HEADERS):
@@ -2977,6 +3111,22 @@ def validate_gate_a_method_contract(ctx: Context, text: str) -> None:
             "REQ-SECTION: no authoritative normative requirement table was found",
             PRD_FILE,
         )
+        return
+
+    legacy_is_grandfathered = bool(
+        grandfather_approved_v1 and legacy_rows and modern_tables == 0
+    )
+    if legacy_rows and not legacy_is_grandfathered:
+        for row_id in legacy_rows:
+            ctx.error(
+                "REQUIREMENT_METHOD_MIGRATION_REQUIRED",
+                f"{row_id}: migrate the complete normative table to the Fastlane "
+                "EARS Contract before Gate A can become ready",
+                PRD_FILE,
+            )
+    if legacy_is_grandfathered:
+        return
+
     requirement_ids = authoritative_requirement_ids(text)
     for issue in quality_attribute_scenario_issues(text, requirement_ids):
         ctx.error("QAS_CONTRACT", issue, PRD_FILE)
@@ -3431,11 +3581,149 @@ def _derive_architecture_contract(
     )
 
 
+def harness_status_parts(value: str) -> tuple[str, str | None]:
+    cleaned = clean_cell(value)
+    if cleaned == "REQUIRED":
+        return "REQUIRED", None
+    for prefix in ("CONDITIONAL", "NOT_APPLICABLE"):
+        if not cleaned.startswith(prefix):
+            continue
+        suffix = cleaned[len(prefix):].strip()
+        if suffix.startswith("—"):
+            suffix = suffix[1:].strip()
+        elif suffix.startswith("-"):
+            suffix = suffix[1:].strip()
+        if suffix and not unresolved(suffix):
+            return prefix, suffix
+    return "INVALID", None
+
+
+def derive_harness_contract(
+    text: str,
+    allowed_basis_ids: set[str],
+    *,
+    required: bool,
+    grandfather_approved_v1: bool,
+) -> tuple[HarnessContract, list[str]]:
+    """Parse and validate the Gate B Harness Profile as design-controlled data."""
+
+    issues: list[str] = []
+    try:
+        table = contract_table_after_heading(text, HARNESS_HEADING, HARNESS_HEADERS)
+    except ValueError as exc:
+        table = None
+        issues.append(f"Harness Profile: {exc}")
+    if table is None:
+        if grandfather_approved_v1:
+            return (
+                HarnessContract(
+                    status="GRANDFATHERED_V1",
+                    grandfathered_v1=True,
+                ),
+                [],
+            )
+        return HarnessContract(), [f"Missing {HARNESS_HEADING}"]
+
+    rows: list[HarnessRow] = []
+    required_ids: list[str] = []
+    seen: set[str] = set()
+    for raw in table.rows:
+        row = HarnessRow(*raw)
+        rows.append(row)
+        if HARNESS_ID.fullmatch(row.harness_id) is None:
+            issues.append(f"{row.harness_id}: invalid Harness ID")
+        elif row.harness_id in seen:
+            issues.append(f"{row.harness_id}: duplicate Harness ID")
+        seen.add(row.harness_id)
+        if row.layer not in HARNESS_LAYERS:
+            issues.append(f"{row.harness_id}: invalid Harness layer {row.layer!r}")
+        if unresolved(row.trigger):
+            issues.append(f"{row.harness_id}: Trigger is unresolved")
+        try:
+            basis = _canonical_id_list(
+                row.basis_ids,
+                STABLE_CONTRACT_ID,
+                f"{row.harness_id} Basis IDs",
+            )
+        except ValueError as exc:
+            issues.append(str(exc))
+            basis = []
+        unknown = sorted(set(basis) - allowed_basis_ids)
+        if unknown:
+            issues.append(
+                f"{row.harness_id}: Basis IDs are not current design IDs: "
+                + ", ".join(unknown)
+            )
+
+        status, reason = harness_status_parts(row.requirement_status)
+        if status == "INVALID":
+            issues.append(
+                f"{row.harness_id}: status must be REQUIRED, CONDITIONAL — "
+                "<trigger>, or NOT_APPLICABLE — <reason>"
+            )
+            continue
+        if status == "NOT_APPLICABLE":
+            if any(
+                clean_cell(value) != "NOT_APPLICABLE"
+                for value in (
+                    row.selected_check,
+                    row.exact_command,
+                    row.evidence_destination,
+                )
+            ):
+                issues.append(
+                    f"{row.harness_id}: NOT_APPLICABLE rows must use "
+                    "NOT_APPLICABLE for check, command/API, and evidence destination"
+                )
+            if reason is None:
+                issues.append(
+                    f"{row.harness_id}: NOT_APPLICABLE requires a concrete reason"
+                )
+            continue
+
+        if unresolved(row.selected_check):
+            issues.append(f"{row.harness_id}: Selected check or tool is unresolved")
+        if not valid_property_execution_command(row.exact_command):
+            issues.append(
+                f"{row.harness_id}: Exact command or API must be one concrete command"
+            )
+        if row.evidence_destination != HARNESS_EVIDENCE_DESTINATION:
+            issues.append(
+                f"{row.harness_id}: Evidence destination must be exactly "
+                f"{HARNESS_EVIDENCE_DESTINATION}"
+            )
+        if status == "CONDITIONAL":
+            if reason is None:
+                issues.append(f"{row.harness_id}: CONDITIONAL requires a concrete trigger")
+            if required:
+                issues.append(
+                    f"{row.harness_id}: CONDITIONAL must resolve to REQUIRED or "
+                    "NOT_APPLICABLE before Gate B"
+                )
+        else:
+            required_ids.append(row.harness_id)
+
+    canonical = table.canonical_bytes
+    digest = "sha256:" + hashlib.sha256(canonical).hexdigest()
+    return (
+        HarnessContract(
+            schema_version=2,
+            status="READY" if not issues else "BLOCKED",
+            rows=tuple(rows),
+            required_ids=tuple(required_ids),
+            canonical_sha256=digest,
+            canonical_bytes=canonical,
+        ),
+        issues,
+    )
+
+
 def derive_design_contract(
     text: str,
     design_revision: str | None,
     *,
     required: bool = False,
+    grandfather_approved_v1: bool = False,
 ) -> tuple[DesignContract, list[str]]:
     issues: list[str] = []
     try:
@@ -3735,6 +4023,15 @@ def derive_design_contract(
         required=required,
     )
     issues.extend(architecture_issues)
+    harness, harness_issues = derive_harness_contract(
+        text,
+        allowed_basis_ids | set(technology_by_id),
+        required=required,
+        grandfather_approved_v1=(
+            grandfather_approved_v1 or architecture.grandfathered_v1
+        ),
+    )
+    issues.extend(harness_issues)
 
     canonical_sha256: str | None = None
     if (
@@ -3742,10 +4039,16 @@ def derive_design_contract(
         and applicability_table is not None
         and definition_table is not None
         and execution_table is not None
+        and (
+            harness.canonical_bytes is not None
+            or harness.grandfathered_v1
+        )
     ):
         architecture_bytes = architecture.canonical_bytes or b""
+        harness_bytes = harness.canonical_bytes or b""
         canonical_sha256 = "sha256:" + hashlib.sha256(
             architecture_bytes
+            + harness_bytes
             + technology_table.canonical_bytes
             + applicability_table.canonical_bytes
             + definition_table.canonical_bytes
@@ -3760,12 +4063,17 @@ def derive_design_contract(
     )
     return (
         DesignContract(
-            schema_version=architecture.schema_version,
+            schema_version=(
+                architecture.schema_version
+                if harness.grandfathered_v1
+                else max(3, architecture.schema_version)
+            ),
             status=status,
             design_revision=design_revision,
             technology_decisions=tuple(technologies),
             property_execution=tuple(executions),
             architecture=architecture,
+            harness=harness,
             canonical_sha256=canonical_sha256,
         ),
         issues,
@@ -4609,6 +4917,7 @@ def validate_construction_envelope(
             required_scope_ids.add(
                 design_contract.architecture.selection.architecture_id
             )
+        required_scope_ids.update(design_contract.harness.required_ids)
         missing_scope_ids = sorted(required_scope_ids - set(authorized_ids[2:]))
         if missing_scope_ids:
             ctx.error(
@@ -4874,17 +5183,40 @@ def validate_prd(
     }
     gate_b_agent_ready = gate_b_agent.get("Agent recommendation") == "READY_FOR_CONSTRUCTION_APPROVAL"
     design_contract_required = gate_b_agent_ready or gate_b_ready_or_current
+    grandfather_approved_v1_design = bool(
+        fields["gate_b"] == "APPROVED_FOR_CONSTRUCTION"
+        and gate_b_agent.get("Design revision reviewed")
+        == fields["design_revision"]
+        and gate_b_agent.get("Construction authorization ID reviewed")
+        == fields["construction_authorization"]
+        and gate_b_owner.get("Authorized design revision")
+        == fields["design_revision"]
+        and gate_b_owner.get("Authorized construction authorization ID")
+        == fields["construction_authorization"]
+    )
     design_contract, design_contract_issues = derive_design_contract(
         text,
         fields.get("design_revision"),
         required=design_contract_required,
+        grandfather_approved_v1=grandfather_approved_v1_design,
     )
     if design_contract_required:
         for issue in design_contract_issues:
             ctx.error("DESIGN_CONTRACT_INVALID", issue, PRD_FILE)
     card_cost_posture = clean_cell(gate_a_card.get("Cost posture", ""))
     if gate_a_agent_ready or gate_a_ready_or_current:
-        validate_gate_a_method_contract(ctx, text)
+        grandfather_approved_v1 = bool(
+            fields["gate_a"] == "APPROVED_FOR_DESIGN"
+            and gate_a_agent.get("Requirements revision reviewed")
+            == fields["requirements_revision"]
+            and gate_a_owner.get("Authorized requirements revision")
+            == fields["requirements_revision"]
+        )
+        validate_gate_a_method_contract(
+            ctx,
+            text,
+            grandfather_approved_v1=grandfather_approved_v1,
+        )
         validate_readiness_card(ctx, gate_a_card, GATE_A_READINESS_FIELDS, "GATE_A")
         try:
             parse_cost_posture(card_cost_posture)
@@ -5999,6 +6331,13 @@ def validate_tasks(
     summary.statuses = {task.task_id: task.status for task in tasks}
     summary.active = sorted(task.task_id for task in tasks if task.status == "IN_PROGRESS")
     summary.ready = sorted(ready)
+    for task in tasks:
+        try:
+            summary.write_sets[task.task_id] = parse_task_write_set(
+                task.metadata.get("Write set", ""), task.task_id
+            )
+        except ValueError:
+            summary.write_sets[task.task_id] = []
 
     state_active_value = execution.get("active_tasks")
     state_active = (
@@ -6392,6 +6731,291 @@ def derive_interaction(
     }
 
 
+def _split_authority_values(value: str) -> list[str]:
+    """Return conservative exact values from a comma- or semicolon-list."""
+
+    cleaned = clean_cell(value)
+    if not explicit_value(cleaned, allow_none=False):
+        return []
+    return [item.strip() for item in re.split(r"[,;]", cleaned) if item.strip()]
+
+
+def derive_write_authority(
+    ctx: Context,
+    envelope: dict[str, str],
+    tasks: TaskSummary,
+    construction_authorization: str,
+) -> dict[str, Any]:
+    """Project the current Gate B and active-task write boundaries for hooks."""
+
+    result: dict[str, Any] = {
+        "valid": False,
+        "authorization_id": "NONE",
+        "approved_write_roots": [],
+        "exclusions": [],
+        "protected_paths": [],
+        "active_task": "NONE",
+        "active_task_write_set": [],
+    }
+    if ctx.has_errors or construction_authorization == "NONE":
+        return result
+    try:
+        roots = parse_envelope_paths(
+            envelope.get("Allowed repository write set", ""),
+            "Allowed repository write set",
+            allow_none=False,
+        )
+        exclusions = parse_envelope_paths(
+            envelope.get("Excluded or owner-only write set", ""),
+            "Excluded or owner-only write set",
+            allow_none=True,
+        )
+        protected = parse_envelope_paths(
+            envelope.get("Protected dirty paths", ""),
+            "Protected dirty paths",
+            allow_none=True,
+        )
+    except ValueError:
+        return result
+    active_task = tasks.active[0] if len(tasks.active) == 1 else "NONE"
+    active_write_set = tasks.write_sets.get(active_task, []) if active_task != "NONE" else []
+    return {
+        "valid": True,
+        "authorization_id": construction_authorization,
+        "approved_write_roots": roots,
+        "exclusions": exclusions,
+        "protected_paths": protected,
+        "active_task": active_task,
+        "active_task_write_set": active_write_set,
+    }
+
+
+def _action_authorization_rows(text: str) -> dict[str, dict[str, str]]:
+    heading = "## Action authorization provenance"
+    structural = without_fenced_code(text)
+    matches = list(re.finditer(rf"^{re.escape(heading)}[ \t]*$", structural, re.MULTILINE))
+    if len(matches) != 1:
+        return {}
+    original_lines = text[matches[0].end() :].splitlines()
+    structural_lines = structural[matches[0].end() :].splitlines()
+    start = next(
+        (index for index, line in enumerate(structural_lines) if line.strip().startswith("|")),
+        None,
+    )
+    if start is None:
+        return {}
+    table: list[str] = []
+    for original, visible in zip(original_lines[start:], structural_lines[start:]):
+        if not visible.strip().startswith("|"):
+            break
+        table.append(original)
+    if len(table) < 4:
+        return {}
+    headers = [clean_cell(cell) for cell in split_table_row(table[0])]
+    result: dict[str, dict[str, str]] = {}
+    for line in table[2:]:
+        cells = [clean_cell(cell) for cell in split_table_row(line)]
+        if len(cells) != len(headers):
+            continue
+        row = dict(zip(headers, cells))
+        action = row.get("Action", "")
+        if action in {"Deployment", "Teardown"} and action not in result:
+            result[action] = row
+    return result
+
+
+def _receipt_fields(receipt: str, expected_title: str) -> dict[str, str] | None:
+    lines = receipt.splitlines()
+    if not lines or lines[0].strip() != expected_title:
+        return None
+    result: dict[str, str] = {}
+    for line in lines[1:]:
+        if ":" not in line:
+            return None
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if key in result or not explicit_value(value, allow_none=True):
+            return None
+        result[key] = value
+    return result
+
+
+def _authorization_valid_until(value: str, result: str) -> str | None:
+    cleaned = clean_cell(value)
+    normalized = cleaned[:-1] + "+00:00" if cleaned.endswith("Z") else cleaned
+    try:
+        expires = datetime.fromisoformat(normalized)
+    except ValueError:
+        return cleaned if explicit_value(cleaned) and result == "NOT_STARTED" else None
+    if expires.tzinfo is None or expires.utcoffset() is None:
+        return None
+    return cleaned if expires > datetime.now(timezone.utc) else None
+
+
+def _receipt_external_authority(
+    verify_text: str,
+    action: str,
+    construction_authorization: str,
+) -> dict[str, Any] | None:
+    gate = "aws-deployment" if action == "Deployment" else "aws-teardown"
+    title = "AUTHORIZE AWS DEPLOYMENT" if action == "Deployment" else "AUTHORIZE AWS TEARDOWN"
+    try:
+        receipt = marked_receipt(verify_text, gate)
+    except ValueError:
+        return None
+    fields = _receipt_fields(receipt, title)
+    row = _action_authorization_rows(verify_text).get(action)
+    if fields is None or row is None or unresolved(receipt):
+        return None
+    auth_key = "AWS authorization" if action == "Deployment" else "Teardown authorization"
+    authorization_id = fields.get(auth_key, "")
+    expected_pattern = r"AWS-AUTH-\d{4,}" if action == "Deployment" else r"TEARDOWN-AUTH-\d{4,}"
+    digest = "sha256:" + hashlib.sha256(receipt.encode("utf-8")).hexdigest()
+    result = clean_cell(row.get("Result", ""))
+    valid_until = _authorization_valid_until(fields.get("Valid until", ""), result)
+    if (
+        re.fullmatch(expected_pattern, authorization_id) is None
+        or fields.get("Construction authorization") != construction_authorization
+        or row.get("Authorization ID") != authorization_id
+        or row.get("Construction AUTH") != construction_authorization
+        or row.get("Role or profile") != fields.get("Profile or role")
+        or row.get("Approver") != fields.get("Approver")
+        or clean_cell(row.get("Verbatim receipt SHA-256", "")) != digest
+        or clean_cell(row.get("Identity and boundary match", "")) not in {"PASS", "VERIFIED"}
+        or not explicit_value(row.get("Preflight evidence", ""), allow_none=False)
+        or not explicit_value(row.get("Stable owner-message source", ""), allow_none=False)
+        or valid_until is None
+        or result not in {"NOT_STARTED", "AUTHORIZED", "READY"}
+    ):
+        return None
+    account = fields.get("Account", "")
+    region = fields.get("Region", "")
+    environment = fields.get("Environment", "")
+    if not all(explicit_value(value) for value in (account, region, environment)):
+        return None
+    if action == "Deployment":
+        resources = fields.get("Stack, application, and resources", "")
+        operations = fields.get("Allowed operations", "")
+        artifact = fields.get("Artifact digest", "")
+        plan = fields.get("IaC plan/change-set binding", "")
+        ceiling = fields.get("Cost ceiling", "")
+        rollback = fields.get("Rollback boundary", "")
+        kind = "AWS_DEPLOYMENT"
+    else:
+        resources = fields.get("Stack, application, and resources to remove", "")
+        operations = fields.get("Allowed deletion operations", "")
+        artifact = "NOT_APPLICABLE — teardown binds observed inventory"
+        plan = "NOT_APPLICABLE — teardown uses its removal and retention manifest"
+        ceiling = fields.get("Cost effect", "")
+        rollback = fields.get("Post-teardown verification", "")
+        kind = "AWS_TEARDOWN"
+    if not all(explicit_value(value, allow_none=True) for value in (resources, operations, ceiling, rollback)):
+        return None
+    return {
+        "kind": kind,
+        "validity": "CURRENT",
+        "authorization_id": authorization_id,
+        "receipt_digest": digest,
+        "account": account,
+        "region": region,
+        "environment": environment,
+        "role_or_profile": fields.get("Profile or role", ""),
+        "resources": _split_authority_values(resources) or [resources],
+        "operations": _split_authority_values(operations) or [operations],
+        "artifact_plan_binding": {"artifact": artifact, "plan": plan},
+        "cost_ceiling": ceiling,
+        "rollback_boundary": rollback,
+        "expiration": valid_until,
+    }
+
+
+def derive_external_authority(
+    ctx: Context,
+    envelope: dict[str, str],
+    lane: str | None,
+    construction_authorization: str,
+) -> dict[str, Any]:
+    """Project exact current AWS authority without creating new authority."""
+
+    empty: dict[str, Any] = {
+        "kind": "NONE",
+        "validity": "NONE",
+        "authorization_id": "NONE",
+        "receipt_digest": "NONE",
+        "account": "NONE",
+        "region": "NONE",
+        "environment": "NONE",
+        "role_or_profile": "NONE",
+        "resources": [],
+        "operations": [],
+        "artifact_plan_binding": {"artifact": "NONE", "plan": "NONE"},
+        "cost_ceiling": "NONE",
+        "rollback_boundary": "NONE",
+        "expiration": "NONE",
+    }
+    if ctx.has_errors or construction_authorization == "NONE":
+        return empty
+    boundary = envelope.get("AWS boundary", "NONE")
+    if boundary not in {"READ_ONLY", "MUTATE_LISTED_RESOURCES"}:
+        return empty
+    verify_text = ctx.texts.get(VERIFY_FILE, "")
+    if lane == "explicit-gate" and boundary == "MUTATE_LISTED_RESOURCES":
+        candidates = [
+            item
+            for item in (
+                _receipt_external_authority(verify_text, "Deployment", construction_authorization),
+                _receipt_external_authority(verify_text, "Teardown", construction_authorization),
+            )
+            if item is not None
+        ]
+        if len(candidates) == 1:
+            return candidates[0]
+        required = dict(empty)
+        required["kind"] = "AWS_ACTION_RECEIPT_REQUIRED"
+        required["validity"] = "REQUIRED" if not candidates else "CONFLICTING"
+        return required
+    try:
+        expiration = parse_future_expiry(envelope.get("AWS authorization validity", ""))
+    except ValueError:
+        return empty
+    environment = envelope.get("AWS environment", "")
+    environment_name = environment
+    try:
+        environment_name, _environment_class = parse_aws_environment(environment)
+    except ValueError:
+        pass
+    kind = "AWS_READ_ONLY" if boundary == "READ_ONLY" else "FAST_DEV_GATE_B"
+    cost_ceiling = envelope.get("AWS cost ceiling", "NONE")
+    if kind == "FAST_DEV_GATE_B":
+        try:
+            currency, amount = parse_positive_cost(
+                cost_ceiling,
+                AWS_COST_CEILING,
+                "AWS cost ceiling",
+            )
+            cost_ceiling = f"{currency}: {amount:.2f}"
+        except ValueError:
+            pass
+    return {
+        "kind": kind,
+        "validity": "CURRENT",
+        "authorization_id": construction_authorization,
+        "receipt_digest": "NONE",
+        "account": envelope.get("AWS account", "NONE"),
+        "region": envelope.get("AWS Region", "NONE"),
+        "environment": environment_name,
+        "role_or_profile": envelope.get("AWS role or profile", "NONE"),
+        "resources": _split_authority_values(envelope.get("AWS resource allowlist", "")),
+        "operations": _split_authority_values(envelope.get("AWS allowed operations", "")),
+        "artifact_plan_binding": {
+            "artifact": envelope.get("AWS artifact authorization and provenance", "NONE"),
+            "plan": envelope.get("AWS stack or application", "NONE"),
+        },
+        "cost_ceiling": cost_ceiling,
+        "rollback_boundary": envelope.get("AWS rollback boundary", "NONE"),
+        "expiration": expiration.isoformat(),
+    }
 def build_report(
     ctx: Context,
     lifecycle_state: str,
@@ -6463,6 +7087,12 @@ def build_report(
         and aws_boundary in {"READ_ONLY", "MUTATE_LISTED_RESOURCES"}
         else "NONE"
     )
+    write_authority = derive_write_authority(
+        ctx, envelope, tasks, construction_authorization
+    )
+    external_authority = derive_external_authority(
+        ctx, envelope, lane, construction_authorization
+    )
     diagnostic_codes = [item.code for item in ctx.diagnostics]
     interaction = derive_interaction(
         lifecycle_state,
@@ -6507,6 +7137,8 @@ def build_report(
             "construction": construction_authorization,
             "aws": aws_authorization,
         },
+        "write_authority": write_authority,
+        "external_authority": external_authority,
         "basis": {
             "requirements_revision": prd_fields.get("requirements_revision"),
             "design_revision": prd_fields.get("design_revision"),

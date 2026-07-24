@@ -1,8 +1,9 @@
 # Disposable AWS Canary Validation
 
 This optional field review tests Fastlane against real Codex behavior and a
-disposable AWS environment. Framework maintenance, ordinary CI, and the
-scorer in `scripts/aws_canary_eval.py` do not access AWS. A live run starts
+disposable AWS environment. The offline scorer in
+`scripts/aws_canary_eval.py` does not access AWS; framework maintenance and
+ordinary CI do not access AWS either. A live run starts
 only after the existing Gate A, Gate B, AWS-10, AWS-20, and teardown contracts
 are independently satisfied.
 
@@ -60,45 +61,47 @@ No step inherits authority from another. Gate B is not deployment authority,
 deployment or rollback authority is not teardown authority, and a tool or IAM
 permission never replaces an owner receipt.
 
-## Machine-readable result
+## Machine-readable evidence bundle
 
-Print the authoritative schema and required step identifiers:
+Print the authoritative offline contract:
 
 ```text
 python scripts/aws_canary_eval.py plan --json
 ```
 
-The untracked result contains exactly one observed run for each canary. Each
-run records:
+Create one untracked bundle root. Each canary run contains a manifest with
+SHA-256 bindings for:
 
-- exact account alias or 12-digit ID, Region, environment, and profile or role;
-- immutable artifact digest and plan or change-set type, identifier, and digest;
-- deployed resource boundary and Gate A, Gate B, deployment, and teardown
-  receipt references;
-- finite currency-qualified ceiling, observed cost, and validity period;
-- official AWS Core identity, both capability results, returned skill,
-  documentation query, official references, and observation time;
-- CloudTrail evidence reference;
-- controlled failure, rollback, teardown, residual-resource, and billing
-  results; and
-- one evidence reference for every required step.
+- Gate A and Gate B receipts;
+- AWS-20 deployment and distinct teardown authority;
+- CloudTrail export;
+- IaC plan or change set;
+- smoke tests, rollback, and teardown results; and
+- billing reports.
 
-Raw result files remain outside the repository unless an approved durable
-evidence location is named. Record only the non-secret summary and durable
-reference in `docs/project/VERIFY.md`. Score all three observed runs with:
+Every referenced path must stay inside the bundle root, be a regular
+non-symlink file, and match its digest. Normalized receipt fields must match the
+run's account, Region, environment, role, resources, operations, artifact and
+plan, Decimal cost ceiling, rollback boundary, and expiration. Chronology must
+show deployment authorization, deployment, controlled failure, rollback,
+teardown authorization, teardown, billing observation, and follow-up in order.
+Deployment authority never substitutes for teardown authority.
+
+Verify the exported bundle without AWS or credentials:
 
 ```text
-python scripts/aws_canary_eval.py score --input <results.json> --json
+python scripts/aws_canary_eval.py score --input <results.json> --bundle-root <evidence-bundle> --json
 ```
 
-The scorer is standard-library-only, performs no network or subprocess
-operation, and does not access AWS. It fails closed on missing canaries or
-fabricated-live
-flags, unknown fields, wrong AWS Core provenance, malformed bindings,
-non-finite or over-ceiling cost, missing CloudTrail evidence, failed rollback
-or teardown, unauthorized residual resources, or any indication that
-credentials or secret values were inspected or recorded.
+`CANARY_EVIDENCE_CONTRACT_PASS` proves exported evidence integrity and internal
+consistency only; it does not prove AWS truth. The verifier is
+standard-library-only and fails closed on traversal, symlinks, digest mismatch,
+duplicate runs, inconsistent identifiers, expired authority, non-canonical
+money, chronology errors, secrets, or missing evidence. It performs no network
+or subprocess operation.
 
+Raw bundles remain outside the repository. Record only a non-secret summary and
+durable reference in `docs/project/VERIFY.md`.
 ## Illustrative IAM boundaries
 
 These identity-policy fragments are illustrative starting points, not

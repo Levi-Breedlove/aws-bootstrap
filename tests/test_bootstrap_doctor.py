@@ -719,11 +719,47 @@ def complete_design_contract(text: str) -> str:
     text = text.replace("| PROP-001 | SEC-002 |", "| PROP-001 | FR-001 |", 1)
     text = re.sub(r"(?m)^\| PROP-00[2-5] \|.*\|\r?\n?", "", text)
     execution_table = property_execution_projection()
-    return put_contract_table(
+    text = put_contract_table(
         text,
         doctor.PROPERTY_EXECUTION_HEADING,
         execution_table,
         "Add workload-specific properties for:",
+    )
+    harness_rows = [
+        (
+            f"| HARNESS-{index:03d} | {layer} | NOT_APPLICABLE | "
+            "The focused fixture does not exercise this harness layer | "
+            "DES-0001, FR-001 | NOT_APPLICABLE | NOT_APPLICABLE | "
+            "NOT_APPLICABLE - the focused fixture validates other contracts |"
+        )
+        for index, layer in enumerate(
+            (
+                "Static",
+                "Unit",
+                "Integration",
+                "End-to-end",
+                "Property",
+                "Security and privacy",
+                "Reliability and recovery",
+                "Performance and scalability",
+                "IaC and policy",
+                "AWS environment and operations",
+            ),
+            start=1,
+        )
+    ]
+    harness_table = "\n".join(
+        [
+            "| Harness ID | Layer | Selected check or tool | Trigger | Basis IDs | Exact command or API | Evidence destination | Required or conditional status |",
+            "|---|---|---|---|---|---|---|---|",
+            *harness_rows,
+        ]
+    )
+    return put_contract_table(
+        text,
+        doctor.HARNESS_HEADING,
+        harness_table,
+        "## 27. Gate B agent review record",
     )
 
 
@@ -997,7 +1033,7 @@ class BootstrapDoctorTests(unittest.TestCase):
 
         self.assertTrue(report["ok"], report["diagnostics"])
         self.assertEqual(report["schema_version"], 2)
-        self.assertEqual(report["bootstrap_version"], "1.1.0")
+        self.assertEqual(report["bootstrap_version"], "1.2.0")
         self.assertEqual(report["classification"], "TEMPLATE_SOURCE")
         self.assertEqual(report["next_prompt"], "INTAKE-10")
         self.assertEqual(
@@ -1009,7 +1045,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             report["authorizations"],
             {"construction": "NONE", "aws": "NONE"},
         )
-        self.assertEqual(report["design_contract"]["schema_version"], 2)
+        self.assertEqual(report["design_contract"]["schema_version"], 3)
         self.assertIn(
             report["design_contract"]["status"],
             {"UNINITIALIZED", "BLOCKED"},
@@ -1058,7 +1094,7 @@ class BootstrapDoctorTests(unittest.TestCase):
                 "The system SHALL record the approved result.", "EVENT_DRIVEN", measurable,
             ),
             "requirement subject": (
-                "The worker SHALL record the approved result.", "UBIQUITOUS", measurable,
+                "The thing SHALL record the approved result.", "UBIQUITOUS", measurable,
             ),
             "requirement is unresolved": (
                 "TODO", "UBIQUITOUS", measurable,
@@ -1070,6 +1106,47 @@ class BootstrapDoctorTests(unittest.TestCase):
                     "FR-901", requirement, ears_form, acceptance, "MEASURABLE"
                 )
                 self.assertTrue(any(expected in issue for issue in issues), issues)
+
+    def test_fastlane_ears_accepts_concrete_subjects_and_commas(self) -> None:
+        cases = (
+            (
+                "The worker SHALL record the approved result.",
+                "UBIQUITOUS",
+            ),
+            (
+                "WHEN input contains commas, quotes, and spaces, the parser SHALL preserve the value.",
+                "EVENT_DRIVEN",
+            ),
+            (
+                "WHILE recovery handles old, partial state, WHEN a request contains commas, the coordinator SHALL preserve the current result.",
+                "COMPLEX",
+            ),
+        )
+        for requirement, ears_form in cases:
+            with self.subTest(requirement=requirement):
+                self.assertEqual(
+                    doctor.requirement_method_issues(
+                        "FR-903",
+                        requirement,
+                        ears_form,
+                        "A bounded test confirms the observable result for every approved case.",
+                        "MEASURABLE",
+                    ),
+                    [],
+                )
+
+    def test_measurable_acceptance_rejects_keyword_only_claims(self) -> None:
+        issues = doctor.requirement_method_issues(
+            "FR-904",
+            "The service SHALL reject invalid input.",
+            "UBIQUITOUS",
+            "Secure, bounded, policy compliant.",
+            "MEASURABLE",
+        )
+        self.assertTrue(
+            any("observable expected result" in issue for issue in issues),
+            issues,
+        )
 
     def test_gherkin_and_measurable_acceptance_forms_are_distinct(self) -> None:
         requirement = "The system SHALL record the approved result."
@@ -1110,6 +1187,54 @@ class BootstrapDoctorTests(unittest.TestCase):
         )
         issues = doctor.quality_attribute_scenario_issues(broken, requirement_ids)
         self.assertTrue(any("QAS-001: Response measure is unresolved" in issue for issue in issues))
+
+    def test_fastlane_ears_migration_is_complete_and_grandfathers_only_current_gate_a(self) -> None:
+        legacy = """| ID | Requirement | Acceptance criteria |
+|---|---|---|
+| FR-001 | Existing approved behavior | Existing approved observation |
+"""
+        grandfathered = doctor.Context(Path("."))
+        doctor.validate_gate_a_method_contract(
+            grandfathered,
+            legacy,
+            grandfather_approved_v1=True,
+        )
+        self.assertEqual(grandfathered.diagnostics, [])
+
+        unapproved = doctor.Context(Path("."))
+        doctor.validate_gate_a_method_contract(
+            unapproved,
+            legacy,
+            grandfather_approved_v1=False,
+        )
+        self.assertTrue(
+            any(
+                item.code == "REQUIREMENT_METHOD_MIGRATION_REQUIRED"
+                and "FR-001" in item.message
+                for item in unapproved.diagnostics
+            ),
+            unapproved.diagnostics,
+        )
+
+        partial = legacy + """
+| ID | Requirement | EARS form | Acceptance criteria | Acceptance form |
+|---|---|---|---|---|
+| FR-002 | The worker SHALL preserve the approved result. | UBIQUITOUS | A bounded test confirms every approved result is preserved. | MEASURABLE |
+"""
+        mixed = doctor.Context(Path("."))
+        doctor.validate_gate_a_method_contract(
+            mixed,
+            partial,
+            grandfather_approved_v1=True,
+        )
+        self.assertTrue(
+            any(
+                item.code == "REQUIREMENT_METHOD_MIGRATION_REQUIRED"
+                and "FR-001" in item.message
+                for item in mixed.diagnostics
+            ),
+            mixed.diagnostics,
+        )
 
     def test_gate_a_rejects_unresolved_normative_requirement(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1538,7 +1663,7 @@ class BootstrapDoctorTests(unittest.TestCase):
 
         self.assertEqual(issues, [])
         self.assertEqual(ready.status, "READY")
-        self.assertEqual(ready.schema_version, 2)
+        self.assertEqual(ready.schema_version, 3)
         self.assertEqual(ready.architecture.status, "READY")
         self.assertFalse(ready.architecture.grandfathered_v1)
         self.assertEqual(
@@ -1647,6 +1772,7 @@ class BootstrapDoctorTests(unittest.TestCase):
             doctor.ARCHITECTURE_SELECTION_HEADING,
             doctor.ARCHITECTURE_TRACEABILITY_HEADING,
             doctor.MATERIAL_AWS_EVIDENCE_HEADING,
+            doctor.HARNESS_HEADING,
         ):
             legacy = legacy.replace(heading, heading + " (legacy v1)", 1)
         grandfathered, grandfathered_issues = doctor.derive_design_contract(
@@ -1704,9 +1830,19 @@ class BootstrapDoctorTests(unittest.TestCase):
             self.assertTrue(ready_report["ok"], ready_report["diagnostics"])
             self.assertEqual(ready_report["status"], "RESUME")
             self.assertEqual(ready_report["next_prompt"], "TASK-10")
-            self.assertEqual(contract["schema_version"], 2)
+            self.assertEqual(contract["schema_version"], 3)
             self.assertEqual(contract["status"], "READY")
             self.assertEqual(contract["design_revision"], "DES-0001")
+            self.assertTrue(ready_report["write_authority"]["valid"])
+            self.assertEqual(
+                ready_report["write_authority"]["approved_write_roots"],
+                ["app/**", "tests/**"],
+            )
+            self.assertEqual(
+                ready_report["write_authority"]["exclusions"],
+                ["docs/project/PRD.md", "bootstrap.yaml"],
+            )
+            self.assertEqual(ready_report["external_authority"]["kind"], "NONE")
             self.assertEqual(len(contract["technology_decisions"]), 9)
             self.assertEqual(contract["technology_decisions"][6]["concern"], "PROPERTY_TESTING")
             self.assertEqual(contract["property_execution"][0]["framework_tech_id"], "TECH-0007")
@@ -1727,6 +1863,83 @@ class BootstrapDoctorTests(unittest.TestCase):
         self.assertEqual(blocked_report["design_contract"]["status"], "BLOCKED")
         self.assertEqual(blocked_report["gates"]["gate_b"], "APPROVED_FOR_CONSTRUCTION")
         self.assertEqual(blocked_report["next_prompt"], "STOP")
+
+    def test_exact_deployment_receipt_projects_current_external_authority(self) -> None:
+        verify_text = (PROJECT_ROOT / "docs/project/VERIFY.md").read_text(
+            encoding="utf-8"
+        )
+        receipt = "\n".join(
+            [
+                "AUTHORIZE AWS DEPLOYMENT",
+                "AWS authorization: AWS-AUTH-0001",
+                "Construction authorization: AUTH-0001",
+                "Profile or role: fastlane-deployment-role",
+                "Account: 111122223333",
+                "Region: us-west-2",
+                "Environment: development",
+                "Artifact digest: sha256:" + "a" * 64,
+                "IaC plan/change-set binding: TYPE: CLOUDFORMATION_CHANGE_SET; "
+                "IDENTIFIER: canary-change-set; DIGEST: sha256:" + "b" * 64,
+                "Stack, application, and resources: fastlane-stack",
+                "Allowed operations: cloudformation:CreateChangeSet, "
+                "cloudformation:ExecuteChangeSet",
+                "Cost ceiling: USD: 20.00",
+                "Rollback boundary: rollback fastlane-stack",
+                "Valid until: 2099-01-01T00:00:00Z",
+                "Approver: alice",
+            ]
+        )
+        receipt_digest = "sha256:" + hashlib.sha256(
+            receipt.encode("utf-8")
+        ).hexdigest()
+        verify_text = set_receipt(verify_text, "aws-deployment", receipt)
+        lines = verify_text.splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            if line.startswith("| Deployment | TODO |"):
+                suffix = "\n" if line.endswith("\n") else ""
+                lines[index] = (
+                    "| Deployment | AWS-AUTH-0001 | AUTH-0001 | "
+                    "fastlane-deployment-role | sha256:" + "a" * 64
+                    + " | TYPE: CLOUDFORMATION_CHANGE_SET; IDENTIFIER: "
+                    "canary-change-set; DIGEST: sha256:" + "b" * 64
+                    + " | ACCOUNT: 111122223333; REGION: us-west-2; "
+                    "ENVIRONMENT: development | RESOURCES: fastlane-stack; "
+                    "OPERATIONS: cloudformation:CreateChangeSet, "
+                    "cloudformation:ExecuteChangeSet | COST: USD: 20.00; "
+                    "VALID_UNTIL: 2099-01-01T00:00:00Z | "
+                    "rollback fastlane-stack | owner-message MSG-AWS-0001 | "
+                    "alice | 2027-01-01T00:00:00Z | "
+                    + receipt_digest
+                    + " | EV-AWS-0010 | PASS | READY |"
+                    + suffix
+                )
+                break
+        else:
+            self.fail("Deployment authorization provenance row not found")
+        authority = doctor._receipt_external_authority(
+            "".join(lines), "Deployment", "AUTH-0001"
+        )
+
+        self.assertIsNotNone(authority)
+        self.assertEqual(authority["kind"], "AWS_DEPLOYMENT")
+        self.assertEqual(authority["validity"], "CURRENT")
+        self.assertEqual(authority["authorization_id"], "AWS-AUTH-0001")
+        self.assertEqual(authority["receipt_digest"], receipt_digest)
+        self.assertEqual(authority["account"], "111122223333")
+        self.assertEqual(authority["region"], "us-west-2")
+        self.assertEqual(authority["environment"], "development")
+        self.assertEqual(authority["role_or_profile"], "fastlane-deployment-role")
+        self.assertEqual(authority["resources"], ["fastlane-stack"])
+        self.assertEqual(
+            authority["operations"],
+            [
+                "cloudformation:CreateChangeSet",
+                "cloudformation:ExecuteChangeSet",
+            ],
+        )
+        self.assertEqual(authority["cost_ceiling"], "USD: 20.00")
+        self.assertEqual(authority["rollback_boundary"], "rollback fastlane-stack")
+        self.assertEqual(authority["expiration"], "2099-01-01T00:00:00Z")
 
     def test_gate_b_binds_live_design_contract_hash_and_required_scope_ids(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -3481,6 +3694,30 @@ class BootstrapDoctorTests(unittest.TestCase):
         self.assertNotIn("AWS_LANE_BOUNDARY", codes(valid_mutation_report))
         self.assertNotIn("GATE_B_ENVELOPE", codes(explicit_gate_report))
         self.assertNotIn("AWS_LANE_BOUNDARY", codes(explicit_gate_report))
+        self.assertEqual(
+            valid_mutation_report["external_authority"]["kind"],
+            "FAST_DEV_GATE_B",
+        )
+        self.assertEqual(
+            valid_mutation_report["external_authority"]["validity"],
+            "CURRENT",
+        )
+        self.assertEqual(
+            valid_mutation_report["external_authority"]["account"],
+            "ACCOUNT: 123456789012",
+        )
+        self.assertEqual(
+            valid_mutation_report["external_authority"]["region"],
+            "REGION: us-west-2",
+        )
+        self.assertEqual(
+            valid_mutation_report["external_authority"]["cost_ceiling"],
+            "USD: 20.00",
+        )
+        self.assertEqual(
+            explicit_gate_report["external_authority"]["kind"],
+            "AWS_ACTION_RECEIPT_REQUIRED",
+        )
 
     def test_cost_posture_and_mutation_ceiling_are_canonical_and_bounded(self) -> None:
         self.assertIsNone(

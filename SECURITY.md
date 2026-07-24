@@ -2,8 +2,7 @@
 
 ## Supported state
 
-Security corrections are maintained on `main`. A release identifies the exact
-template revision it contains.
+Fastlane 1.2 preview corrections are maintained on `fast-lane-maint`; `main` remains frozen as the stable line. A published release, if separately authorized, identifies the exact template revision it contains.
 
 ## Report a concern
 
@@ -39,8 +38,7 @@ native Codex trust prompt after review.
 
 The handler does not read transcripts, log prompts or tool inputs, persist
 trust or secrets, inspect credentials, or access AWS. It never auto-allows an
-approval request. Its denials and continuation checks are defense in depth;
-they do not grant Gate A, Gate B, GitHub, AWS, or teardown authority. Review all
+approval request. Its denials and continuation checks are defense in depth. Doctor-projected write and external authority remain derived views of existing receipts; they grant nothing. A hook allow is never Gate A, Gate B, GitHub, AWS, or teardown authority. Review all
 active hook sources in `/hooks` because Codex can load matching hooks from more
 than one configuration layer.
 

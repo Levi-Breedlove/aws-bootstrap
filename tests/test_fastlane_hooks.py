@@ -24,10 +24,26 @@ def report(
     automatic: bool = False,
     owner_action: bool = True,
     formal_receipt: bool = False,
+    write_authority: dict[str, object] | None = None,
+    external_authority: dict[str, object] | None = None,
 ) -> dict[str, object]:
     return {
         "gates": {"gate_a": "BLOCKED", "gate_b": "BLOCKED"},
         "authorizations": {"construction": construction, "aws": aws},
+        "write_authority": write_authority or {
+            "valid": False,
+            "approved_write_roots": [],
+            "exclusions": [],
+            "protected_paths": [],
+            "active_task": "NONE",
+            "active_task_write_set": [],
+        },
+        "external_authority": external_authority or {
+            "kind": "NONE",
+            "validity": "NONE",
+            "resources": [],
+            "operations": [],
+        },
         "interaction": {
             "owner_stage": "DEFINE",
             "owner_action_kind": "ANSWER_OPEN_DECISIONS",
@@ -46,6 +62,19 @@ def payload(event: str, root: Path, **values: object) -> dict[str, object]:
     }
     result.update(values)
     return result
+
+
+def aws_request(operation: str, stack: str = "fastlane-stack") -> dict[str, str]:
+    return {
+        "operation_name": operation,
+        "stack_name": stack,
+        "account": "111122223333",
+        "region": "us-west-2",
+        "environment": "development",
+        "role": "fastlane-role",
+        "artifact": "sha256:abc",
+        "plan": "change-set-1",
+    }
 
 
 class FastlaneHookTests(unittest.TestCase):
@@ -220,6 +249,196 @@ class FastlaneHookTests(unittest.TestCase):
         )
         self.assertIsNone(result)
 
+    def test_write_authority_enforces_roots_exclusions_protection_and_active_task(self) -> None:
+        authority = {
+            "valid": True,
+            "approved_write_roots": ["app/**"],
+            "exclusions": ["app/owner-only/**"],
+            "protected_paths": ["app/protected.txt"],
+            "active_task": "TASK-0001",
+            "active_task_write_set": ["app/service/**"],
+        }
+        allowed = fastlane_hook.handle_event(
+            "pre-tool-use",
+            payload(
+                "PreToolUse",
+                self.root,
+                tool_name="apply_patch",
+                tool_input={"path": "app/service/handler.py", "command": ""},
+            ),
+            root=self.root,
+            doctor_report=report(construction="AUTH-0001", write_authority=authority),
+            envelope={"AWS boundary": "NONE", "GitHub boundary": "NONE"},
+        )
+        self.assertIsNone(allowed)
+        for path, reason in (
+            ("docs/project/PRD.md", "Gate B write roots"),
+            ("app/owner-only/secret.txt", "excluded write path"),
+            ("app/protected.txt", "protected dirty path"),
+            ("app/other/file.py", "active write set"),
+        ):
+            with self.subTest(path=path):
+                denied = fastlane_hook.handle_event(
+                    "pre-tool-use",
+                    payload(
+                        "PreToolUse",
+                        self.root,
+                        tool_name="apply_patch",
+                        tool_input={"path": path, "command": ""},
+                    ),
+                    root=self.root,
+                    doctor_report=report(construction="AUTH-0001", write_authority=authority),
+                    envelope={"AWS boundary": "NONE", "GitHub boundary": "NONE"},
+                )
+                self.assertIn(reason, denied["hookSpecificOutput"]["permissionDecisionReason"])
+
+    def test_aws_read_fast_dev_explicit_deployment_and_teardown_are_distinct(self) -> None:
+        base = {
+            "validity": "CURRENT",
+            "account": "111122223333",
+            "region": "us-west-2",
+            "environment": "development",
+            "role_or_profile": "fastlane-role",
+            "resources": ["fastlane-stack"],
+            "artifact_plan_binding": {"artifact": "sha256:abc", "plan": "change-set-1"},
+        }
+        read = {**base, "kind": "AWS_READ_ONLY", "operations": ["DescribeStacks"]}
+        self.assertIsNone(
+            fastlane_hook.handle_event(
+                "pre-tool-use",
+                payload(
+                    "PreToolUse", self.root,
+                    tool_name="mcp__aws-core__call_aws",
+                    tool_input={"operation_name": "DescribeStacks", "region": "us-west-2"},
+                ),
+                root=self.root,
+                doctor_report=report(aws="AUTH-0001", external_authority=read),
+                envelope={"AWS boundary": "READ_ONLY", "GitHub boundary": "NONE"},
+            )
+        )
+        fast_dev = {**base, "kind": "FAST_DEV_GATE_B", "operations": ["CreateStack"]}
+        self.assertIsNone(
+            fastlane_hook.handle_event(
+                "permission-request",
+                payload(
+                    "PermissionRequest", self.root,
+                    tool_name="mcp__aws-core__call_aws",
+                    tool_input=aws_request("CreateStack"),
+                ),
+                root=self.root,
+                doctor_report=report(aws="AUTH-0001", external_authority=fast_dev),
+                envelope={"AWS boundary": "MUTATE_LISTED_RESOURCES", "GitHub boundary": "NONE"},
+            )
+        )
+        partial_operation = fastlane_hook.handle_event(
+            "pre-tool-use",
+            payload(
+                "PreToolUse", self.root,
+                tool_name="mcp__aws-core__call_aws",
+                tool_input={**aws_request("CreateStack"), "operation_name": "Create"},
+            ),
+            root=self.root,
+            doctor_report=report(aws="AUTH-0001", external_authority=fast_dev),
+            envelope={"AWS boundary": "MUTATE_LISTED_RESOURCES", "GitHub boundary": "NONE"},
+        )
+        self.assertIn(
+            "exact operation",
+            partial_operation["hookSpecificOutput"]["permissionDecisionReason"],
+        )
+        partial_resource = fastlane_hook.handle_event(
+            "pre-tool-use",
+            payload(
+                "PreToolUse", self.root,
+                tool_name="mcp__aws-core__call_aws",
+                tool_input=aws_request("CreateStack", "fastlane"),
+            ),
+            root=self.root,
+            doctor_report=report(aws="AUTH-0001", external_authority=fast_dev),
+            envelope={"AWS boundary": "MUTATE_LISTED_RESOURCES", "GitHub boundary": "NONE"},
+        )
+        self.assertIn(
+            "resource target",
+            partial_resource["hookSpecificOutput"]["permissionDecisionReason"],
+        )
+        deployment = {**base, "kind": "AWS_DEPLOYMENT", "operations": ["UpdateStack"]}
+        teardown = {**base, "kind": "AWS_TEARDOWN", "operations": ["DeleteStack"]}
+        self.assertIsNone(
+            fastlane_hook.handle_event(
+                "permission-request",
+                payload(
+                    "PermissionRequest", self.root,
+                    tool_name="mcp__aws-core__call_aws",
+                    tool_input=aws_request("UpdateStack"),
+                ),
+                root=self.root,
+                doctor_report=report(aws="AWS-AUTH-0001", external_authority=deployment),
+                envelope={"AWS boundary": "MUTATE_LISTED_RESOURCES", "GitHub boundary": "NONE"},
+            )
+        )
+        for missing_field in ("account", "region", "environment", "role", "artifact", "plan"):
+            with self.subTest(missing_field=missing_field):
+                incomplete = aws_request("UpdateStack")
+                incomplete.pop(missing_field)
+                denied = fastlane_hook.handle_event(
+                    "pre-tool-use",
+                    payload(
+                        "PreToolUse", self.root,
+                        tool_name="mcp__aws-core__call_aws",
+                        tool_input=incomplete,
+                    ),
+                    root=self.root,
+                    doctor_report=report(aws="AWS-AUTH-0001", external_authority=deployment),
+                    envelope={"AWS boundary": "MUTATE_LISTED_RESOURCES", "GitHub boundary": "NONE"},
+                )
+                self.assertIn(
+                    "not observable",
+                    denied["hookSpecificOutput"]["permissionDecisionReason"],
+                )
+        denied_teardown = fastlane_hook.handle_event(
+            "pre-tool-use",
+            payload(
+                "PreToolUse", self.root,
+                tool_name="mcp__aws-core__call_aws",
+                tool_input=aws_request("DeleteStack"),
+            ),
+            root=self.root,
+            doctor_report=report(aws="AWS-AUTH-0001", external_authority=deployment),
+            envelope={"AWS boundary": "MUTATE_LISTED_RESOURCES", "GitHub boundary": "NONE"},
+        )
+        self.assertIn("distinct current teardown receipt", denied_teardown["hookSpecificOutput"]["permissionDecisionReason"])
+        self.assertIsNone(
+            fastlane_hook.handle_event(
+                "pre-tool-use",
+                payload(
+                    "PreToolUse", self.root,
+                    tool_name="mcp__aws-core__call_aws",
+                    tool_input=aws_request("DeleteStack"),
+                ),
+                root=self.root,
+                doctor_report=report(aws="TEARDOWN-AUTH-0001", external_authority=teardown),
+                envelope={"AWS boundary": "MUTATE_LISTED_RESOURCES", "GitHub boundary": "NONE"},
+            )
+        )
+
+    def test_wrappers_mixed_chains_and_run_script_fail_closed(self) -> None:
+        external = {
+            "kind": "FAST_DEV_GATE_B",
+            "validity": "CURRENT",
+            "resources": ["fastlane-stack"],
+            "operations": ["CreateStack"],
+        }
+        for tool_name, tool_input in (
+            ("Bash", {"command": "bash -c 'aws cloudformation create-stack --stack-name fastlane-stack; aws cloudformation delete-stack --stack-name fastlane-stack'"}),
+            ("mcp__aws-core__run_script", {"script": "print('opaque')"}),
+        ):
+            denied = fastlane_hook.handle_event(
+                "pre-tool-use",
+                payload("PreToolUse", self.root, tool_name=tool_name, tool_input=tool_input),
+                root=self.root,
+                doctor_report=report(aws="AUTH-0001", external_authority=external),
+                envelope={"AWS boundary": "MUTATE_LISTED_RESOURCES", "GitHub boundary": "NONE"},
+            )
+            self.assertIn("ambiguous", denied["hookSpecificOutput"]["permissionDecisionReason"].casefold())
     def test_permission_request_never_auto_allows(self) -> None:
         result = fastlane_hook.handle_event(
             "permission-request",
